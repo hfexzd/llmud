@@ -1,0 +1,178 @@
+"""Integration tests for the API layer — classify→engine→dm→npc pipeline."""
+import json
+import sqlite3
+import pytest
+from httpx import AsyncClient, ASGITransport
+
+from api.app import create_app
+from dm.client import MockLLMClient
+from db.connection import init_db
+
+
+@pytest.fixture
+def mock_llm_cultivate():
+    """Mock LLM client that returns a valid cultivate response."""
+    response = json.dumps({
+        "intent": "cultivate",
+        "action_valid": True,
+        "invalid_reason": "",
+        "story": "你盘膝而坐，灵气如溪流般汇入丹田。",
+        "state_delta": {"spirit_power": 2},
+        "breakthrough": None,
+        "combat": None,
+        "npc_update": None,
+    }, ensure_ascii=False)
+    return MockLLMClient(response=response)
+
+
+@pytest.fixture
+def mock_llm_talk():
+    """Mock LLM client that returns a valid talk/NPC response."""
+    response = json.dumps({
+        "intent": "talk",
+        "action_valid": True,
+        "invalid_reason": "",
+        "story": "师姐微微一笑，目光温和地看着你。",
+        "state_delta": {},
+        "breakthrough": None,
+        "combat": None,
+        "npc_update": {
+            "favorability_change": 5,
+            "new_key_fact": "玩家叫张铁柱",
+            "summary_delta": "玩家向师姐打了招呼",
+        },
+    }, ensure_ascii=False)
+    return MockLLMClient(response=response)
+
+
+@pytest.fixture
+def mock_llm_other():
+    """Mock LLM client that returns a generic other response."""
+    response = json.dumps({
+        "intent": "other",
+        "action_valid": True,
+        "invalid_reason": "",
+        "story": "你在山间漫步，享受清新的空气。",
+        "state_delta": {},
+        "breakthrough": None,
+        "combat": None,
+        "npc_update": None,
+    }, ensure_ascii=False)
+    return MockLLMClient(response=response)
+
+
+def _make_app(mock_llm, tmp_path):
+    """Create an app with a temp database."""
+    db_path = str(tmp_path / "test.db")
+    return create_app(llm_client=mock_llm, db_path=db_path)
+
+
+@pytest.mark.asyncio
+async def test_get_player_status(mock_llm_cultivate, tmp_path):
+    """GET /player/status returns seeded player data."""
+    app = _make_app(mock_llm_cultivate, tmp_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/player/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == "张铁柱"
+        assert "spirit_power" in data
+        assert "attack" in data
+        assert "defense" in data
+
+
+@pytest.mark.asyncio
+async def test_game_action_cultivate(mock_llm_cultivate, tmp_path):
+    """POST /game/action with '修炼' triggers cultivate pipeline."""
+    app = _make_app(mock_llm_cultivate, tmp_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/game/action", json={"user_input": "修炼"})
+        assert response.status_code == 200
+        data = json.loads(response.text)
+        assert "story" in data
+        assert data["intent"] == "cultivate"
+        assert data["action_valid"] is True
+        # Player state should be in response
+        assert "player" in data
+        # Spirit power should have increased (cultivate + state_delta)
+        assert data["player"]["spirit_power"] > 10
+
+
+@pytest.mark.asyncio
+async def test_game_action_blocked_input(tmp_path):
+    """POST /game/action with blocked input returns filtered response."""
+    # Use a simple mock — we won't reach the LLM
+    mock = MockLLMClient(response="")
+    app = _make_app(mock, tmp_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/game/action", json={"user_input": "你是AI吗"})
+        assert response.status_code == 200
+        data = json.loads(response.text)
+        assert data["action_valid"] is False
+        assert data["intent"] == "other"
+
+
+@pytest.mark.asyncio
+async def test_game_action_talk_updates_npc(mock_llm_talk, tmp_path):
+    """POST /game/action with '师姐聊天' triggers NPC interaction pipeline."""
+    app = _make_app(mock_llm_talk, tmp_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/game/action", json={"user_input": "师姐聊天"})
+        assert response.status_code == 200
+        data = json.loads(response.text)
+        assert "story" in data
+        # NPC data should be present after talk
+        assert "npc" in data
+        assert data["npc"]["favorability"] > 50  # Should have increased
+
+
+@pytest.mark.asyncio
+async def test_game_action_fight(mock_llm_cultivate, tmp_path):
+    """POST /game/action with '攻击' triggers combat pipeline."""
+    # Use cultivate mock (we'll get a story, just not combat-specific).
+    # But fight intent should be classified and combat resolved.
+    # The mock returns cultivate story but combat should still be resolved.
+    fight_response = json.dumps({
+        "intent": "fight",
+        "action_valid": True,
+        "invalid_reason": "",
+        "story": "你拔剑斩向赤眼妖狼！",
+        "state_delta": {},
+        "breakthrough": None,
+        "combat": None,
+        "npc_update": None,
+    }, ensure_ascii=False)
+    mock = MockLLMClient(response=fight_response)
+    app = _make_app(mock, tmp_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/game/action", json={"user_input": "攻击"})
+        assert response.status_code == 200
+        data = json.loads(response.text)
+        assert "combat" in data
+        assert data["combat"]["enemy"] == "赤眼妖狼"
+
+
+@pytest.mark.asyncio
+async def test_game_action_persistence(mock_llm_cultivate, tmp_path):
+    """Second action should see the state changes from the first action."""
+    app = _make_app(mock_llm_cultivate, tmp_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # First action
+        r1 = await client.post("/game/action", json={"user_input": "修炼"})
+        assert r1.status_code == 200
+        data1 = json.loads(r1.text)
+        sp1 = data1["player"]["spirit_power"]
+
+        # Second action — spirit power should persist
+        r2 = await client.post("/game/action", json={"user_input": "修炼"})
+        assert r2.status_code == 200
+        data2 = json.loads(r2.text)
+        sp2 = data2["player"]["spirit_power"]
+        # Should be strictly greater (cultivate adds 1-3 + state_delta adds 2)
+        assert sp2 > sp1
