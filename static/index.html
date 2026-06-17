@@ -158,8 +158,8 @@
                     let cleanJson = fullText.replace(/```json/g, '').replace(/```/g, '').trim();
                     const result = JSON.parse(cleanJson);
 
-                    // Show story text
-                    aiBubbleEl.innerText = result.story || fullText;
+                    // Show story text (fallback if empty)
+                    aiBubbleEl.innerText = result.story || '（你的行动似乎没有引起什么变化……）';
 
                     // Show battle card if combat
                     if (result.combat) {

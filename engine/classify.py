@@ -9,7 +9,7 @@ CULTIVATE_PATTERNS = [
 
 TALK_PATTERNS = [
     r"师姐", r"和.+说话", r"跟.+聊", r"对.+说", r"告诉",
-    r"问", r"聊聊", r"搭话",
+    r"问.{0,2}(题|好|话|事|人)", r"问问", r"聊聊", r"搭话",
 ]
 
 FIGHT_PATTERNS = [

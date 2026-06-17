@@ -150,6 +150,18 @@ def create_router(
             system_prompt=system_prompt, user_prompt=user_prompt,
         )
 
+        # Ensure story is never empty — provide a fallback based on intent
+        story = dm_response.story
+        if not story or not story.strip():
+            story_fallbacks = {
+                Intent.CULTIVATE: f"{player.name}盘膝而坐，静静修炼，灵气缓缓涌入丹田。",
+                Intent.TALK: f"{player.name}与身边的人交谈了几句。",
+                Intent.FIGHT: f"{player.name}与妖兽展开了激烈的交锋！",
+                Intent.MOVE: f"{player.name}向新的方向走去。",
+                Intent.OTHER: f"{player.name}的行动似乎没有引起什么变化。",
+            }
+            story = story_fallbacks.get(intent, f"{player.name}的行动似乎没有引起什么变化。")
+
         # Apply state_delta from DM (for move/other intents)
         if dm_response.state_delta and dm_response.action_valid:
             updates = {}
@@ -198,9 +210,9 @@ def create_router(
 
         # Build response
         response_data = {
-            "intent": dm_response.intent.value,
+            "intent": intent.value,  # Use our classified intent, not DM's
             "action_valid": dm_response.action_valid,
-            "story": dm_response.story,
+            "story": story,
             "state_delta": dm_response.state_delta or {},
             "player": {
                 "name": player.name,
