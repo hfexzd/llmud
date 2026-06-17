@@ -24,28 +24,30 @@ class PlayerRepository:
             affinity=row["affinity"],
             location=row["location"],
             inventory=json.loads(row["inventory"]),
+            recent_stories=json.loads(row["recent_stories"]) if "recent_stories" in row.keys() else [],
             created_at=datetime.fromisoformat(row["created_at"]),
             last_seen=datetime.fromisoformat(row["last_seen"]),
         )
 
     def save(self, player: Player) -> None:
         self.conn.execute(
-            """INSERT INTO players (id, name, level, spirit_power, hp, max_hp, affinity, location, inventory, created_at, last_seen)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO players (id, name, level, spirit_power, hp, max_hp, affinity, location, inventory, recent_stories, created_at, last_seen)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (player.id, player.name, player.level, player.spirit_power,
              player.hp, player.max_hp, player.affinity, player.location,
-             json.dumps(player.inventory), player.created_at.isoformat(),
-             player.last_seen.isoformat()),
+             json.dumps(player.inventory), json.dumps(player.recent_stories, ensure_ascii=False),
+             player.created_at.isoformat(), player.last_seen.isoformat()),
         )
         self.conn.commit()
 
     def update(self, player: Player) -> None:
         self.conn.execute(
             """UPDATE players SET name=?, level=?, spirit_power=?, hp=?, max_hp=?,
-               affinity=?, location=?, inventory=?, last_seen=? WHERE id=?""",
+               affinity=?, location=?, inventory=?, recent_stories=?, last_seen=? WHERE id=?""",
             (player.name, player.level, player.spirit_power, player.hp,
              player.max_hp, player.affinity, player.location,
-             json.dumps(player.inventory), datetime.now().isoformat(), player.id),
+             json.dumps(player.inventory), json.dumps(player.recent_stories, ensure_ascii=False),
+             datetime.now().isoformat(), player.id),
         )
         self.conn.commit()
 

@@ -16,6 +16,7 @@ def init_db(conn: sqlite3.Connection):
             affinity TEXT NOT NULL DEFAULT '火',
             location TEXT NOT NULL DEFAULT '青云门外门柴房',
             inventory TEXT NOT NULL DEFAULT '[]',
+            recent_stories TEXT NOT NULL DEFAULT '[]',
             created_at TEXT NOT NULL,
             last_seen TEXT NOT NULL
         )

@@ -116,6 +116,7 @@ def create_router(
             combat_result=combat_result,
             breakthrough=breakthrough,
             npc_context=npc_context,
+            recent_stories=player.recent_stories,
         )
 
         # Prepend the user's actual input to the prompt
@@ -204,6 +205,13 @@ def create_router(
                 recent_turns=[t.model_dump() for t in memory.recent_turns],
                 key_facts=[f.model_dump() for f in memory.key_facts],
             )
+
+        # Update recent story history (keep last 5)
+        updated_stories = list(player.recent_stories or [])
+        updated_stories.append(story)
+        if len(updated_stories) > 5:
+            updated_stories = updated_stories[-5:]
+        player = player.model_copy(update={"recent_stories": updated_stories})
 
         # Persist player state
         player_repo.update(player)

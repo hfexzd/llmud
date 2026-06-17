@@ -38,6 +38,7 @@ class Player(BaseModel):
     affinity: str = "火"
     location: str = "青云门外门柴房"
     inventory: list[str] = Field(default_factory=list)
+    recent_stories: list[str] = Field(default_factory=list)  # Last N story texts for context
     created_at: datetime = Field(default_factory=datetime.now)
     last_seen: datetime = Field(default_factory=datetime.now)
 

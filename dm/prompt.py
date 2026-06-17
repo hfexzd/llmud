@@ -13,12 +13,17 @@ DM_SYSTEM_TEMPLATE = """你是一款文字修仙 MUD 游戏的"动态地下城�
 
 {engine_context}
 
+【近期事件】：
+{recent_stories}
+
 【硬性规则】：
 1. 你的每一次回复【必须】严格遵守以下 JSON 格式，不要包含任何 markdown 标记（如 ```json），直接返回纯 JSON 字符串。
 2. 玩家不能凭空无敌。
 3. 故事描写【不得为空】，必须生成一段叙事文字，限制在120字以内。无论玩家行动多么简单，都必须给出story字段。
 4. 战斗数值【必须】与引擎结算结果完全一致，不得臆造。
-5. 如果不确定如何描写，也要给出一个简短但有画面感的叙事。"""
+5. 如果不确定如何描写，也要给出一个简短但有画面感的叙事。
+6. 【叙事一致性】你【必须】参考【近期事件】中的内容！玩家之前做过的事、吃过的东西、去过的地方必须保持一致。如果玩家之前吃了"凝露草"，就不能说吃了"丹药"；如果玩家已经到了"竹林"，就不能说玩家在"柴房"。
+7. 【地点一致性】玩家当前所在地点为"{location}"，你的叙事【必须】以这个地点为场景，不得凭空将玩家传送到其他地点。"""
 
 ENGINE_CONTEXT_TEMPLATES = {
     "cultivate": "【引擎结算】修炼成功，灵力增加。",
@@ -45,6 +50,7 @@ def build_dm_prompt(
     combat_result: CombatResult | None = None,
     breakthrough: BreakthroughResult | None = None,
     npc_context: str = "",
+    recent_stories: list[str] | None = None,
 ) -> tuple[str, str]:
     """Build the system and user prompts for the DM LLM call."""
     if intent == Intent.FIGHT and combat_result:
@@ -60,6 +66,11 @@ def build_dm_prompt(
     if breakthrough:
         engine_ctx += f"\n【突破】玩家从{breakthrough.from_level}突破到{breakthrough.to_level}！"
 
+    # Build recent stories context (last 5 entries)
+    stories_text = "（无）"
+    if recent_stories:
+        stories_text = "\n".join(f"- {s}" for s in recent_stories[-5:])
+
     system_prompt = DM_SYSTEM_TEMPLATE.format(
         name=player.name,
         location=player.location,
@@ -68,6 +79,7 @@ def build_dm_prompt(
         hp=player.hp,
         max_hp=player.max_hp,
         engine_context=engine_ctx,
+        recent_stories=stories_text,
     )
 
     user_prompt = ""
