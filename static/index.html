@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>修仙 MUD</title>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f3f3f3; }
+        #status-bar { background: linear-gradient(135deg, #2d1b4e, #4a2d6e); color: #fff; padding: 8px 12px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px 12px; position: fixed; top: 0; width: 100%; box-sizing: border-box; z-index: 10; align-items: center; }
+        .stat { white-space: nowrap; }
+        .stat-label { color: #b8a0d4; }
+        .stat-value { font-weight: bold; }
+        #favorability-bar { display: none; width: 100%; background: rgba(255,255,255,0.15); border-radius: 8px; height: 4px; margin-top: 2px; }
+        #favorability-fill { height: 100%; background: #ff6b9d; border-radius: 8px; transition: width 0.3s; }
+        #chat-container { padding: 80px 10px 70px 10px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; height: calc(100% - 150px); }
+        .msg { display: flex; margin-bottom: 6px; }
+        .msg.user { justify-content: flex-end; }
+        .bubble { max-width: 75%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; word-wrap: break-word; }
+        .msg.system .bubble { background-color: #fff; color: #333; border: 1px solid #e0e0e0; }
+        .msg.user .bubble { background-color: #95ec69; color: #000; }
+        .battle-card { background: linear-gradient(135deg, #1a1a2e, #16213e); border: 1px solid #4a2d6e; border-radius: 12px; padding: 12px; margin: 6px 0; color: #fff; }
+        .battle-card h3 { margin: 0 0 8px 0; font-size: 14px; color: #ff6b9d; }
+        .battle-row { display: flex; justify-content: space-between; font-size: 12px; margin: 3px 0; }
+        .battle-result { font-size: 13px; font-weight: bold; text-align: center; margin-top: 8px; padding: 4px; border-radius: 6px; }
+        .battle-result.win { background: #2d5a27; color: #95ec69; }
+        .battle-result.lose { background: #5a2727; color: #ff6b6b; }
+        .battle-result.flee { background: #5a4a27; color: #ffd700; }
+        .breakthrough-msg { background: linear-gradient(135deg, #4a2d6e, #6b3fa0); color: #ffd700; border-radius: 12px; padding: 12px; margin: 6px 0; text-align: center; font-weight: bold; font-size: 15px; }
+        #input-bar { position: fixed; bottom: 0; width: 100%; height: 56px; background: #f7f7f7; border-top: 1px solid #e0e0e0; display: flex; align-items: center; padding: 0 10px; box-sizing: border-box; }
+        #user-input { flex: 1; height: 36px; border: 1px solid #ddd; border-radius: 18px; padding: 0 14px; font-size: 14px; outline: none; background: #fff; }
+        #send-btn { width: 56px; height: 36px; background: linear-gradient(135deg, #6b3fa0, #4a2d6e); color: white; border: none; border-radius: 18px; margin-left: 8px; font-size: 13px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="status-bar">
+        <span class="stat"><span class="stat-label">地点</span> <span class="stat-value" id="p-loc">加载中</span></span>
+        <span class="stat"><span class="stat-label">境界</span> <span class="stat-value" id="p-level">练气期一层</span></span>
+        <span class="stat"><span class="stat-label">灵力</span> <span class="stat-value" id="p-spirit">10</span></span>
+        <span class="stat"><span class="stat-label">气血</span> <span class="stat-value" id="p-hp">100/100</span></span>
+        <span class="stat"><span class="stat-label">攻</span> <span class="stat-value" id="p-atk">10</span></span>
+        <span class="stat"><span class="stat-label">防</span> <span class="stat-value" id="p-def">10</span></span>
+        <span class="stat" id="npc-rel" style="display:none"><span class="stat-label">师姐</span> <span class="stat-value" id="p-npc-stage">陌生</span> <span id="p-npc-fav" style="color:#ff6b9d">50</span></span>
+        <div id="favorability-bar"><div id="favorability-fill" style="width:50%"></div></div>
+    </div>
+
+    <div id="chat-container">
+        <div class="msg system"><div class="bubble">【系统】你睁开眼，发现自己正躺在柴房的硬板床上。四周弥漫着霉味，窗外传来师兄们练剑的呼喊声。你想做什么？（试试：修炼、和师姐说话、攻击妖兽、去后山）</div></div>
+    </div>
+
+    <div id="input-bar">
+        <input type="text" id="user-input" placeholder="输入你的行动..." autocomplete="off">
+        <button id="send-btn" onclick="sendAction()">发送</button>
+    </div>
+
+    <script>
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://127.0.0.1:8001' : '';
+
+        async function updateStatus() {
+            try {
+                const res = await fetch(`${API_URL}/player/status`);
+                const data = await res.json();
+                document.getElementById('p-loc').textContent = data.location || '未知';
+                document.getElementById('p-level').textContent = data.level || '练气期一层';
+                document.getElementById('p-spirit').textContent = data.spirit_power ?? 0;
+                document.getElementById('p-hp').textContent = `${data.hp ?? 100}/${data.max_hp ?? 100}`;
+                document.getElementById('p-atk').textContent = data.attack ?? 0;
+                document.getElementById('p-def').textContent = data.defense ?? 0;
+            } catch(e) {
+                console.error('Status update failed:', e);
+            }
+        }
+
+        function addBattleCard(container, combat) {
+            const card = document.createElement('div');
+            card.className = 'battle-card';
+            const resultClass = combat.result === 'win' ? 'win' : combat.result === 'lose' ? 'lose' : 'flee';
+            const resultText = combat.result === 'win' ? '胜' : combat.result === 'lose' ? '败' : '撤退';
+            card.innerHTML = `
+                <h3>⚔ ${combat.enemy}</h3>
+                <div class="battle-row"><span>造成伤害</span><span>${combat.dmg_to_enemy}</span></div>
+                <div class="battle-row"><span>受到伤害</span><span>${combat.dmg_to_player}</span></div>
+                <div class="battle-row"><span>敌方剩余</span><span>${combat.enemy_remaining_hp} HP</span></div>
+                <div class="battle-row"><span>我方剩余</span><span>${combat.player_remaining_hp} HP</span></div>
+                <div class="battle-result ${resultClass}">${resultText}</div>
+            `;
+            container.appendChild(card);
+        }
+
+        function addBreakthroughMsg(container, bt) {
+            const msg = document.createElement('div');
+            msg.className = 'breakthrough-msg';
+            msg.textContent = `🌟 突破！${bt.from} → ${bt.to} 🌟`;
+            container.appendChild(msg);
+        }
+
+        function updateFavorability(npc) {
+            if (!npc) return;
+            document.getElementById('npc-rel').style.display = 'inline';
+            document.getElementById('favorability-bar').style.display = 'block';
+            document.getElementById('p-npc-stage').textContent = npc.relationship_stage || '陌生';
+            document.getElementById('p-npc-fav').textContent = npc.favorability ?? 50;
+            document.getElementById('favorability-fill').style.width = `${npc.favorability ?? 50}%`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function sendAction() {
+            const inputEl = document.getElementById('user-input');
+            const text = inputEl.value.trim();
+            if (!text) return;
+            inputEl.value = '';
+
+            const container = document.getElementById('chat-container');
+
+            // User message
+            const userMsg = document.createElement('div');
+            userMsg.className = 'msg user';
+            userMsg.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+            container.appendChild(userMsg);
+
+            // AI response placeholder
+            const aiMsgEl = document.createElement('div');
+            aiMsgEl.className = 'msg system';
+            const aiBubbleEl = document.createElement('div');
+            aiBubbleEl.className = 'bubble';
+            aiBubbleEl.innerText = '正在思考...';
+            aiMsgEl.appendChild(aiBubbleEl);
+            container.appendChild(aiMsgEl);
+            container.scrollTop = container.scrollHeight;
+
+            try {
+                const response = await fetch(`${API_URL}/game/action`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_input: text })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = "";
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    fullText += decoder.decode(value, { stream: true });
+                    aiBubbleEl.innerText = fullText;
+                    container.scrollTop = container.scrollHeight;
+                }
+
+                // Try to parse JSON response
+                try {
+                    let cleanJson = fullText.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const result = JSON.parse(cleanJson);
+
+                    // Show story text
+                    aiBubbleEl.innerText = result.story || fullText;
+
+                    // Show battle card if combat
+                    if (result.combat) {
+                        addBattleCard(container, result.combat);
+                    }
+
+                    // Show breakthrough if present
+                    if (result.breakthrough) {
+                        addBreakthroughMsg(container, result.breakthrough);
+                    }
+
+                    // Update favorability if NPC data present
+                    if (result.npc) {
+                        updateFavorability(result.npc);
+                    }
+
+                    // Update status bar
+                    await updateStatus();
+
+                } catch(e) {
+                    // Fallback: show raw text
+                    console.log('JSON parse failed, showing raw text', e);
+                }
+
+            } catch (err) {
+                aiBubbleEl.innerText = '【系统】传信飞鸽在半路被雷劈了，请重试。';
+            }
+        }
+
+        // Handle Enter key
+        document.getElementById('user-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') sendAction();
+        });
+
+        // Initial status load
+        updateStatus();
+    </script>
+</body>
+</html>
