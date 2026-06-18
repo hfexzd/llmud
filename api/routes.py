@@ -421,9 +421,17 @@ def create_router(
                 "id": scene.id,
                 "name": scene.name,
                 "atmosphere": scene.atmosphere,
+                "description": scene.description,
+                "landmarks": scene.landmarks,
                 "npcs_present": npcs_in_scene_now,
                 "connections": scene.connections,
             }
+
+        # Update quest lifecycle records (completed_tick + prune expired) now
+        # that all state mutations, the tick advance, and any breakthrough are
+        # final. The visible list is derived from state; this only maintains
+        # records for strike-through/expiry.
+        player = world_engine.update_quests(player)
 
         # Recompute the current objective from the final player state (a
         # breakthrough applied above may have advanced it) and surface it so
@@ -452,6 +460,19 @@ def create_router(
             },
             "scene": scene_response,
             "goal": goal_info,
+            # Panel refresh data (mirror of /player/status panel fields).
+            "npcs": [
+                {
+                    "id": p["id"],
+                    "favorability": p.get("favorability", 50),
+                    "relationship_stage": p.get("relationship_stage", "陌生"),
+                    "default_scene": p.get("default_scene", "outer_gate"),
+                    "present": p["id"] in set(scene_response["npcs_present"]) if scene_response else False,
+                }
+                for p in npc_repo.get_all_profiles()
+            ],
+            "quests": world_engine.visible_quests(player),
+            "next_quest": ({"label": nq.label} if (nq := world_engine.next_quest(player)) else None),
         }
 
         # Add world event info to response

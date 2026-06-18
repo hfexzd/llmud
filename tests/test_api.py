@@ -524,6 +524,42 @@ async def test_get_player_status_enriched_for_panels(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_game_action_response_includes_panel_fields(tmp_path):
+    """Action response refreshes panel data: scene description/landmarks,
+    npcs cards, visible quests, next_quest."""
+    import sqlite3
+    from db.connection import init_db
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    PlayerRepository(conn).save(Player(
+        current_scene="inner_gate", tick=4, spirit_power=12,
+        visited_scenes=["outer_gate", "inner_gate"],
+    ))
+    conn.close()
+
+    mock = MockLLMClient(response=json.dumps({
+        "intent": "cultivate", "action_valid": True, "invalid_reason": "",
+        "story": "你盘膝而坐，灵气如溪流汇入丹田。",
+        "state_delta": {"spirit_power": 2}, "breakthrough": None,
+        "combat": None, "npc_update": None,
+    }, ensure_ascii=False))
+    app = create_app(llm_client=mock, db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.post("/game/action", json={"user_input": "修炼"})
+    assert r.status_code == 200
+    data = json.loads(r.text)
+    assert "description" in data["scene"] and data["scene"]["landmarks"] is not None
+    assert "npcs" in data and any(n["id"] == "linwaner" for n in data["npcs"])
+    assert "quests" in data and isinstance(data["quests"], list)
+    assert "next_quest" in data
+
+
+@pytest.mark.asyncio
 async def test_npc_repo_lists_all_profiles(tmp_path):
     """get_all_profiles returns every seeded NPC for the 人物 panel."""
     from db.connection import init_db
