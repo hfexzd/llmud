@@ -12,7 +12,7 @@
         .stat-value { font-weight: bold; }
         #favorability-bar { display: none; width: 100%; background: rgba(255,255,255,0.15); border-radius: 8px; height: 4px; margin-top: 2px; }
         #favorability-fill { height: 100%; background: #ff6b9d; border-radius: 8px; transition: width 0.3s; }
-        #chat-container { padding: 80px 10px 70px 10px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; height: calc(100% - 150px); }
+        #chat-container { padding: 100px 10px 70px 10px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; height: calc(100% - 170px); }
         .msg { display: flex; margin-bottom: 6px; }
         .msg.user { justify-content: flex-end; }
         .bubble { max-width: 75%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; word-wrap: break-word; }
@@ -25,6 +25,14 @@
         .battle-result.win { background: #2d5a27; color: #95ec69; }
         .battle-result.lose { background: #5a2727; color: #ff6b6b; }
         .battle-result.flee { background: #5a4a27; color: #ffd700; }
+        .world-event { background: linear-gradient(135deg, #1a2a1a, #2a3a2a); border-left: 4px solid #7bc67e; border-radius: 8px; padding: 10px 14px; margin: 6px 0; font-style: italic; color: #b8e6b8; font-size: 13px; }
+        .intervention-card { background: linear-gradient(135deg, #2d1b4e, #4a2d6e); border: 1px solid #7b5ea7; border-radius: 12px; padding: 12px; margin: 6px 0; color: #fff; }
+        .intervention-card .intervention-desc { font-size: 13px; color: #d4b8e8; margin-bottom: 8px; }
+        .intervention-btn { display: inline-block; background: linear-gradient(135deg, #6b3fa0, #8b5fc0); color: #fff; border: none; border-radius: 16px; padding: 6px 16px; margin: 4px; font-size: 13px; cursor: pointer; transition: background 0.2s, transform 0.1s; }
+        .intervention-btn:hover { background: linear-gradient(135deg, #8b5fc0, #ab7fe0); transform: scale(1.05); }
+        .scene-tag { display: inline-block; background: rgba(255,255,255,0.15); color: #d4b8e8; border-radius: 10px; padding: 2px 10px; margin: 2px; font-size: 11px; white-space: nowrap; }
+        .scene-tag.npc { background: rgba(255,107,157,0.25); color: #ff9dbf; }
+        .scene-tag.conn { background: rgba(107,200,255,0.25); color: #9dd5ff; }
         .breakthrough-msg { background: linear-gradient(135deg, #4a2d6e, #6b3fa0); color: #ffd700; border-radius: 12px; padding: 12px; margin: 6px 0; text-align: center; font-weight: bold; font-size: 15px; }
         #input-bar { position: fixed; bottom: 0; width: 100%; height: 56px; background: #f7f7f7; border-top: 1px solid #e0e0e0; display: flex; align-items: center; padding: 0 10px; box-sizing: border-box; }
         #user-input { flex: 1; height: 36px; border: 1px solid #ddd; border-radius: 18px; padding: 0 14px; font-size: 14px; outline: none; background: #fff; }
@@ -42,6 +50,10 @@
         <span class="stat"><span class="stat-label">防</span> <span class="stat-value" id="p-def">10</span></span>
         <span class="stat" id="npc-rel" style="display:none"><span class="stat-label">师姐</span> <span class="stat-value" id="p-npc-stage">陌生</span> <span id="p-npc-fav" style="color:#ff6b9d">50</span></span>
         <div id="favorability-bar"><div id="favorability-fill" style="width:50%"></div></div>
+        <div id="scene-info" style="display:none; width:100%; margin-top:2px;">
+            <div id="scene-npcs" style="margin-top:2px;"></div>
+            <div id="scene-connections" style="margin-top:2px;"></div>
+        </div>
     </div>
 
     <div id="chat-container">
@@ -57,6 +69,9 @@
         const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
             ? 'http://127.0.0.1:8001' : '';
 
+        const NPC_NAMES = {linwaner: '林婉儿', chenhao: '陈浩', old_yang: '杨老'};
+        const SCENE_NAMES = {outer_gate: '外门', inner_gate: '内门', bamboo_forest: '竹林', market: '集市', mountain_range: '山脉'};
+
         async function updateStatus() {
             try {
                 const res = await fetch(`${API_URL}/player/status`);
@@ -67,6 +82,29 @@
                 document.getElementById('p-hp').textContent = `${data.hp ?? 100}/${data.max_hp ?? 100}`;
                 document.getElementById('p-atk').textContent = data.attack ?? 0;
                 document.getElementById('p-def').textContent = data.defense ?? 0;
+
+                // Scene info: NPCs present and connections
+                const scene = data.scene;
+                const sceneInfoEl = document.getElementById('scene-info');
+                const npcsEl = document.getElementById('scene-npcs');
+                const connsEl = document.getElementById('scene-connections');
+                if (scene) {
+                    sceneInfoEl.style.display = 'block';
+                    if (scene.npcs_present && scene.npcs_present.length > 0) {
+                        npcsEl.innerHTML = '<span class="stat-label">在场</span> ' +
+                            scene.npcs_present.map(id => `<span class="scene-tag npc">${NPC_NAMES[id] || id}</span>`).join('');
+                    } else {
+                        npcsEl.innerHTML = '';
+                    }
+                    if (scene.connections && scene.connections.length > 0) {
+                        connsEl.innerHTML = '<span class="stat-label">通道</span> ' +
+                            scene.connections.map(id => `<span class="scene-tag conn">${SCENE_NAMES[id] || id}</span>`).join('');
+                    } else {
+                        connsEl.innerHTML = '';
+                    }
+                } else {
+                    sceneInfoEl.style.display = 'none';
+                }
             } catch(e) {
                 console.error('Status update failed:', e);
             }
@@ -93,6 +131,38 @@
             msg.className = 'breakthrough-msg';
             msg.textContent = `🌟 突破！${bt.from} → ${bt.to} 🌟`;
             container.appendChild(msg);
+        }
+
+        function addWorldEvent(container, worldEvent) {
+            if (!worldEvent) return;
+            const el = document.createElement('div');
+            el.className = 'world-event';
+            const name = worldEvent.name || '';
+            const text = name ? `◈ ${name}` : '◈ 世界事件';
+            el.textContent = text;
+            container.appendChild(el);
+        }
+
+        function addIntervention(container, intervention) {
+            if (!intervention) return;
+            const card = document.createElement('div');
+            card.className = 'intervention-card';
+            const desc = document.createElement('div');
+            desc.className = 'intervention-desc';
+            desc.textContent = intervention.description || '你可以选择：';
+            card.appendChild(desc);
+            const options = intervention.options || [];
+            options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'intervention-btn';
+                btn.textContent = opt;
+                btn.addEventListener('click', () => {
+                    document.getElementById('user-input').value = opt;
+                    sendAction();
+                });
+                card.appendChild(btn);
+            });
+            container.appendChild(card);
         }
 
         function updateFavorability(npc) {
@@ -169,6 +239,16 @@
                     // Show breakthrough if present
                     if (result.breakthrough) {
                         addBreakthroughMsg(container, result.breakthrough);
+                    }
+
+                    // Show world event if present
+                    if (result.world_event) {
+                        addWorldEvent(container, result.world_event);
+                    }
+
+                    // Show intervention options if present
+                    if (result.intervention) {
+                        addIntervention(container, result.intervention);
                     }
 
                     // Update favorability if NPC data present
