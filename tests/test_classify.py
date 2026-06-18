@@ -38,3 +38,11 @@ def test_classify_other_no_llm():
     """Without LLM client, unrecognized input defaults to OTHER."""
     intent, params = classify_intent("我想看月亮")
     assert intent == Intent.OTHER
+
+
+def test_classify_intervene():
+    intent, params = classify_intent("上前搭话")
+    assert intent == Intent.INTERVENE
+
+    intent, params = classify_intent("介入对话")
+    assert intent == Intent.INTERVENE

@@ -1,6 +1,7 @@
 import random
 from engine.models import (
-    Player, Encounter, CombatResult, BreakthroughResult, LevelTier, LEVEL_TABLE
+    Player, Encounter, CombatResult, BreakthroughResult, LevelTier, LEVEL_TABLE,
+    SCENE_MAP,
 )
 
 
@@ -109,3 +110,17 @@ def check_breakthrough(player: Player) -> BreakthroughResult | None:
     if player.spirit_power >= next_tier.spirit_threshold:
         return BreakthroughResult(from_level=player.level, to_level=next_tier.name)
     return None
+
+
+def move(player: Player, destination: str) -> Player:
+    """Move player to *destination* if it connects to current_scene.
+
+    Returns an updated Player with current_scene set to *destination* on
+    success, or the original Player unchanged if the move is invalid.
+    """
+    current = SCENE_MAP.get(player.current_scene)
+    if current is None:
+        return player
+    if destination not in current.connections:
+        return player
+    return player.model_copy(update={"current_scene": destination})

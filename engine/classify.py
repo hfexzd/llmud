@@ -17,6 +17,10 @@ FIGHT_PATTERNS = [
     r"斩", r"击杀", r"消灭", r"对决",
 ]
 
+INTERVENE_PATTERNS = [
+    r"上前搭话", r"加入对话", r"介入", r"插嘴", r"打断",
+]
+
 MOVE_PATTERNS = [
     r"去", r"前往", r"到", r"来到", r"走到", r"移动到",
     r"进入", r"离开", r"回",
@@ -38,8 +42,12 @@ def classify_intent(action_text: str, llm_client=None) -> tuple[Intent, dict]:
     """
     params = {}
 
-    # Fast-path: regex matching (MOVE first — action verbs like "前往" should
-    # take priority over destination nouns like "练功房" that alias cultivate)
+    # Fast-path: regex matching (INTERVENE before MOVE — intervention verbs
+    # like "上前搭话" should take priority over MOVE; MOVE before CULTIVATE
+    # because "前往" should not alias to "练功房" cultivate)
+    if _match_patterns(action_text, INTERVENE_PATTERNS):
+        return Intent.INTERVENE, params
+
     if _match_patterns(action_text, MOVE_PATTERNS):
         params["destination"] = action_text  # DM will interpret
         return Intent.MOVE, params
