@@ -174,7 +174,75 @@
             else if (which === 'map') body.innerHTML = renderMapPanel();
         }
         // Panel renderers are added in Tasks 10-12; stubs so the shell works.
-        function renderRolePanel() { return '<p class="panel-label">（角色面板 — 下一步实现）</p>'; }
+        function renderRolePanel() {
+            const p = panelData.player || {};
+            const quests = panelData.quests || [];
+            const npcs = panelData.npcs || [];
+            const scene = panelData.scene || {};
+            const presentIds = new Set((scene.npcs_present) || []);
+            const nextT = p.next_threshold;
+            const spPct = nextT ? Math.min(100, Math.round((p.spirit_power||0)/nextT*100)) : 100;
+            const hpPct = p.max_hp ? Math.round((p.hp||0)/p.max_hp*100) : 100;
+
+            let html = '<div class="panel-sec"><div class="panel-label">所务 · 随缘而启</div>';
+            quests.forEach(q => {
+                const cls = q.status === 'completed' ? 'qrow done' : 'qrow now';
+                const tag = q.status === 'completed' ? '将隐去' : '进行中';
+                html += `<div class="${cls}"><div class="qbox"></div><div class="qtxt">${escapeHtml(q.label)}</div><div class="qtag">${tag}</div></div>`;
+            });
+            if (panelData.nextQuest) {
+                html += `<div style="font-size:11px;color:#8a7aa8;padding:2px 4px">（将解锁：${escapeHtml(panelData.nextQuest.label)}…）</div>`;
+            }
+            html += '</div>';
+
+            html += `<div class="panel-sec"><div class="panel-label">${escapeHtml(p.name||'')} · ${escapeHtml(p.affinity||'')}灵根</div>`;
+            html += `<div class="stat-line"><span>境界</span><b>${escapeHtml(p.level||'')}</b></div>`;
+            html += `<div class="panel-label">灵力</div><div class="bar sp"><i style="width:${spPct}%"></i></div>`;
+            html += `<div class="bar-pct">${p.spirit_power??0}${nextT? ' / '+nextT+' 至下境':''}</div>`;
+            html += `<div class="panel-label">气血</div><div class="bar hp"><i style="width:${hpPct}%"></i></div>`;
+            html += `<div class="bar-pct">${p.hp??0} / ${p.max_hp??0}</div>`;
+            html += `<div class="stat-line"><span>时辰</span><b>${shichenLabel(p.tick)}</b></div>`;
+            html += `<div class="panel-label">行囊</div><div>`;
+            (p.inventory||[]).forEach(it => {
+                html += `<span class="obj-tag" onclick="prefill('查看${escapeHtml(it)}')">${escapeHtml(it)}</span>`;
+            });
+            if (!(p.inventory||[]).length) html += '<span style="color:#8a7aa8;font-size:12px">空空如也</span>';
+            html += `</div><div style="margin-top:8px"><span class="obj-tag" onclick="prefill('修炼')">打坐修炼</span></div>`;
+            html += '</div>';
+
+            // 在场人物
+            const present = npcs.filter(n => n.present);
+            const absent = npcs.filter(n => !n.present);
+            html += '<div class="panel-sec"><div class="panel-label">在场人物</div>';
+            if (present.length) present.forEach(n => html += npcCard(n, false));
+            else html += '<div style="color:#8a7aa8;font-size:12px">四下无人</div>';
+            if (absent.length) {
+                html += '<div class="panel-label">不在场</div>';
+                absent.forEach(n => html += npcCard(n, true));
+            }
+            html += '</div>';
+            return html;
+        }
+
+        function npcCard(n, absent) {
+            const name = NPC_NAMES[n.id] || n.id;
+            const role = NPC_ROLE[n.id] || '';
+            const hint = NPC_HINT[n.id] || '';
+            const cls = 'npc-card' + (absent ? ' absent' : '');
+            let acts = '';
+            if (!absent) {
+                acts = `<div class="npc-acts">`
+                    + `<span class="npc-btn go" onclick="prefill('和${escapeHtml(name)}搭话')">搭话</span>`
+                    + `<span class="npc-btn go" onclick="prefill('对${escapeHtml(name)}说：', true)">自由聊天</span>`
+                    + `<span class="npc-btn dim">切磋</span>`
+                    + `</div>`;
+            }
+            const loc = absent ? `常驻 ${SCENE_NAMES[n.default_scene]||n.default_scene}` : hint;
+            return `<div class="${cls}">`
+                + `<div class="npc-head"><b>${escapeHtml(name)} · ${escapeHtml(role)}</b><span class="npc-fav">${escapeHtml(n.relationship_stage||'陌生')} · ${n.favorability??0}</span></div>`
+                + `<div class="npc-desc">${escapeHtml(loc)}</div>`
+                + acts + `</div>`;
+        }
         function renderPlacePanel() { return '<p class="panel-label">（地点面板 — 下一步实现）</p>'; }
         function renderMapPanel() { return '<p class="panel-label">（地图面板 — 下一步实现）</p>'; }
 
@@ -188,6 +256,14 @@
             try {
                 const res = await fetch(`${API_URL}/player/status`);
                 const data = await res.json();
+                // Cache panel fields before status-bar updates so the drawer has
+                // fresh data even if it's open during a status refresh.
+                panelData = {
+                    scene: data.scene, npcs: data.npcs || [],
+                    quests: data.quests || [],
+                    nextQuest: data.next_quest || null,
+                    player: data,  // level/spirit/hp/max_hp/affinity/inventory/tick/next_threshold
+                };
                 document.getElementById('p-loc').textContent = (data.scene && data.scene.name) || SCENE_NAMES[data.current_scene] || data.current_scene || '未知';
                 document.getElementById('p-goal').textContent = (data.goal && data.goal.label) || '—';
                 if (data.goal && data.goal.label) lastGoalLabel = data.goal.label;
