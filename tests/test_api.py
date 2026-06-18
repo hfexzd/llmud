@@ -223,3 +223,42 @@ async def test_game_action_includes_world_event(mock_llm_cultivate, tmp_path):
         assert "scene" in data
         # World event may or may not be present depending on conditions
         # but the field should exist in the response structure
+
+
+@pytest.mark.asyncio
+async def test_game_action_intervention_options_render(tmp_path):
+    """An NPC-to-NPC interaction surfaces as an intervention with description + options.
+
+    Regression: the backend previously sent `intervene_options`/`narrative_hint`
+    while the frontend read `options`/`description`, so no buttons rendered.
+    """
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    # Place the player at market with tick 12 so linwaner (schedule 10-20 -> market)
+    # and chenhao (default market) are both present -> waner_chenhao_chat fires.
+    PlayerRepository(conn).save(Player(
+        current_scene="market", tick=12,
+        seen_events=["market_rumor", "strange_traveler"],
+    ))
+    conn.close()
+
+    mock = MockLLMClient(response=json.dumps({
+        "intent": "other", "action_valid": True, "invalid_reason": "",
+        "story": "你在集市中闲逛，人声鼎沸。",
+        "state_delta": {}, "breakthrough": None, "combat": None, "npc_update": None,
+    }, ensure_ascii=False))
+    app = create_app(llm_client=mock, db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/game/action", json={"user_input": "四处看看"})
+        assert response.status_code == 200
+        data = json.loads(response.text)
+        assert "intervention" in data, f"expected intervention, got keys: {list(data.keys())}"
+        iv = data["intervention"]
+        # Frontend reads `description` and `options` — both must be present and non-empty.
+        assert "description" in iv and iv["description"]
+        assert iv["options"] == ["上前搭话", "继续偷听", "默默离开"]

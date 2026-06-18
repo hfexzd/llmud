@@ -372,8 +372,8 @@ def create_router(
         if intervention:
             response_data["intervention"] = {
                 "id": intervention.id,
-                "narrative_hint": intervention.narrative_hint,
-                "intervene_options": intervention.intervene_options,
+                "description": intervention.narrative_hint,
+                "options": intervention.intervene_options or [],
             }
 
         if combat_result:
