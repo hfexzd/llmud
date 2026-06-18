@@ -214,13 +214,19 @@ class WorldEngine:
         target_id = resolve_scene_id(destination_text)
 
         if target_id is None:
-            return ("error", f"未知地点: {destination_text}")
+            # In-world fallback — never expose a system-style "未知地点: X" message.
+            return ("error", "你寻不到这般去处，只得在原地驻足片刻。")
+
+        # A landmark/alias that lives in the player's current scene is a local
+        # move (already here), not a scene transition — allow it as a no-op.
+        if target_id == player.current_scene:
+            return ("ok", target_id)
 
         if not self.validate_move(player.current_scene, target_id):
             # Use Chinese scene names in the error — never expose raw ids to the player.
             from_scene = SCENE_MAP.get(player.current_scene)
             from_name = from_scene.name if from_scene else player.current_scene
             to_name = SCENE_MAP[target_id].name
-            return ("error", f"无法从{from_name}前往{to_name}")
+            return ("error", f"从{from_name}没有直达{to_name}的路，你只得暂且作罢。")
 
         return ("ok", target_id)

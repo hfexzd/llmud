@@ -91,6 +91,12 @@ class Scene(BaseModel):
     available_actions: list[str]
     encounter_ids: list[str]
     npc_ids: list[str]
+    # Sub-locations within this scene that players and the DM narration may
+    # reference by name (e.g. 祭坛/灵泉 at the inner gate). The move resolver
+    # treats these as keywords pointing at this scene, and the DM prompt lists
+    # them so the LLM narrates using world-known landmarks rather than
+    # inventing its own.
+    landmarks: list[str] = Field(default_factory=list)
 
 
 class EventTrigger(BaseModel):
@@ -164,6 +170,7 @@ SCENE_MAP: dict[str, Scene] = {
         available_actions=["cultivate", "explore"],
         encounter_ids=[],
         npc_ids=["old_yang"],
+        landmarks=["柴房", "练功场"],
     ),
     "inner_gate": Scene(
         id="inner_gate",
@@ -174,6 +181,7 @@ SCENE_MAP: dict[str, Scene] = {
         available_actions=["cultivate", "explore"],
         encounter_ids=[],
         npc_ids=["linwaner"],
+        landmarks=["祭坛", "灵泉"],
     ),
     "bamboo_forest": Scene(
         id="bamboo_forest",
@@ -225,10 +233,11 @@ def resolve_scene_id(text: str | None) -> str | None:
     Matching priority:
       1. exact scene id (e.g. "inner_gate")
       2. exact full scene name (e.g. "青云门内门")
-      3. alias keyword contained anywhere in the text (e.g. "去内门灵泉旁修炼" → "inner_gate")
+      3. keyword contained anywhere in the text — either a scene alias
+         ("去内门" → inner_gate) or a scene landmark ("去祭坛看看" → inner_gate)
 
-    Longer aliases are tried first so a more specific keyword wins over a
-    shorter substring. Returns the scene id, or None if nothing matches.
+    Longer keywords are tried first so a more specific one wins over a shorter
+    substring. Returns the scene id, or None if nothing matches.
     """
     text = (text or "").strip()
     if not text:
@@ -238,9 +247,14 @@ def resolve_scene_id(text: str | None) -> str | None:
     for sid, scene in SCENE_MAP.items():
         if scene.name == text:
             return sid
-    for alias in sorted(SCENE_ALIASES, key=len, reverse=True):
-        if alias in text:
-            return SCENE_ALIASES[alias]
+    # Combine short-name aliases and per-scene landmarks into one keyword map.
+    keywords: dict[str, str] = dict(SCENE_ALIASES)
+    for sid, scene in SCENE_MAP.items():
+        for landmark in scene.landmarks:
+            keywords[landmark] = sid
+    for keyword in sorted(keywords, key=len, reverse=True):
+        if keyword in text:
+            return keywords[keyword]
     return None
 
 

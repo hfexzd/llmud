@@ -205,17 +205,37 @@ class TestResolveSceneMove:
         status, result = engine.resolve_scene_move(fresh_player, "去竹林")
         assert status == "error"
         # Error must use Chinese scene names, never raw ids
-        assert "无法从青云门外门前往幽竹林" in result
+        assert "青云门外门" in result
+        assert "幽竹林" in result
 
     def test_unknown_destination(self, engine: WorldEngine, fresh_player: Player):
         status, result = engine.resolve_scene_move(fresh_player, "去火星")
         assert status == "error"
-        assert "未知地点" in result
+        # In-world fallback — no system-style "未知地点: X"
+        assert "寻不到这般去处" in result
 
     def test_empty_destination(self, engine: WorldEngine, fresh_player: Player):
         status, result = engine.resolve_scene_move(fresh_player, "")
         assert status == "error"
-        assert "未知地点" in result
+        assert "寻不到这般去处" in result
+
+    def test_landmark_altar(self, engine: WorldEngine, fresh_player: Player):
+        """A landmark introduced by DM narration ('去祭坛看看') resolves to its scene."""
+        status, result = engine.resolve_scene_move(fresh_player, "去祭坛看看")
+        assert status == "ok"
+        assert result == "inner_gate"
+
+    def test_landmark_spring(self, engine: WorldEngine, fresh_player: Player):
+        status, result = engine.resolve_scene_move(fresh_player, "去灵泉")
+        assert status == "ok"
+        assert result == "inner_gate"
+
+    def test_landmark_in_current_scene_is_noop(self, engine: WorldEngine, fresh_player: Player):
+        """A landmark in the player's current scene is a local move, not a failed transition."""
+        # fresh_player is at outer_gate, whose landmarks include 柴房
+        status, result = engine.resolve_scene_move(fresh_player, "去柴房")
+        assert status == "ok"
+        assert result == "outer_gate"
 
 
 # -------------------------------------------------------------------
