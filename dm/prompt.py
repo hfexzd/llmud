@@ -1,4 +1,4 @@
-from engine.models import Player, Intent, CombatResult, BreakthroughResult, Scene, WorldEvent
+from engine.models import Player, Intent, CombatResult, BreakthroughResult, Scene, WorldEvent, Goal
 
 
 DM_SYSTEM_TEMPLATE = """你是一款文字修仙 MUD 游戏的"动态地下城主（DM）"。
@@ -14,6 +14,7 @@ DM_SYSTEM_TEMPLATE = """你是一款文字修仙 MUD 游戏的"动态地下城�
 {scene_context}
 {world_event_context}
 {engine_context}
+{goal_context}
 
 【近期事件】：
 {recent_stories}
@@ -27,7 +28,8 @@ DM_SYSTEM_TEMPLATE = """你是一款文字修仙 MUD 游戏的"动态地下城�
 6. 【叙事一致性】你【必须】参考【近期事件】中的内容！玩家之前做过的事、吃过的东西、去过的地方必须保持一致。如果玩家之前吃了"凝露草"，就不能说吃了"丹药"；如果玩家已经到了"竹林"，就不能说玩家在"柴房"。
 7. 【地点一致性】玩家当前所在地点为"{location}"，你的叙事【必须】以这个地点为场景，不得凭空将玩家传送到其他地点。
 8. 【世界事件融合】若【世界事件】中提供了叙事提示，你【必须】将事件自然地融入故事描写中，不得生硬插入或直接复述提示文本。事件应像环境的一部分一样出现，让玩家感受到世界的生动与动态。
-9. 【地标一致】你叙事中提及的具体地标（如祭坛、灵泉、柴房）【必须】来自【当前场景】中列出的地标，不得凭空编造场景模型中不存在的地标。"""
+9. 【地标一致】你叙事中提及的具体地标（如祭坛、灵泉、柴房）【必须】来自【当前场景】中列出的地标，不得凭空编造场景模型中不存在的地标。
+10. 【所务引导】若【当前所务】给出，你的叙事应自然地朝该方向埋下钩子、给出推动（新地点、新NPC、新疑团），但【不得】生硬复述所务文本，也【不得】强迫玩家行动。"""
 
 ENGINE_CONTEXT_TEMPLATES = {
     "cultivate": "【引擎结算】修炼成功，灵力增加。",
@@ -58,6 +60,7 @@ def build_dm_prompt(
     recent_stories: list[str] | None = None,
     scene: Scene | None = None,
     world_event: WorldEvent | None = None,
+    goal: Goal | None = None,
 ) -> tuple[str, str]:
     """Build the system and user prompts for the DM LLM call."""
     if intent == Intent.FIGHT and combat_result:
@@ -98,6 +101,11 @@ def build_dm_prompt(
             options_str = "、".join(world_event.intervene_options)
             world_event_context += f"\n【可选行动】{options_str}"
 
+    # Build current-objective context (所务) so narration steers toward it.
+    goal_context = ""
+    if goal:
+        goal_context = f"【当前所务】{goal.label}\n（叙事指引：{goal.guidance}）"
+
     system_prompt = DM_SYSTEM_TEMPLATE.format(
         name=player.name,
         location=location_name,
@@ -108,6 +116,7 @@ def build_dm_prompt(
         scene_context=scene_context,
         world_event_context=world_event_context,
         engine_context=engine_ctx,
+        goal_context=goal_context,
         recent_stories=stories_text,
     )
 

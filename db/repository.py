@@ -23,6 +23,11 @@ class PlayerRepository:
         )
         seen_events = json.loads(row["seen_events"]) if "seen_events" in columns else []
         tick = row["tick"] if "tick" in columns else 0
+        visited_scenes = json.loads(row["visited_scenes"]) if "visited_scenes" in columns else []
+        # Seed with the current scene so a migrated save (no visited_scenes
+        # column yet) still reflects where the player actually is.
+        if current_scene not in visited_scenes:
+            visited_scenes.append(current_scene)
 
         return Player(
             id=row["id"],
@@ -36,6 +41,7 @@ class PlayerRepository:
             inventory=json.loads(row["inventory"]),
             recent_stories=json.loads(row["recent_stories"]) if "recent_stories" in columns else [],
             seen_events=seen_events,
+            visited_scenes=visited_scenes,
             tick=tick,
             created_at=datetime.fromisoformat(row["created_at"]),
             last_seen=datetime.fromisoformat(row["last_seen"]),
@@ -44,12 +50,14 @@ class PlayerRepository:
     def save(self, player: Player) -> None:
         self.conn.execute(
             """INSERT INTO players (id, name, level, spirit_power, hp, max_hp, affinity,
-               current_scene, inventory, recent_stories, seen_events, tick, created_at, last_seen)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               current_scene, inventory, recent_stories, seen_events, visited_scenes,
+               tick, created_at, last_seen)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (player.id, player.name, player.level, player.spirit_power,
              player.hp, player.max_hp, player.affinity, player.current_scene,
              json.dumps(player.inventory), json.dumps(player.recent_stories, ensure_ascii=False),
-             json.dumps(player.seen_events, ensure_ascii=False), player.tick,
+             json.dumps(player.seen_events, ensure_ascii=False),
+             json.dumps(player.visited_scenes, ensure_ascii=False), player.tick,
              player.created_at.isoformat(), player.last_seen.isoformat()),
         )
         self.conn.commit()
@@ -58,11 +66,12 @@ class PlayerRepository:
         self.conn.execute(
             """UPDATE players SET name=?, level=?, spirit_power=?, hp=?, max_hp=?,
                affinity=?, current_scene=?, inventory=?, recent_stories=?,
-               seen_events=?, tick=?, last_seen=? WHERE id=?""",
+               seen_events=?, visited_scenes=?, tick=?, last_seen=? WHERE id=?""",
             (player.name, player.level, player.spirit_power, player.hp,
              player.max_hp, player.affinity, player.current_scene,
              json.dumps(player.inventory), json.dumps(player.recent_stories, ensure_ascii=False),
-             json.dumps(player.seen_events, ensure_ascii=False), player.tick,
+             json.dumps(player.seen_events, ensure_ascii=False),
+             json.dumps(player.visited_scenes, ensure_ascii=False), player.tick,
              datetime.now().isoformat(), player.id),
         )
         self.conn.commit()

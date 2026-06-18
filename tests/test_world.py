@@ -178,6 +178,58 @@ class TestValidateMove:
 # -------------------------------------------------------------------
 
 
+# -------------------------------------------------------------------
+# TestCurrentGoal
+# -------------------------------------------------------------------
+
+
+class TestCurrentGoal:
+    def test_fresh_player_gets_bamboo_goal(self, engine: WorldEngine, fresh_player: Player):
+        """A new player has not visited 竹林, so the first objective is to go there."""
+        goal = engine.current_goal(fresh_player)
+        assert goal is not None
+        assert goal.id == "venture_bamboo"
+
+    def test_after_visiting_bamboo_advances_to_anomaly(self, engine: WorldEngine):
+        player = Player(visited_scenes=["outer_gate", "bamboo_forest"])
+        goal = engine.current_goal(player)
+        assert goal is not None
+        assert goal.id == "probe_anomaly"
+
+    def test_after_spirit_herb_advances_to_breakthrough(self, engine: WorldEngine):
+        player = Player(
+            visited_scenes=["bamboo_forest"],
+            seen_events=["spirit_herb"],
+        )
+        goal = engine.current_goal(player)
+        assert goal is not None
+        assert goal.id == "cultivate_breakthrough"
+
+    def test_after_breakthrough_advances_to_mountain(self, engine: WorldEngine):
+        player = Player(
+            level="练气期二层",
+            visited_scenes=["bamboo_forest"],
+            seen_events=["spirit_herb"],
+        )
+        goal = engine.current_goal(player)
+        assert goal is not None
+        assert goal.id == "venture_mountain"
+
+    def test_all_done_returns_none(self, engine: WorldEngine):
+        player = Player(
+            level="练气期二层",
+            visited_scenes=["bamboo_forest", "mountain_range"],
+            seen_events=["spirit_herb"],
+        )
+        assert engine.current_goal(player) is None
+
+    def test_goal_never_leaks_english_id(self, engine: WorldEngine, fresh_player: Player):
+        """The 所务 label is player-facing in-world text — never a raw id."""
+        goal = engine.current_goal(fresh_player)
+        assert goal is not None
+        assert goal.id not in goal.label
+
+
 class TestResolveSceneMove:
     def test_exact_scene_id(self, engine: WorldEngine, fresh_player: Player):
         status, result = engine.resolve_scene_move(fresh_player, "inner_gate")

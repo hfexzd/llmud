@@ -43,6 +43,7 @@
 
     <div id="status-bar">
         <span class="stat"><span class="stat-label">地点</span> <span class="stat-value" id="p-loc">加载中</span></span>
+        <span class="stat"><span class="stat-label">所务</span> <span class="stat-value" id="p-goal">—</span></span>
         <span class="stat"><span class="stat-label">境界</span> <span class="stat-value" id="p-level">练气期一层</span></span>
         <span class="stat"><span class="stat-label">灵力</span> <span class="stat-value" id="p-spirit">10</span></span>
         <span class="stat"><span class="stat-label">气血</span> <span class="stat-value" id="p-hp">100/100</span></span>
@@ -75,12 +76,16 @@
         // The opening line is shown once, on first status load, and must match
         // the player's actual scene — never a hardcoded outer_gate string.
         let introShown = false;
+        // Last shown 所务 label, so we only surface a "所务更新" line when it changes.
+        let lastGoalLabel = null;
 
         async function updateStatus() {
             try {
                 const res = await fetch(`${API_URL}/player/status`);
                 const data = await res.json();
                 document.getElementById('p-loc').textContent = (data.scene && data.scene.name) || SCENE_NAMES[data.current_scene] || data.current_scene || '未知';
+                document.getElementById('p-goal').textContent = (data.goal && data.goal.label) || '—';
+                if (data.goal && data.goal.label) lastGoalLabel = data.goal.label;
                 document.getElementById('p-level').textContent = data.level || '练气期一层';
                 document.getElementById('p-spirit').textContent = data.spirit_power ?? 0;
                 document.getElementById('p-hp').textContent = `${data.hp ?? 100}/${data.max_hp ?? 100}`;
@@ -285,6 +290,18 @@
                     // Show intervention options if present
                     if (result.intervention) {
                         addIntervention(container, result.intervention);
+                    }
+
+                    // Surface a 所务 (objective) update line when the goal advances.
+                    if (result.goal && result.goal.label && result.goal.label !== lastGoalLabel) {
+                        const goalEl = document.createElement('div');
+                        goalEl.className = 'msg system';
+                        const goalBubble = document.createElement('div');
+                        goalBubble.className = 'bubble';
+                        goalBubble.textContent = `【所务】${result.goal.label}`;
+                        goalEl.appendChild(goalBubble);
+                        container.appendChild(goalEl);
+                        lastGoalLabel = result.goal.label;
                     }
 
                     // Update favorability if NPC data present

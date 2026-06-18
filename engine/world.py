@@ -14,6 +14,8 @@ from engine.models import (
     Player,
     Scene,
     WorldEvent,
+    Goal,
+    GOALS,
     resolve_scene_id,
 )
 
@@ -165,6 +167,32 @@ class WorldEngine:
         if source is None:
             return False
         return to_scene in source.connections
+
+    # ------------------------------------------------------------------
+    # Current objective (所务)
+    # ------------------------------------------------------------------
+
+    def current_goal(self, player: Player) -> Goal | None:
+        """Return the player's current objective: the first unsatisfied goal
+        in priority order, or None when the whole arc is complete."""
+        for goal in GOALS:
+            if not self._goal_satisfied(goal.id, player):
+                return goal
+        return None
+
+    def _goal_satisfied(self, goal_id: str, player: Player) -> bool:
+        """Deterministic satisfaction check keyed on player state only."""
+        visited = set(player.visited_scenes or [])
+        seen = set(player.seen_events or [])
+        if goal_id == "venture_bamboo":
+            return "bamboo_forest" in visited
+        if goal_id == "probe_anomaly":
+            return "spirit_herb" in seen
+        if goal_id == "cultivate_breakthrough":
+            return player.level == "练气期二层"
+        if goal_id == "venture_mountain":
+            return "mountain_range" in visited
+        return False
 
     # ------------------------------------------------------------------
     # Tick progression

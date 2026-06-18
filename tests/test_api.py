@@ -353,3 +353,72 @@ async def test_game_action_anaphora_move_blocked_when_unreachable(tmp_path):
         # error, never a raw id.
         assert data["player"]["current_scene"] == "outer_gate"
         assert "寻不到这般去处" in data["story"] or "没有直达" in data["story"]
+
+
+@pytest.mark.asyncio
+async def test_get_player_status_includes_goal(tmp_path):
+    """The status bar must expose the current 所务 so the player always has a direction."""
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    # Visited 竹林 + seen 灵草, but still 练气期一层 → goal is the breakthrough.
+    PlayerRepository(conn).save(Player(
+        current_scene="bamboo_forest", tick=4,
+        visited_scenes=["inner_gate", "bamboo_forest"],
+        seen_events=["spirit_herb"],
+    ))
+    conn.close()
+
+    app = create_app(llm_client=MockLLMClient(response="{}"), db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.get("/player/status")
+    assert r.status_code == 200
+    data = json.loads(r.text)
+    assert "goal" in data
+    assert data["goal"]["label"] == "参悟机缘，突破练气期二层"
+
+
+@pytest.mark.asyncio
+async def test_game_action_records_visit_and_advances_goal(tmp_path):
+    """Moving to 竹林 records the visit and advances the objective arc in the
+    response — the engine tracks progress deterministically, not the LLM."""
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    # At 内门, has seen 灵草 already; once they reach 竹林 the arc skips
+    # venture_bamboo and probe_anomaly and lands on the breakthrough goal.
+    PlayerRepository(conn).save(Player(
+        current_scene="inner_gate", tick=4,
+        visited_scenes=["inner_gate"],
+        seen_events=["spirit_herb"],
+    ))
+    conn.close()
+
+    mock = MockLLMClient(response=json.dumps({
+        "intent": "move", "action_valid": True, "invalid_reason": "",
+        "story": "你随师姐踏入竹林深处。",
+        "state_delta": {}, "breakthrough": None, "combat": None, "npc_update": None,
+    }, ensure_ascii=False))
+    app = create_app(llm_client=mock, db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.post("/game/action", json={"user_input": "去竹林"})
+    assert r.status_code == 200
+    data = json.loads(r.text)
+    assert data["player"]["current_scene"] == "bamboo_forest"
+    # Visited recorded → venture_bamboo satisfied; 灵草 seen → probe satisfied;
+    # still 练气期一层 → breakthrough is now the current 所务.
+    assert data["goal"]["label"] == "参悟机缘，突破练气期二层"
+
+    # And it persists — a status readback still shows the recorded visit.
+    conn2 = sqlite3.connect(db_path)
+    conn2.row_factory = sqlite3.Row
+    row = conn2.execute("SELECT visited_scenes FROM players WHERE id='p1'").fetchone()
+    assert "bamboo_forest" in json.loads(row["visited_scenes"])

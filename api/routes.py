@@ -55,6 +55,11 @@ def create_router(
                 "connections": scene.connections,
             }
 
+        goal = world_engine.current_goal(player)
+        goal_info = {"id": goal.id, "label": goal.label} if goal else {
+            "id": None, "label": "暂无要务，随心而行",
+        }
+
         return {
             "name": player.name,
             "current_scene": player.current_scene,
@@ -68,6 +73,7 @@ def create_router(
             "attack": compute_attack(player),
             "defense": compute_defense(player),
             "scene": scene_info,
+            "goal": goal_info,
         }
 
     # ------------------------------------------------------------------
@@ -174,6 +180,12 @@ def create_router(
             status, result = world_engine.resolve_scene_move(player, destination)
             if status == "ok":
                 player = move(player, result)
+                # Record the visit so the objective layer (所务) can mark
+                # exploration goals satisfied.
+                visited = list(player.visited_scenes or [])
+                if result not in visited:
+                    visited.append(result)
+                    player = player.model_copy(update={"visited_scenes": visited})
             else:
                 move_error = result  # Store the error message
 
@@ -236,6 +248,11 @@ def create_router(
 
             npc_context = build_memory_context(memory)
 
+        # Current objective (所务) — deterministic, from player state. Computed
+        # after the world layer so visited_scenes / seen_events / breakthrough
+        # are up to date; used both to steer the DM and to surface in the response.
+        goal = world_engine.current_goal(player)
+
         system_prompt, user_prompt = build_dm_prompt(
             player=player,
             intent=intent,
@@ -245,6 +262,7 @@ def create_router(
             recent_stories=player.recent_stories,
             scene=scene,
             world_event=world_event,
+            goal=goal,
         )
 
         # Prepend the user's actual input to the prompt
@@ -366,6 +384,14 @@ def create_router(
                 "connections": scene.connections,
             }
 
+        # Recompute the current objective from the final player state (a
+        # breakthrough applied above may have advanced it) and surface it so
+        # the status bar always shows the player's direction.
+        goal = world_engine.current_goal(player)
+        goal_info = {"id": goal.id, "label": goal.label} if goal else {
+            "id": None, "label": "暂无要务，随心而行",
+        }
+
         # Build response
         response_data = {
             "intent": intent.value,  # Use our classified intent, not DM's
@@ -384,6 +410,7 @@ def create_router(
                 "defense": compute_defense(player),
             },
             "scene": scene_response,
+            "goal": goal_info,
         }
 
         # Add world event info to response

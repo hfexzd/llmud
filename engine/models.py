@@ -41,6 +41,9 @@ class Player(BaseModel):
     inventory: list[str] = Field(default_factory=list)
     recent_stories: list[str] = Field(default_factory=list)
     seen_events: list[str] = Field(default_factory=list)
+    # Scenes the player has ever set foot in — drives the objective layer
+    # (e.g. "到过竹林" satisfies the 竹林 goal). Seeded with the start scene.
+    visited_scenes: list[str] = Field(default_factory=lambda: ["outer_gate"])
     tick: int = 0
     created_at: datetime = Field(default_factory=datetime.now)
     last_seen: datetime = Field(default_factory=datetime.now)
@@ -115,6 +118,48 @@ class WorldEvent(BaseModel):
     allow_intervene: bool = False
     intervene_options: list[str] | None = None
     one_time: bool = True
+
+
+class Goal(BaseModel):
+    """A deterministic, in-world objective the engine tracks for the player.
+
+    The first unsatisfied goal (by priority order in GOALS) is the player's
+    current 所务, surfaced in the status bar and the DM prompt so the player
+    always has a direction. Satisfaction is computed by the world engine from
+    player state — the LLM only narrates toward the goal, it never decides it.
+    """
+
+    id: str
+    label: str  # in-world 所务 text shown to the player
+    guidance: str  # steering text injected into the DM prompt
+
+
+# Priority-ordered objective arc for the slice. The engine picks the first
+# goal whose satisfaction check fails; that is the player's current 所务.
+# Satisfaction keys only on deterministic player state (visited_scenes,
+# seen_events, level) — never on LLM-granted items.
+GOALS: list[Goal] = [
+    Goal(
+        id="venture_bamboo",
+        label="往内门寻林婉儿，同探幽竹林",
+        guidance="林婉儿师姐似有心事、欲往竹林一探。叙事应推动玩家前往内门再赴幽竹林，埋下机缘与异象的钩子。",
+    ),
+    Goal(
+        id="probe_anomaly",
+        label="查探竹林中的灵草异气",
+        guidance="幽竹林中现泛光灵草、似有不祥气息。叙事应引导玩家细查异象、追问缘由，而非匆匆离去。",
+    ),
+    Goal(
+        id="cultivate_breakthrough",
+        label="参悟机缘，突破练气期二层",
+        guidance="玩家已得竹林机缘，灵力渐丰。叙事应鼓励其静心修炼、凝聚灵气，临近突破练气期二层。",
+    ),
+    Goal(
+        id="venture_mountain",
+        label="深入妖兽山脉，试炼身手",
+        guidance="幽竹林通向妖兽山脉，或有更大机缘与险阻。叙事应暗示玩家整装向山脉进发。",
+    ),
+]
 
 
 class SceneSchedule(BaseModel):
