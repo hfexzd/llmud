@@ -575,3 +575,47 @@ async def test_npc_repo_lists_all_profiles(tmp_path):
     ids = {p["id"] for p in profiles}
     assert ids == {"linwaner", "chenhao", "old_yang"}
     conn.close()
+
+
+@pytest.mark.asyncio
+async def test_game_action_persists_quest_completed_tick(tmp_path):
+    """update_quests must run BEFORE persistence so completed_tick is saved —
+    otherwise cross-request quest expiry breaks (regression for the
+    persistence-order bug)."""
+    import sqlite3
+    from db.connection import init_db
+    from db.repository import PlayerRepository, NPCRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    # Player already at bamboo_forest so venture_bamboo is satisfied this action.
+    PlayerRepository(conn).save(Player(
+        current_scene="bamboo_forest", tick=4, spirit_power=12,
+        visited_scenes=["outer_gate", "bamboo_forest"],
+    ))
+    conn.close()
+
+    mock = MockLLMClient(response=json.dumps({
+        "intent": "cultivate", "action_valid": True, "invalid_reason": "",
+        "story": "你盘膝而坐。",
+        "state_delta": {"spirit_power": 2}, "breakthrough": None,
+        "combat": None, "npc_update": None,
+    }, ensure_ascii=False))
+    app = create_app(llm_client=mock, db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.post("/game/action", json={"user_input": "修炼"})
+    assert r.status_code == 200
+
+    # Reload player directly from the DB and confirm the venture_bamboo
+    # completed record (with completed_tick) was actually persisted.
+    conn2 = sqlite3.connect(db_path)
+    conn2.row_factory = sqlite3.Row
+    player = PlayerRepository(conn2).get("p1")
+    conn2.close()
+    recs = {q.id: q for q in player.quests}
+    assert "venture_bamboo" in recs, "venture_bamboo completed record was not persisted"
+    assert recs["venture_bamboo"].status == "completed"
+    assert recs["venture_bamboo"].completed_tick is not None

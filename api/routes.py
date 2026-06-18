@@ -410,6 +410,13 @@ def create_router(
             updated_stories = updated_stories[-5:]
         player = player.model_copy(update={"recent_stories": updated_stories})
 
+        # Update quest lifecycle records (completed_tick + prune expired) now
+        # that all state mutations, the tick advance, and any breakthrough are
+        # final. Runs BEFORE persistence so the records are actually saved.
+        # The visible list is derived from state; this only maintains records
+        # for strike-through/expiry.
+        player = world_engine.update_quests(player)
+
         # Persist player state
         player_repo.update(player)
 
@@ -427,12 +434,6 @@ def create_router(
                 "connections": scene.connections,
             }
 
-        # Update quest lifecycle records (completed_tick + prune expired) now
-        # that all state mutations, the tick advance, and any breakthrough are
-        # final. The visible list is derived from state; this only maintains
-        # records for strike-through/expiry.
-        player = world_engine.update_quests(player)
-
         # Recompute the current objective from the final player state (a
         # breakthrough applied above may have advanced it) and surface it so
         # the status bar always shows the player's direction.
@@ -440,6 +441,11 @@ def create_router(
         goal_info = {"id": goal.id, "label": goal.label} if goal else {
             "id": None, "label": "暂无要务，随心而行",
         }
+
+        # Panel refresh data (mirror of /player/status panel fields).
+        # Hoist the present-id set once so the comprehension below doesn't
+        # rebuild it on every iteration.
+        present_ids = set(scene_response["npcs_present"]) if scene_response else set()
 
         # Build response
         response_data = {
@@ -460,14 +466,13 @@ def create_router(
             },
             "scene": scene_response,
             "goal": goal_info,
-            # Panel refresh data (mirror of /player/status panel fields).
             "npcs": [
                 {
                     "id": p["id"],
                     "favorability": p.get("favorability", 50),
                     "relationship_stage": p.get("relationship_stage", "陌生"),
                     "default_scene": p.get("default_scene", "outer_gate"),
-                    "present": p["id"] in set(scene_response["npcs_present"]) if scene_response else False,
+                    "present": p["id"] in present_ids,
                 }
                 for p in npc_repo.get_all_profiles()
             ],
