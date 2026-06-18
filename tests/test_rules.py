@@ -104,3 +104,27 @@ def test_move_preserves_other_fields():
     assert result.spirit_power == 42
     assert result.hp == 80
     assert result.current_scene == "inner_gate"
+
+
+def test_next_spirit_threshold_for_layer_1():
+    from engine.models import next_spirit_threshold
+    assert next_spirit_threshold("练气期一层") == 30
+
+
+def test_next_spirit_threshold_for_max_level_returns_none():
+    from engine.models import next_spirit_threshold
+    # 金丹期一层 is the last tier in LEVEL_TABLE
+    assert next_spirit_threshold("金丹期一层") is None
+
+
+def test_next_spirit_threshold_unknown_level_returns_none():
+    from engine.models import next_spirit_threshold
+    assert next_spirit_threshold("渡劫期") is None
+
+
+def test_shichen_label_cycles_every_12_ticks():
+    from engine.models import shichen_label
+    assert shichen_label(0) == "子时·夜半"
+    assert shichen_label(4) == "辰时·晨光初照"
+    assert shichen_label(12) == "子时·夜半"
+    assert shichen_label(25) == shichen_label(1)

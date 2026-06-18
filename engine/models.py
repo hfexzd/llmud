@@ -29,6 +29,31 @@ LEVEL_TABLE: list[LevelTier] = [
 ]
 
 
+def next_spirit_threshold(level: str) -> int | None:
+    """Return the spirit_power needed to reach the next 境界, or None if at the
+    top of LEVEL_TABLE (or level unknown). Drives the 灵力 progress bar."""
+    for i, tier in enumerate(LEVEL_TABLE):
+        if tier.name == level:
+            if i + 1 < len(LEVEL_TABLE):
+                return LEVEL_TABLE[i + 1].spirit_threshold
+            return None
+    return None
+
+
+# Twelve 时辰, cycled by tick for an in-world clock that never shows a raw
+# number. Mirrored in static/index.html (shichenLabel) — keep them in sync.
+SHICHEN_LABELS: list[str] = [
+    "子时·夜半", "丑时·鸡鸣", "寅时·平旦", "卯时·日出",
+    "辰时·晨光初照", "巳时·隅中", "午时·日中", "未时·日昳",
+    "申时·晡时", "酉时·日入", "戌时·黄昏", "亥时·人定",
+]
+
+
+def shichen_label(tick: int) -> str:
+    """Map a world tick to a 时辰 label (cycling every 12)."""
+    return SHICHEN_LABELS[tick % 12]
+
+
 class Player(BaseModel):
     id: str = "p1"
     name: str = "张铁柱"
