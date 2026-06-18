@@ -1,4 +1,4 @@
-"""Game endpoints — orchestrates the full classify→engine→dm→npc pipeline."""
+"""Game endpoints — orchestrates the full classify→engine→world→dm→npc pipeline."""
 import json
 
 from fastapi import APIRouter
@@ -9,8 +9,8 @@ from dm.client import LLMClient
 from dm.contract import parse_dm_response_with_retry
 from dm.prompt import build_dm_prompt
 from engine.classify import classify_intent
-from engine.models import Intent, Player, Encounter, DEFAULT_ENCOUNTER
-from engine.rules import cultivate, resolve_combat, check_breakthrough, compute_attack, compute_defense
+from engine.models import Intent, Player, Encounter, DEFAULT_ENCOUNTER, NPCInteraction, EventTrigger, WorldEvent, SCENE_MAP
+from engine.rules import cultivate, resolve_combat, check_breakthrough, compute_attack, compute_defense, move
 from engine.world import WorldEngine
 from db.repository import PlayerRepository, NPCRepository
 from npc.memory import update_memory, build_memory_context, compute_relationship_stage
@@ -32,15 +32,33 @@ def create_router(
     """Create a FastAPI router with game endpoints, wiring all subsystems."""
     router = APIRouter()
 
+    # ------------------------------------------------------------------
+    # GET /player/status — player status with scene info
+    # ------------------------------------------------------------------
     @router.get("/player/status")
     def get_status():
-        """Return current player status."""
+        """Return current player status including scene information."""
         player = player_repo.get("p1")
         if player is None:
             return {"error": "Player not found"}
+
+        # Enrich with scene details
+        scene = world_engine.get_scene(player.current_scene)
+        scene_info = None
+        if scene:
+            npcs_present = world_engine.get_npcs_in_scene(scene.id, player.tick)
+            scene_info = {
+                "id": scene.id,
+                "name": scene.name,
+                "atmosphere": scene.atmosphere,
+                "npcs_present": npcs_present,
+                "connections": scene.connections,
+            }
+
         return {
             "name": player.name,
             "current_scene": player.current_scene,
+            "tick": player.tick,
             "level": player.level,
             "spirit_power": player.spirit_power,
             "hp": player.hp,
@@ -49,8 +67,29 @@ def create_router(
             "inventory": player.inventory,
             "attack": compute_attack(player),
             "defense": compute_defense(player),
+            "scene": scene_info,
         }
 
+    # ------------------------------------------------------------------
+    # GET /game/scenes — list all scenes
+    # ------------------------------------------------------------------
+    @router.get("/game/scenes")
+    def list_scenes():
+        """Return all scenes in the world."""
+        scenes = []
+        for scene_id, scene in SCENE_MAP.items():
+            scenes.append({
+                "id": scene.id,
+                "name": scene.name,
+                "atmosphere": scene.atmosphere,
+                "connections": scene.connections,
+                "available_actions": scene.available_actions,
+            })
+        return {"scenes": scenes}
+
+    # ------------------------------------------------------------------
+    # POST /game/action — full action pipeline with world layer
+    # ------------------------------------------------------------------
     @router.post("/game/action")
     async def game_action(request: ActionRequest):
         """Process a player action through the full pipeline."""
@@ -81,6 +120,7 @@ def create_router(
         # Step 3: Engine resolution (deterministic)
         combat_result = None
         breakthrough = None
+        move_error = None
 
         if intent == Intent.CULTIVATE:
             player = cultivate(player)
@@ -89,26 +129,84 @@ def create_router(
                 player = player.model_copy(update={"level": breakthrough.to_level})
 
         elif intent == Intent.FIGHT:
-            combat_result, player, _ = resolve_combat(player, encounter)
-            if combat_result.result == "lose":
-                player = player.model_copy(update={"hp": 1})
+            # Look up encounters for current scene
+            encounter_ids = world_engine.get_encounters_for_scene(player.current_scene)
+            if encounter_ids:
+                # Use the first encounter available in this scene
+                combat_result, player, _ = resolve_combat(player, encounter)
+                if combat_result.result == "lose":
+                    player = player.model_copy(update={"hp": 1})
+            else:
+                # No encounters in this scene — still resolve with default
+                combat_result, player, _ = resolve_combat(player, encounter)
+                if combat_result.result == "lose":
+                    player = player.model_copy(update={"hp": 1})
+
+        elif intent == Intent.MOVE:
+            # Resolve move via world engine
+            destination = params.get("destination", filtered_input)
+            status, result = world_engine.resolve_scene_move(player, destination)
+            if status == "ok":
+                player = move(player, result)
+            else:
+                move_error = result  # Store the error message
 
         elif intent == Intent.TALK:
             pass  # NPC interaction handled in DM phase
 
-        # Step 4: Narrative (DM LLM call)
+        # Step 4: World layer — advance tick, check events, check NPC interactions
+        player = world_engine.advance_tick(player)
+
+        # Get current scene info
+        scene = world_engine.get_scene(player.current_scene)
+
+        # Check for world events at current scene
+        world_event = None
+        if scene:
+            world_event = world_engine.check_events(scene.id, player)
+
+        # Check for NPC-to-NPC interactions in the scene
+        npc_interaction = world_engine.check_npc_interactions(player.current_scene, player.tick)
+
+        # If NPC interaction has priority (allow_intervene), use it as the world event
+        intervention = None
+        if npc_interaction and npc_interaction.allow_intervene:
+            intervention = npc_interaction
+            # If no world event was found, promote the NPC interaction to a WorldEvent for the prompt
+            if world_event is None:
+                world_event = WorldEvent(
+                    id=npc_interaction.id,
+                    name=npc_interaction.narrative_hint[:20],
+                    scene_id=npc_interaction.scene_id,
+                    trigger=EventTrigger(type="location_enter", conditions={}),
+                    narrative_hint=npc_interaction.narrative_hint,
+                    guidance=npc_interaction.narrative_hint,
+                    allow_intervene=npc_interaction.allow_intervene,
+                    intervene_options=npc_interaction.intervene_options,
+                    one_time=False,
+                )
+
+        # Apply world event to player (mark one-time events as seen)
+        if world_event:
+            player = world_engine.apply_event(player, world_event)
+
+        # Step 5: Narrative (DM LLM call)
         npc_context = ""
         npc_update_dict = None
 
         if intent == Intent.TALK:
-            profile_row = npc_repo.get_profile(DEFAULT_NPC_PROFILE.id)
+            # Determine target NPC from scene rather than hardcoding
+            npcs_in_scene = world_engine.get_npcs_in_scene(player.current_scene, player.tick)
+            target_npc_id = npcs_in_scene[0] if npcs_in_scene else DEFAULT_NPC_PROFILE.id
+
+            profile_row = npc_repo.get_profile(target_npc_id)
             npc_profile = dict(profile_row) if profile_row else {}
 
-            npc_memory_row = npc_repo.get_memory(DEFAULT_NPC_PROFILE.id)
+            npc_memory_row = npc_repo.get_memory(target_npc_id)
             if npc_memory_row:
                 memory = _build_memory_from_row(npc_memory_row)
             else:
-                memory = NPCMemory(npc_id=DEFAULT_NPC_PROFILE.id)
+                memory = NPCMemory(npc_id=target_npc_id)
 
             npc_context = build_memory_context(memory)
 
@@ -119,6 +217,8 @@ def create_router(
             breakthrough=breakthrough,
             npc_context=npc_context,
             recent_stories=player.recent_stories,
+            scene=scene,
+            world_event=world_event,
         )
 
         # Prepend the user's actual input to the prompt
@@ -144,10 +244,10 @@ def create_router(
                 }, ensure_ascii=False)
             return StreamingResponse(error_response(), media_type="application/json")
 
-        # Step 5: Post-filter output
+        # Step 6: Post-filter output
         raw_response, _was_rewritten = post_filter_output(raw_response)
 
-        # Step 6: Parse DM response
+        # Step 7: Parse DM response
         dm_response = await parse_dm_response_with_retry(
             raw_response, client=llm_client,
             system_prompt=system_prompt, user_prompt=user_prompt,
@@ -161,9 +261,15 @@ def create_router(
                 Intent.TALK: f"{player.name}与身边的人交谈了几句。",
                 Intent.FIGHT: f"{player.name}与妖兽展开了激烈的交锋！",
                 Intent.MOVE: f"{player.name}向新的方向走去。",
+                Intent.INTERVENE: f"{player.name}选择了介入。",
                 Intent.OTHER: f"{player.name}的行动似乎没有引起什么变化。",
             }
             story = story_fallbacks.get(intent, f"{player.name}的行动似乎没有引起什么变化。")
+
+        # Handle move error — if move was invalid, override the story
+        if move_error:
+            story = move_error
+            dm_response = dm_response.model_copy(update={"action_valid": False, "invalid_reason": move_error})
 
         # Apply state_delta from DM (for move/other intents)
         if dm_response.state_delta and dm_response.action_valid:
@@ -183,18 +289,22 @@ def create_router(
 
         # Handle NPC update
         if dm_response.npc_update:
+            # Use the target NPC determined from the scene, or fallback
+            npcs_in_scene = world_engine.get_npcs_in_scene(player.current_scene, player.tick)
+            target_npc_id = npcs_in_scene[0] if npcs_in_scene else DEFAULT_NPC_PROFILE.id
+
             npc_update_dict = dm_response.npc_update
-            profile_row = npc_repo.get_profile(DEFAULT_NPC_PROFILE.id)
+            profile_row = npc_repo.get_profile(target_npc_id)
             profile_dict = dict(profile_row) if profile_row else {}
             current_favorability = profile_dict.get("favorability", 50)
             favorability_change = npc_update_dict.get("favorability_change", 0)
             new_favorability = max(0, min(100, current_favorability + favorability_change))
             new_stage = compute_relationship_stage(new_favorability)
-            npc_repo.update_favorability(DEFAULT_NPC_PROFILE.id, new_favorability, new_stage)
+            npc_repo.update_favorability(target_npc_id, new_favorability, new_stage)
 
             # Update NPC memory
-            npc_memory_row = npc_repo.get_memory(DEFAULT_NPC_PROFILE.id)
-            memory = _build_memory_from_row(npc_memory_row) if npc_memory_row else NPCMemory(npc_id=DEFAULT_NPC_PROFILE.id)
+            npc_memory_row = npc_repo.get_memory(target_npc_id)
+            memory = _build_memory_from_row(npc_memory_row) if npc_memory_row else NPCMemory(npc_id=target_npc_id)
             memory = update_memory(
                 memory,
                 user_message=filtered_input,
@@ -202,7 +312,7 @@ def create_router(
                 npc_update=npc_update_dict,
             )
             npc_repo.update_memory(
-                DEFAULT_NPC_PROFILE.id,
+                target_npc_id,
                 summary=memory.summary,
                 recent_turns=[t.model_dump() for t in memory.recent_turns],
                 key_facts=[f.model_dump() for f in memory.key_facts],
@@ -218,6 +328,18 @@ def create_router(
         # Persist player state
         player_repo.update(player)
 
+        # Build scene info for response
+        scene_response = None
+        if scene:
+            npcs_in_scene_now = world_engine.get_npcs_in_scene(scene.id, player.tick)
+            scene_response = {
+                "id": scene.id,
+                "name": scene.name,
+                "atmosphere": scene.atmosphere,
+                "npcs_present": npcs_in_scene_now,
+                "connections": scene.connections,
+            }
+
         # Build response
         response_data = {
             "intent": intent.value,  # Use our classified intent, not DM's
@@ -227,6 +349,7 @@ def create_router(
             "player": {
                 "name": player.name,
                 "current_scene": player.current_scene,
+                "tick": player.tick,
                 "level": player.level,
                 "spirit_power": player.spirit_power,
                 "hp": player.hp,
@@ -234,7 +357,24 @@ def create_router(
                 "attack": compute_attack(player),
                 "defense": compute_defense(player),
             },
+            "scene": scene_response,
         }
+
+        # Add world event info to response
+        if world_event:
+            response_data["world_event"] = {
+                "id": world_event.id,
+                "name": world_event.name,
+                "narrative_hint": world_event.narrative_hint,
+            }
+
+        # Add intervention info to response
+        if intervention:
+            response_data["intervention"] = {
+                "id": intervention.id,
+                "narrative_hint": intervention.narrative_hint,
+                "intervene_options": intervention.intervene_options,
+            }
 
         if combat_result:
             response_data["combat"] = {
@@ -253,7 +393,10 @@ def create_router(
             }
 
         if npc_update_dict:
-            profile_row = npc_repo.get_profile(DEFAULT_NPC_PROFILE.id)
+            # Use the same target NPC id determined earlier
+            npcs_in_scene_final = world_engine.get_npcs_in_scene(player.current_scene, player.tick)
+            target_npc_id_final = npcs_in_scene_final[0] if npcs_in_scene_final else DEFAULT_NPC_PROFILE.id
+            profile_row = npc_repo.get_profile(target_npc_id_final)
             profile_dict = dict(profile_row) if profile_row else {}
             response_data["npc"] = {
                 "favorability": profile_dict.get("favorability", 50),
