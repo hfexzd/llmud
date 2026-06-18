@@ -204,7 +204,7 @@
             html += `<div class="stat-line"><span>时辰</span><b>${shichenLabel(p.tick)}</b></div>`;
             html += `<div class="panel-label">行囊</div><div>`;
             (p.inventory||[]).forEach(it => {
-                html += `<span class="obj-tag" onclick="prefill('查看${escapeHtml(it)}')">${escapeHtml(it)}</span>`;
+                html += `<span class="obj-tag" onclick="prefill('查看${escapeAttr(it)}')">${escapeHtml(it)}</span>`;
             });
             if (!(p.inventory||[]).length) html += '<span style="color:#8a7aa8;font-size:12px">空空如也</span>';
             html += `</div><div style="margin-top:8px"><span class="obj-tag" onclick="prefill('修炼')">打坐修炼</span></div>`;
@@ -232,8 +232,8 @@
             let acts = '';
             if (!absent) {
                 acts = `<div class="npc-acts">`
-                    + `<span class="npc-btn go" onclick="prefill('和${escapeHtml(name)}搭话')">搭话</span>`
-                    + `<span class="npc-btn go" onclick="prefill('对${escapeHtml(name)}说：', true)">自由聊天</span>`
+                    + `<span class="npc-btn go" onclick="prefill('和${escapeAttr(name)}搭话')">搭话</span>`
+                    + `<span class="npc-btn go" onclick="prefill('对${escapeAttr(name)}说：', true)">自由聊天</span>`
                     + `<span class="npc-btn dim">切磋</span>`
                     + `</div>`;
             }
@@ -253,7 +253,7 @@
             landmarks.forEach(lm => {
                 if (lm && descHtml.includes(escapeHtml(lm))) {
                     descHtml = descHtml.split(escapeHtml(lm)).join(
-                        `<span class="link-obj" onclick="prefill('查看${escapeHtml(lm)}')">${escapeHtml(lm)}</span>`);
+                        `<span class="link-obj" onclick="prefill('查看${escapeAttr(lm)}')">${escapeHtml(lm)}</span>`);
                 }
             });
             let html = `<div class="panel-sec"><div class="panel-label">${escapeHtml(scene.name||'')} · ${escapeHtml(scene.atmosphere||'')}</div>`;
@@ -261,14 +261,14 @@
 
             html += '<div class="panel-sec"><div class="panel-label">可交互物件</div>';
             landmarks.forEach(lm => {
-                html += `<span class="obj-tag" onclick="prefill('查看${escapeHtml(lm)}')">${escapeHtml(lm)} · 查看</span>`;
+                html += `<span class="obj-tag" onclick="prefill('查看${escapeAttr(lm)}')">${escapeHtml(lm)} · 查看</span>`;
             });
             if (!landmarks.length) html += '<span style="color:#8a7aa8;font-size:12px">无可交互物件</span>';
             html += '</div>';
 
             html += '<div class="panel-sec"><div class="panel-label">可前往</div>';
             conns.forEach(cid => {
-                html += `<span class="move-tag" onclick="prefill('去${SCENE_NAMES[cid]||cid}')">→ ${SCENE_NAMES[cid]||cid}</span>`;
+                html += `<span class="move-tag" onclick="prefill('去${escapeAttr(SCENE_NAMES[cid]||cid)}')">→ ${escapeHtml(SCENE_NAMES[cid]||cid)}</span>`;
             });
             if (!conns.length) html += '<span style="color:#8a7aa8;font-size:12px">无路可去</span>';
             html += '</div>';
@@ -440,6 +440,13 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function escapeAttr(s) {
+            // For text embedded in an HTML attribute (e.g. inside onclick="...").
+            // escapeHtml covers &<> for text content; attributes also need quotes
+            // escaped so a value can't break out of the attribute or the JS string.
+            return escapeHtml(s == null ? '' : String(s)).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
         }
 
         async function sendAction() {
