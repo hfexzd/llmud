@@ -48,6 +48,10 @@ class Player(BaseModel):
     # rounds and the player can actually wear a beast down. None when no fight
     # is active (or the enemy was just killed).
     active_enemy: dict | None = None
+    # Persistent lifecycle records for the visible 所务 (quest) list. The
+    # visible list is derived from state; this only carries completed_tick for
+    # strike-through + auto-expiry. See engine/world.py.
+    quests: list[QuestState] = Field(default_factory=list)
     tick: int = 0
     created_at: datetime = Field(default_factory=datetime.now)
     last_seen: datetime = Field(default_factory=datetime.now)
@@ -122,6 +126,20 @@ class WorldEvent(BaseModel):
     allow_intervene: bool = False
     intervene_options: list[str] | None = None
     one_time: bool = True
+
+
+class QuestState(BaseModel):
+    """Persistent record of a quest's lifecycle for the visible 所务 list.
+
+    The visible list itself is derived purely from player state (unlock +
+    satisfy predicates in world.py); this record only tracks `completed_tick`
+    so completed quests can be struck through and auto-expired after N ticks.
+    """
+
+    id: str
+    status: str  # "active" | "completed"
+    unlocked_tick: int
+    completed_tick: int | None = None
 
 
 class Goal(BaseModel):

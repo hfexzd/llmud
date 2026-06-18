@@ -354,3 +354,21 @@ class TestEdgeCases:
         assert "linwaner" not in npcs
         npcs_at_inner = engine.get_npcs_in_scene("inner_gate", 25)
         assert "linwaner" in npcs_at_inner
+
+
+# -------------------------------------------------------------------
+# TestQuestStateModel
+# -------------------------------------------------------------------
+
+
+class TestQuestStateModel:
+    def test_quest_state_defaults(self):
+        from engine.models import QuestState
+        q = QuestState(id="venture_bamboo", status="active", unlocked_tick=0)
+        assert q.status == "active"
+        assert q.completed_tick is None
+        assert q.unlocked_tick == 0
+
+    def test_player_has_empty_quests_by_default(self):
+        from engine.models import Player
+        assert Player().quests == []
