@@ -132,6 +132,15 @@
         const NPC_NAMES = {linwaner: '林婉儿', chenhao: '陈浩', old_yang: '杨老'};
         const SCENE_NAMES = {outer_gate: '外门', inner_gate: '内门', bamboo_forest: '竹林', market: '集市', mountain_range: '山脉'};
 
+        let worldScenes = [];  // [{id,name,connections,atmosphere}] from /game/scenes
+        async function loadWorldScenes() {
+            try {
+                const res = await fetch(`${API_URL}/game/scenes`);
+                const data = await res.json();
+                worldScenes = data.scenes || [];
+            } catch (e) { console.error('scenes load failed', e); }
+        }
+
         // Display-only maps for NPC richness (no English ids leak to the player).
         const NPC_ROLE = {linwaner: '师姐', chenhao: '师兄', old_yang: '守门人'};
         const NPC_HINT = {linwaner: '知心师姐，似有心事', chenhao: '豪爽师兄，常在集市', old_yang: '守门老人，深藏不露'};
@@ -279,7 +288,32 @@
             }
             return html;
         }
-        function renderMapPanel() { return '<p class="panel-label">（地图面板 — 下一步实现）</p>'; }
+        function renderMapPanel() {
+            const current = (panelData.scene && panelData.scene.id) || (panelData.player && panelData.player.current_scene);
+            // Reachable = scenes directly connected to the current scene.
+            const currentScene = worldScenes.find(s => s.id === current);
+            const reachable = new Set(currentScene ? currentScene.connections : []);
+            let html = `<div class="panel-sec"><div class="panel-label">场景图谱（亮=可前往，蓝=你在此）</div>`;
+            worldScenes.forEach(s => {
+                let cls = 'map-node', tag = '';
+                if (s.id === current) { cls += ' here'; tag = '你在此'; }
+                else if (reachable.has(s.id)) { cls += ' reach'; tag = '→ 前往'; }
+                else { cls += ' dim'; tag = '需经他处'; }
+                const dataAttr = (reachable.has(s.id) && s.id !== current)
+                    ? `data-prefill="去${escapeAttr(SCENE_NAMES[s.id]||s.id)}"`
+                    : '';
+                html += `<div class="${cls}" ${dataAttr}><span>${escapeHtml(s.name)}</span><span class="tag">${tag}</span></div>`;
+            });
+            if (currentScene && currentScene.id) {
+                // also show current scene's landmarks
+                const scene = panelData.scene || {};
+                if (scene.landmarks && scene.landmarks.length) {
+                    html += `<div class="panel-label" style="margin-top:10px">所在场景地标</div><div style="font-size:12px;color:#b8a0d4">${scene.landmarks.map(escapeHtml).join(' · ')}</div>`;
+                }
+            }
+            html += '</div>';
+            return html;
+        }
 
         // The opening line is shown once, on first status load, and must match
         // the player's actual scene — never a hardcoded outer_gate string.
@@ -568,6 +602,7 @@
         });
 
         // Initial status load
+        loadWorldScenes();
         updateStatus();
     </script>
 </body>
