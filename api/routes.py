@@ -22,6 +22,22 @@ class ActionRequest(BaseModel):
     user_input: str
 
 
+def _resolve_talk_target(player, filtered_input, world_engine, npc_repo):
+    """Pick the NPC id a TALK action addresses: a named NPC present in the
+    scene if the input names one, else the first present NPC, else the
+    default. Mirrors resolve_scene_id's philosophy for NPC targeting."""
+    npcs_in_scene = world_engine.get_npcs_in_scene(player.current_scene, player.tick)
+    name_by_id = {}
+    for nid in npcs_in_scene:
+        profile = npc_repo.get_profile(nid)
+        if profile:
+            name_by_id[nid] = profile.get("name", "")
+    named = resolve_npc_target(filtered_input, name_by_id)
+    if named:
+        return named
+    return npcs_in_scene[0] if npcs_in_scene else DEFAULT_NPC_PROFILE.id
+
+
 def create_router(
     llm_client: LLMClient,
     player_repo: PlayerRepository,
@@ -274,9 +290,10 @@ def create_router(
         npc_update_dict = None
 
         if intent == Intent.TALK:
-            # Determine target NPC from scene rather than hardcoding
-            npcs_in_scene = world_engine.get_npcs_in_scene(player.current_scene, player.tick)
-            target_npc_id = npcs_in_scene[0] if npcs_in_scene else DEFAULT_NPC_PROFILE.id
+            # Determine target NPC: a named NPC present in the scene if the
+            # input names one (e.g. "对陈浩说…"), else the first present NPC,
+            # else the default. See _resolve_talk_target.
+            target_npc_id = _resolve_talk_target(player, filtered_input, world_engine, npc_repo)
 
             profile_row = npc_repo.get_profile(target_npc_id)
             npc_profile = dict(profile_row) if profile_row else {}
@@ -374,9 +391,9 @@ def create_router(
 
         # Handle NPC update
         if dm_response.npc_update:
-            # Use the target NPC determined from the scene, or fallback
-            npcs_in_scene = world_engine.get_npcs_in_scene(player.current_scene, player.tick)
-            target_npc_id = npcs_in_scene[0] if npcs_in_scene else DEFAULT_NPC_PROFILE.id
+            # Use the target NPC: named NPC if the input named one, else first
+            # present, else default. Same resolution as the TALK context build.
+            target_npc_id = _resolve_talk_target(player, filtered_input, world_engine, npc_repo)
 
             npc_update_dict = dm_response.npc_update
             profile_row = npc_repo.get_profile(target_npc_id)
@@ -513,9 +530,9 @@ def create_router(
             }
 
         if npc_update_dict:
-            # Use the same target NPC id determined earlier
-            npcs_in_scene_final = world_engine.get_npcs_in_scene(player.current_scene, player.tick)
-            target_npc_id_final = npcs_in_scene_final[0] if npcs_in_scene_final else DEFAULT_NPC_PROFILE.id
+            # Use the same target NPC id determined earlier (named NPC if the
+            # input named one, else first present, else default).
+            target_npc_id_final = _resolve_talk_target(player, filtered_input, world_engine, npc_repo)
             profile_row = npc_repo.get_profile(target_npc_id_final)
             profile_dict = dict(profile_row) if profile_row else {}
             response_data["npc"] = {

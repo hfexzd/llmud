@@ -560,6 +560,61 @@ async def test_game_action_response_includes_panel_fields(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_game_action_named_npc_talk_targets_named_npc(tmp_path):
+    """'对陈浩说…' at a scene with two NPCs targets chenhao (second in
+    get_npcs_in_scene order), not the first-found NPC (linwaner). Regression:
+    TALK used to always take npcs_in_scene[0].
+
+    Scenario chosen so the named NPC is NOT first in get_npcs_in_scene order:
+    at market, tick 15, the presence-iteration order is ['linwaner',
+    'chenhao'] (NPC_PRESENCES insertion order). linwaner is scheduled to
+    market during ticks 10-20; chenhao's default_scene is market (always
+    present). Without the fix, npcs_in_scene[0] == 'linwaner' and the
+    favorability update would wrongly apply to linwaner. Naming 陈浩 must
+    override that order and target chenhao.
+    """
+    import sqlite3
+    from db.connection import init_db
+    from db.repository import PlayerRepository, NPCRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    # tick 15 -> linwaner is at market (schedule 10-20); chenhao always market.
+    PlayerRepository(conn).save(Player(current_scene="market", tick=15))
+    conn.close()
+
+    captured = {}
+
+    class CaptureClient:
+        async def generate(self, system_prompt, user_message):
+            captured["user"] = user_message
+            return json.dumps({
+                "intent": "talk", "action_valid": True, "invalid_reason": "",
+                "story": "陈浩咧嘴一笑。",
+                "state_delta": {}, "breakthrough": None, "combat": None,
+                "npc_update": {"favorability_change": 3, "new_key_fact": "玩家叫张铁柱",
+                               "summary_delta": "玩家向陈浩致意"},
+            }, ensure_ascii=False)
+
+    app = create_app(llm_client=CaptureClient(), db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.post("/game/action", json={"user_input": "对陈浩说：近来可好"})
+    assert r.status_code == 200
+    data = json.loads(r.text)
+    # The favorability update was applied to chenhao, not linwaner.
+    assert data["npc"]["favorability"] == 33  # chenhao base 30 + 3
+    # linwaner favorability unchanged (still 50)
+    conn2 = sqlite3.connect(db_path)
+    conn2.row_factory = sqlite3.Row
+    waner = dict(conn2.execute("SELECT favorability FROM npc_profiles WHERE id='linwaner'").fetchone())
+    assert waner["favorability"] == 50
+    conn2.close()
+
+
+@pytest.mark.asyncio
 async def test_npc_repo_lists_all_profiles(tmp_path):
     """get_all_profiles returns every seeded NPC for the 人物 panel."""
     from db.connection import init_db
