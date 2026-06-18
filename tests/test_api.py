@@ -262,3 +262,94 @@ async def test_game_action_intervention_options_render(tmp_path):
         # Frontend reads `description` and `options` — both must be present and non-empty.
         assert "description" in iv and iv["description"]
         assert iv["options"] == ["上前搭话", "继续偷听", "默默离开"]
+
+
+@pytest.mark.asyncio
+async def test_game_action_anaphora_move_resolves_via_llm(tmp_path):
+    """承接邀请的省略移动：玩家在内门，婉儿刚说「去竹林走走」，玩家回「好啊，去走走」。
+
+    The regex fast-path flags this as a move with no resolvable destination.
+    The LLM classify fallback reads the recent conversation and infers 竹林
+    (reachable from inner_gate); the engine then moves the player there. The
+    LLM cannot teleport — reachability is still validated by the engine.
+    """
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    PlayerRepository(conn).save(Player(
+        current_scene="inner_gate", tick=4,
+        recent_stories=["林婉儿轻声道：「你可愿陪我去竹林走走？」"],
+    ))
+    conn.close()
+
+    class FallbackClient:
+        """Classify JSON for the classifier call; a DM story otherwise."""
+        def __init__(self):
+            self.calls = []
+
+        async def generate(self, system_prompt, user_message):
+            self.calls.append(system_prompt)
+            if "意图分类器" in system_prompt:
+                return json.dumps({"intent": "move", "destination": "竹林"},
+                                  ensure_ascii=False)
+            return json.dumps({
+                "intent": "move", "action_valid": True, "invalid_reason": "",
+                "story": "你与林婉儿并肩步入竹林深处，竹叶沙沙作响。",
+                "state_delta": {"location": "bamboo_forest"},
+                "breakthrough": None, "combat": None, "npc_update": None,
+            }, ensure_ascii=False)
+
+    client_llm = FallbackClient()
+    app = create_app(llm_client=client_llm, db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/game/action", json={"user_input": "好啊，去走走"})
+        assert response.status_code == 200
+        data = json.loads(response.text)
+        assert data["intent"] == "move"
+        assert data["player"]["current_scene"] == "bamboo_forest"
+
+
+@pytest.mark.asyncio
+async def test_game_action_anaphora_move_blocked_when_unreachable(tmp_path):
+    """The LLM may suggest a destination, but the engine still enforces
+    reachability. If the inferred place isn't connected, the move is rejected
+    in-world (no English ids, no system-style error)."""
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    # outer_gate connects only to inner_gate and market — not bamboo_forest.
+    PlayerRepository(conn).save(Player(
+        current_scene="outer_gate", tick=4,
+        recent_stories=["林婉儿轻声道：「你可愿陪我去竹林走走？」"],
+    ))
+    conn.close()
+
+    class FallbackClient:
+        async def generate(self, system_prompt, user_message):
+            if "意图分类器" in system_prompt:
+                return json.dumps({"intent": "move", "destination": "竹林"},
+                                  ensure_ascii=False)
+            return json.dumps({
+                "intent": "move", "action_valid": True, "invalid_reason": "",
+                "story": "你迈步欲行。",
+                "state_delta": {}, "breakthrough": None, "combat": None,
+                "npc_update": None,
+            }, ensure_ascii=False)
+
+    app = create_app(llm_client=FallbackClient(), db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/game/action", json={"user_input": "好啊，去走走"})
+        assert response.status_code == 200
+        data = json.loads(response.text)
+        # Move rejected in-world; player stays put. Story carries the Chinese
+        # error, never a raw id.
+        assert data["player"]["current_scene"] == "outer_gate"
+        assert "寻不到这般去处" in data["story"] or "没有直达" in data["story"]

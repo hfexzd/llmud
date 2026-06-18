@@ -1,4 +1,6 @@
+import json
 import re
+
 from engine.models import Intent, resolve_scene_id
 
 # Regex patterns for fast-path classification
@@ -52,7 +54,11 @@ def classify_intent(action_text: str, llm_client=None) -> tuple[Intent, dict]:
         # Extract a concrete target scene when the text names one (e.g.
         # "去内门灵泉旁修炼" → "inner_gate"); fall back to the raw text so the
         # world layer can still attempt alias matching or report an error.
-        params["destination"] = resolve_scene_id(action_text) or action_text
+        resolved = resolve_scene_id(action_text)
+        params["destination"] = resolved or action_text
+        # Flag whether a concrete scene was parsed — when False, the api layer
+        # asks the LLM to disambiguate an elliptical move (e.g. "好啊，去走走").
+        params["destination_resolved"] = resolved is not None
         return Intent.MOVE, params
 
     if _match_patterns(action_text, CULTIVATE_PATTERNS):
@@ -69,3 +75,92 @@ def classify_intent(action_text: str, llm_client=None) -> tuple[Intent, dict]:
     # Fallback: LLM classification (async, called from api layer)
     # For the slice, if no LLM client, default to OTHER
     return Intent.OTHER, params
+
+
+_INTENT_NAME_TO_ENUM = {
+    "cultivate": Intent.CULTIVATE,
+    "fight": Intent.FIGHT,
+    "move": Intent.MOVE,
+    "talk": Intent.TALK,
+    "intervene": Intent.INTERVENE,
+    "other": Intent.OTHER,
+}
+
+
+def _extract_json_object(text: str) -> dict | None:
+    """Best-effort JSON object extraction, tolerant of code fences and prose."""
+    if not text:
+        return None
+    s = text.strip()
+    if s.startswith("```"):
+        s = re.sub(r"^```(?:json)?\s*", "", s)
+        s = re.sub(r"\s*```$", "", s)
+    start, end = s.find("{"), s.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        return None
+    try:
+        return json.loads(s[start : end + 1])
+    except Exception:
+        return None
+
+
+async def classify_intent_llm(
+    action_text: str,
+    llm_client,
+    scene_name: str,
+    candidate_destinations: list[str],
+    recent_stories: list[str],
+) -> tuple[Intent | None, dict]:
+    """LLM fallback for ambiguous / elliptical input.
+
+    Used when the regex fast-path is uncertain — a move verb with no resolvable
+    destination (e.g. "好啊，去走走"承接林婉儿的邀请→竹林), or no pattern at all
+    (e.g. "好啊", "走吧"). The LLM sees the recent conversation plus the places
+    the player can actually reach, so it can infer an implied destination.
+
+    The engine still validates reachability afterwards, so the LLM cannot
+    teleport the player to an unreachable scene.
+
+    Returns (Intent, params) on success, or (None, {}) when there is no client,
+    the LLM call fails, or the response cannot be parsed.
+    """
+    if llm_client is None:
+        return None, {}
+
+    candidates = "、".join(candidate_destinations) if candidate_destinations else "（四周无路）"
+    stories = "\n".join(f"- {s}" for s in (recent_stories or [])[-5:]) or "（无）"
+
+    system = (
+        "你是修仙 MUD 的意图分类器。根据玩家这句话和最近对话上下文，判断玩家意图。\n"
+        "可选意图：cultivate（修炼/打坐/练功）、fight（战斗/攻击/杀敌）、"
+        "move（前往某地）、talk（与在场的人说话）、intervene（介入他人的互动）、"
+        "other（其余自由行动）。\n"
+        f"玩家当前所在场景：{scene_name}。\n"
+        f"玩家可前往的目的地：{candidates}。\n"
+        "若玩家是承接上文邀请或提议而省略了地点（如「好啊」「走吧」「去走走」"
+        "「那就去吧」），请结合最近对话推断其真正想去的目的地。\n"
+        "只输出严格 JSON，不要任何额外文字或 markdown 标记：\n"
+        '{"intent": "意图名", "destination": "若为move则填目的地'
+        '（优先从可前往目的地中选一个，或填场景内地标），否则填空字符串"}'
+    )
+    user = f"最近对话：\n{stories}\n\n玩家输入：{action_text}"
+
+    try:
+        raw = await llm_client.generate(system, user)
+    except Exception:
+        return None, {}
+
+    data = _extract_json_object(raw)
+    if not data:
+        return None, {}
+
+    intent_name = str(data.get("intent", "")).strip().lower()
+    intent = _INTENT_NAME_TO_ENUM.get(intent_name)
+    if intent is None:
+        return None, {}
+
+    params: dict = {}
+    dest = str(data.get("destination", "") or "").strip()
+    if dest:
+        params["destination"] = dest
+    return intent, params

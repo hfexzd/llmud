@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from dm.client import LLMClient
 from dm.contract import parse_dm_response_with_retry
 from dm.prompt import build_dm_prompt
-from engine.classify import classify_intent
+from engine.classify import classify_intent, classify_intent_llm
 from engine.models import Intent, Player, Encounter, DEFAULT_ENCOUNTER, NPCInteraction, EventTrigger, WorldEvent, SCENE_MAP
 from engine.rules import cultivate, resolve_combat, check_breakthrough, compute_attack, compute_defense, move
 from engine.world import WorldEngine
@@ -114,8 +114,34 @@ def create_router(
         if player is None:
             player = Player()
 
-        # Step 2: Classify intent
-        intent, params = classify_intent(filtered_input, llm_client=llm_client)
+        # Step 2: Classify intent — regex fast-path first.
+        intent, params = classify_intent(filtered_input)
+
+        # LLM fallback when the fast-path is uncertain: a move verb with no
+        # resolvable destination (e.g. "好啊，去走走"承接林婉儿的邀请→竹林), or no
+        # recognizable pattern at all (e.g. "好啊", "走吧"). The LLM sees the
+        # recent conversation plus reachable places so it can infer an implied
+        # destination. The engine still validates reachability, so the LLM
+        # cannot teleport the player.
+        move_unresolved = (
+            intent == Intent.MOVE and not params.get("destination_resolved", False)
+        )
+        if (intent == Intent.OTHER or move_unresolved) and llm_client is not None:
+            ctx_scene = world_engine.get_scene(player.current_scene)
+            ctx_scene_name = ctx_scene.name if ctx_scene else player.current_scene
+            candidates: list[str] = []
+            if ctx_scene:
+                for cid in ctx_scene.connections:
+                    nxt = SCENE_MAP.get(cid)
+                    if nxt:
+                        candidates.append(nxt.name)
+                candidates.extend(ctx_scene.landmarks)
+            llm_intent, llm_params = await classify_intent_llm(
+                filtered_input, llm_client, ctx_scene_name, candidates,
+                player.recent_stories,
+            )
+            if llm_intent is not None:
+                intent, params = llm_intent, llm_params
 
         # Step 3: Engine resolution (deterministic)
         combat_result = None
