@@ -1,0 +1,227 @@
+"""World engine: scene lookups, event triggering, NPC presence, move validation, ticks."""
+
+from __future__ import annotations
+
+import random
+
+from engine.models import (
+    NPC_PRESENCES,
+    NPC_INTERACTIONS,
+    ALL_EVENTS,
+    ENCOUNTERS_BY_SCENE,
+    SCENE_MAP,
+    NPCInteraction,
+    Player,
+    Scene,
+    WorldEvent,
+)
+
+
+# Priority order for event trigger types (lower = higher priority)
+_TRIGGER_PRIORITY: dict[str, int] = {
+    "location_enter": 1,
+    "stat_threshold": 2,
+    "tick_interval": 3,
+    "random": 4,
+}
+
+
+class WorldEngine:
+    """Manages living-world state: scenes, NPCs, events, and tick progression."""
+
+    # ------------------------------------------------------------------
+    # Scene helpers
+    # ------------------------------------------------------------------
+
+    def get_scene(self, scene_id: str) -> Scene | None:
+        """Return a Scene by id, or None if not found."""
+        return SCENE_MAP.get(scene_id)
+
+    # ------------------------------------------------------------------
+    # NPC presence
+    # ------------------------------------------------------------------
+
+    def get_npcs_in_scene(self, scene_id: str, tick: int) -> list[str]:
+        """Return NPC ids present in *scene_id* at the given *tick*.
+
+        An NPC follows its schedule if the tick falls within a scheduled
+        tick_range; otherwise they are at their default_scene.
+        """
+        result: list[str] = []
+        for npc_id, presence in NPC_PRESENCES.items():
+            current_scene = presence.default_scene
+            for schedule in presence.schedule:
+                lo, hi = schedule.tick_range
+                if lo <= tick <= hi:
+                    current_scene = schedule.scene_id
+                    break  # first matching schedule wins
+            if current_scene == scene_id:
+                result.append(npc_id)
+        return result
+
+    # ------------------------------------------------------------------
+    # Events
+    # ------------------------------------------------------------------
+
+    def check_events(self, scene_id: str, player: Player) -> WorldEvent | None:
+        """Return the highest-priority qualifying event for this scene, or None.
+
+        Steps:
+        1. Filter events by scene_id.
+        2. Skip one_time events already in player.seen_events.
+        3. Sort by trigger-type priority.
+        4. Walk in priority order; return the first event whose trigger
+           conditions are met and whose probability roll succeeds.
+        """
+        candidates = [
+            e for e in ALL_EVENTS
+            if e.scene_id == scene_id
+        ]
+
+        # Remove one-time events the player has already seen
+        candidates = [
+            e for e in candidates
+            if not (e.one_time and e.id in player.seen_events)
+        ]
+
+        # Sort by trigger-type priority
+        candidates.sort(key=lambda e: _TRIGGER_PRIORITY.get(e.trigger.type, 99))
+
+        for event in candidates:
+            if self._check_trigger(event, player):
+                return event
+
+        return None
+
+    def _check_trigger(self, event: WorldEvent, player: Player) -> bool:
+        """Evaluate whether *event*'s trigger fires for *player*."""
+        trigger = event.trigger
+        conditions = trigger.conditions
+        trigger_type = trigger.type
+
+        if trigger_type == "location_enter":
+            # first_time: the event must not have been seen yet
+            if conditions.get("first_time"):
+                if event.id in player.seen_events:
+                    return False
+
+            # npc_present: all listed NPCs must be in the scene
+            npc_ids_needed: list[str] | None = conditions.get("npc_present")
+            if npc_ids_needed:
+                npcs_present = self.get_npcs_in_scene(event.scene_id, player.tick)
+                if not all(nid in npcs_present for nid in npc_ids_needed):
+                    return False
+
+            return True
+
+        if trigger_type == "stat_threshold":
+            min_spirit = conditions.get("min_spirit", 0)
+            max_spirit = conditions.get("max_spirit", float("inf"))
+            if player.spirit_power < min_spirit:
+                return False
+            if player.spirit_power >= max_spirit:
+                return False
+            return True
+
+        if trigger_type == "tick_interval":
+            min_tick = conditions.get("min_tick", 0)
+            if player.tick < min_tick:
+                return False
+            return True
+
+        if trigger_type == "random":
+            return random.random() < trigger.probability
+
+        # Unknown trigger type — skip
+        return False
+
+    # ------------------------------------------------------------------
+    # NPC interactions
+    # ------------------------------------------------------------------
+
+    def check_npc_interactions(self, scene_id: str, tick: int) -> NPCInteraction | None:
+        """Return the first qualifying NPC-to-NPC interaction, or None."""
+        for interaction in NPC_INTERACTIONS:
+            if interaction.scene_id != scene_id:
+                continue
+            # Check tick_min condition
+            tick_min = interaction.trigger_conditions.get("tick_min", 0)
+            if tick < tick_min:
+                continue
+            # Verify all NPCs are present
+            npcs_in_scene = self.get_npcs_in_scene(scene_id, tick)
+            if all(nid in npcs_in_scene for nid in interaction.npc_ids):
+                return interaction
+        return None
+
+    # ------------------------------------------------------------------
+    # Movement
+    # ------------------------------------------------------------------
+
+    def validate_move(self, from_scene: str, to_scene: str) -> bool:
+        """Check whether *from_scene* connects directly to *to_scene*."""
+        source = SCENE_MAP.get(from_scene)
+        if source is None:
+            return False
+        return to_scene in source.connections
+
+    # ------------------------------------------------------------------
+    # Tick progression
+    # ------------------------------------------------------------------
+
+    def advance_tick(self, player: Player) -> Player:
+        """Increment the player's tick by 1 (returns a new Player)."""
+        return player.model_copy(update={"tick": player.tick + 1})
+
+    # ------------------------------------------------------------------
+    # Event application
+    # ------------------------------------------------------------------
+
+    def apply_event(self, player: Player, event: WorldEvent) -> Player:
+        """Mark one-time events as seen; return updated player."""
+        updates: dict = {}
+        if event.one_time and event.id not in player.seen_events:
+            updates["seen_events"] = [*player.seen_events, event.id]
+        if updates:
+            return player.model_copy(update=updates)
+        return player
+
+    # ------------------------------------------------------------------
+    # Encounters
+    # ------------------------------------------------------------------
+
+    def get_encounters_for_scene(self, scene_id: str) -> list[str]:
+        """Return encounter ids available in the given scene."""
+        return ENCOUNTERS_BY_SCENE.get(scene_id, [])
+
+    # ------------------------------------------------------------------
+    # Scene-move resolution
+    # ------------------------------------------------------------------
+
+    def resolve_scene_move(
+        self, player: Player, destination_text: str
+    ) -> tuple[str, str]:
+        """Try to resolve *destination_text* into a valid move.
+
+        Returns (status, scene_id_or_message):
+          - ("ok", scene_id)        on success
+          - ("error", msg)          on failure
+        """
+        # Try exact scene_id match first
+        target_id: str | None = None
+        if destination_text in SCENE_MAP:
+            target_id = destination_text
+        else:
+            # Fallback: match by scene name (case-insensitive)
+            for sid, scene in SCENE_MAP.items():
+                if scene.name == destination_text:
+                    target_id = sid
+                    break
+
+        if target_id is None:
+            return ("error", f"未知地点: {destination_text}")
+
+        if not self.validate_move(player.current_scene, target_id):
+            return ("error", f"无法从 {player.current_scene} 前往 {target_id}")
+
+        return ("ok", target_id)

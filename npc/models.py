@@ -7,6 +7,7 @@ class NPCProfile(BaseModel):
     persona: str = "青云门知心师姐，温柔体贴，修炼有成，善于倾听。"
     secret: str = "她其实是宗门长老的私生女，身世不能暴露。"
     motive: str = "希望找到一个可以信赖的人，但害怕自己的秘密被发现。"
+    default_scene: str = "inner_gate"
     favorability: int = 50
     relationship_stage: str = "陌生"
 

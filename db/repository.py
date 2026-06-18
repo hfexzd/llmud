@@ -14,6 +14,16 @@ class PlayerRepository:
         ).fetchone()
         if row is None:
             return None
+
+        # Backward compat: fall back to old 'location' column if
+        # 'current_scene' is missing (pre-migration DBs)
+        columns = set(row.keys())
+        current_scene = row["current_scene"] if "current_scene" in columns else (
+            row["location"] if "location" in columns else "outer_gate"
+        )
+        seen_events = json.loads(row["seen_events"]) if "seen_events" in columns else []
+        tick = row["tick"] if "tick" in columns else 0
+
         return Player(
             id=row["id"],
             name=row["name"],
@@ -22,20 +32,24 @@ class PlayerRepository:
             hp=row["hp"],
             max_hp=row["max_hp"],
             affinity=row["affinity"],
-            location=row["location"],
+            current_scene=current_scene,
             inventory=json.loads(row["inventory"]),
-            recent_stories=json.loads(row["recent_stories"]) if "recent_stories" in row.keys() else [],
+            recent_stories=json.loads(row["recent_stories"]) if "recent_stories" in columns else [],
+            seen_events=seen_events,
+            tick=tick,
             created_at=datetime.fromisoformat(row["created_at"]),
             last_seen=datetime.fromisoformat(row["last_seen"]),
         )
 
     def save(self, player: Player) -> None:
         self.conn.execute(
-            """INSERT INTO players (id, name, level, spirit_power, hp, max_hp, affinity, location, inventory, recent_stories, created_at, last_seen)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO players (id, name, level, spirit_power, hp, max_hp, affinity,
+               current_scene, inventory, recent_stories, seen_events, tick, created_at, last_seen)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (player.id, player.name, player.level, player.spirit_power,
-             player.hp, player.max_hp, player.affinity, player.location,
+             player.hp, player.max_hp, player.affinity, player.current_scene,
              json.dumps(player.inventory), json.dumps(player.recent_stories, ensure_ascii=False),
+             json.dumps(player.seen_events, ensure_ascii=False), player.tick,
              player.created_at.isoformat(), player.last_seen.isoformat()),
         )
         self.conn.commit()
@@ -43,10 +57,12 @@ class PlayerRepository:
     def update(self, player: Player) -> None:
         self.conn.execute(
             """UPDATE players SET name=?, level=?, spirit_power=?, hp=?, max_hp=?,
-               affinity=?, location=?, inventory=?, recent_stories=?, last_seen=? WHERE id=?""",
+               affinity=?, current_scene=?, inventory=?, recent_stories=?,
+               seen_events=?, tick=?, last_seen=? WHERE id=?""",
             (player.name, player.level, player.spirit_power, player.hp,
-             player.max_hp, player.affinity, player.location,
+             player.max_hp, player.affinity, player.current_scene,
              json.dumps(player.inventory), json.dumps(player.recent_stories, ensure_ascii=False),
+             json.dumps(player.seen_events, ensure_ascii=False), player.tick,
              datetime.now().isoformat(), player.id),
         )
         self.conn.commit()
@@ -74,11 +90,14 @@ class NPCRepository:
 
     def save_profile(self, npc_id: str, name: str, persona: str,
                      secret: str = "", motive: str = "",
+                     default_scene: str = "outer_gate",
                      favorability: int = 50, relationship_stage: str = "陌生") -> None:
         self.conn.execute(
-            """INSERT OR REPLACE INTO npc_profiles (id, name, persona, secret, motive, favorability, relationship_stage)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (npc_id, name, persona, secret, motive, favorability, relationship_stage),
+            """INSERT OR REPLACE INTO npc_profiles (id, name, persona, secret, motive,
+               default_scene, favorability, relationship_stage)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (npc_id, name, persona, secret, motive, default_scene,
+             favorability, relationship_stage),
         )
         self.conn.commit()
 
