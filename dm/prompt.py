@@ -73,7 +73,7 @@ def build_dm_prompt(
 
     system_prompt = DM_SYSTEM_TEMPLATE.format(
         name=player.name,
-        location=player.location,
+        location=player.current_scene,
         level=player.level,
         spirit_power=player.spirit_power,
         hp=player.hp,

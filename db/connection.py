@@ -1,8 +1,25 @@
 import sqlite3
 
 
+def _migrate_add_column(conn: sqlite3.Connection, table: str, column: str,
+                         col_type: str, default: str) -> None:
+    """Add a column to a table if it doesn't already exist.
+
+    Uses PRAGMA table_info to check for the column first so that
+    ALTER TABLE is only issued when the column is truly missing.
+    """
+    cursor = conn.cursor()
+    col_info = cursor.execute(f"PRAGMA table_info({table})").fetchall()
+    existing = {row[1] for row in col_info}  # row[1] is column name
+    if column not in existing:
+        cursor.execute(
+            f"ALTER TABLE {table} ADD COLUMN {column} {col_type} DEFAULT {default}"
+        )
+        conn.commit()
+
+
 def init_db(conn: sqlite3.Connection):
-    """Create tables if they don't exist."""
+    """Create tables if they don't exist, then run migrations."""
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -14,9 +31,11 @@ def init_db(conn: sqlite3.Connection):
             hp INTEGER NOT NULL DEFAULT 100,
             max_hp INTEGER NOT NULL DEFAULT 100,
             affinity TEXT NOT NULL DEFAULT '火',
-            location TEXT NOT NULL DEFAULT '青云门外门柴房',
+            current_scene TEXT NOT NULL DEFAULT 'outer_gate',
             inventory TEXT NOT NULL DEFAULT '[]',
             recent_stories TEXT NOT NULL DEFAULT '[]',
+            seen_events TEXT NOT NULL DEFAULT '[]',
+            tick INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
             last_seen TEXT NOT NULL
         )
@@ -29,6 +48,7 @@ def init_db(conn: sqlite3.Connection):
             persona TEXT NOT NULL,
             secret TEXT NOT NULL DEFAULT '',
             motive TEXT NOT NULL DEFAULT '',
+            default_scene TEXT NOT NULL DEFAULT 'outer_gate',
             favorability INTEGER NOT NULL DEFAULT 50,
             relationship_stage TEXT NOT NULL DEFAULT '陌生'
         )
@@ -46,6 +66,12 @@ def init_db(conn: sqlite3.Connection):
     """)
 
     conn.commit()
+
+    # Migrations for existing databases that lack the new columns
+    _migrate_add_column(conn, "players", "current_scene", "TEXT", "'outer_gate'")
+    _migrate_add_column(conn, "players", "seen_events", "TEXT", "'[]'")
+    _migrate_add_column(conn, "players", "tick", "INTEGER", "0")
+    _migrate_add_column(conn, "npc_profiles", "default_scene", "TEXT", "'outer_gate'")
 
 
 def get_db(db_path: str = "llmud.db") -> sqlite3.Connection:

@@ -26,6 +26,7 @@ def seed_database(player_repo: PlayerRepository, npc_repo: NPCRepository):
             persona=DEFAULT_NPC_PROFILE.persona,
             secret=DEFAULT_NPC_PROFILE.secret,
             motive=DEFAULT_NPC_PROFILE.motive,
+            default_scene=DEFAULT_NPC_PROFILE.default_scene,
             favorability=DEFAULT_NPC_PROFILE.favorability,
             relationship_stage=DEFAULT_NPC_PROFILE.relationship_stage,
         )

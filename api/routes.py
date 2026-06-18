@@ -38,7 +38,7 @@ def create_router(
             return {"error": "Player not found"}
         return {
             "name": player.name,
-            "location": player.location,
+            "current_scene": player.current_scene,
             "level": player.level,
             "spirit_power": player.spirit_power,
             "hp": player.hp,
@@ -171,7 +171,7 @@ def create_router(
             if "hp" in dm_response.state_delta:
                 updates["hp"] = max(1, player.hp + dm_response.state_delta["hp"])
             if "location" in dm_response.state_delta:
-                updates["location"] = dm_response.state_delta["location"]
+                updates["current_scene"] = dm_response.state_delta["location"]
             if updates:
                 player = player.model_copy(update=updates)
 
@@ -224,7 +224,7 @@ def create_router(
             "state_delta": dm_response.state_delta or {},
             "player": {
                 "name": player.name,
-                "location": player.location,
+                "current_scene": player.current_scene,
                 "level": player.level,
                 "spirit_power": player.spirit_power,
                 "hp": player.hp,
