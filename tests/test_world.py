@@ -203,3 +203,37 @@ class TestGetEncounterForScene:
     def test_scene_without_encounters(self, engine: WorldEngine):
         encounters = engine.get_encounters_for_scene("outer_gate")
         assert encounters == []
+
+
+# -------------------------------------------------------------------
+# TestEdgeCases
+# -------------------------------------------------------------------
+
+
+class TestEdgeCases:
+    def test_event_does_not_repeat(self, engine: WorldEngine):
+        """One-time events should not trigger again after being seen."""
+        player = Player(current_scene="outer_gate", seen_events=["faint_spirit_sense", "visited_outer_gate"])
+        event = engine.check_events("outer_gate", player)
+        # faint_spirit_sense should not trigger again
+        assert event is None or event.id != "faint_spirit_sense"
+
+    def test_only_one_event_per_check(self, engine: WorldEngine):
+        """check_events should return at most one event."""
+        player = Player(current_scene="outer_gate")
+        event = engine.check_events("outer_gate", player)
+        # Just verify it returns at most one
+        assert event is None or isinstance(event, WorldEvent)
+
+    def test_move_to_nonexistent_scene(self, engine: WorldEngine):
+        """Moving to a nonexistent scene should fail."""
+        result = engine.validate_move("outer_gate", "nonexistent")
+        assert result is False
+
+    def test_npc_schedule_outside_range(self, engine: WorldEngine):
+        """NPCs should be at default scene outside schedule range."""
+        # At tick 25, linwaner should be back at inner_gate
+        npcs = engine.get_npcs_in_scene("market", 25)
+        assert "linwaner" not in npcs
+        npcs_at_inner = engine.get_npcs_in_scene("inner_gate", 25)
+        assert "linwaner" in npcs_at_inner

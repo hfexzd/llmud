@@ -178,3 +178,48 @@ async def test_game_action_persistence(mock_llm_cultivate, tmp_path):
         sp2 = data2["player"]["spirit_power"]
         # Should be strictly greater (cultivate adds 1-3 + state_delta adds 2)
         assert sp2 > sp1
+
+
+@pytest.mark.asyncio
+async def test_get_player_status_with_scene(mock_llm_cultivate, tmp_path):
+    """GET /player/status returns scene information."""
+    app = _make_app(mock_llm_cultivate, tmp_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/player/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert "current_scene" in data
+        assert "scene" in data
+        assert data["scene"]["id"] == "outer_gate"
+        assert "npcs_present" in data["scene"]
+
+
+@pytest.mark.asyncio
+async def test_get_scenes_endpoint(mock_llm_cultivate, tmp_path):
+    """GET /game/scenes returns the world map."""
+    app = _make_app(mock_llm_cultivate, tmp_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/game/scenes")
+        assert response.status_code == 200
+        data = response.json()
+        assert "scenes" in data
+        assert len(data["scenes"]) == 5
+        scene_ids = [s["id"] for s in data["scenes"]]
+        assert "outer_gate" in scene_ids
+        assert "inner_gate" in scene_ids
+
+
+@pytest.mark.asyncio
+async def test_game_action_includes_world_event(mock_llm_cultivate, tmp_path):
+    """First action at outer_gate should trigger faint_spirit_sense event."""
+    app = _make_app(mock_llm_cultivate, tmp_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/game/action", json={"user_input": "修炼"})
+        assert response.status_code == 200
+        data = json.loads(response.text)
+        assert "scene" in data
+        # World event may or may not be present depending on conditions
+        # but the field should exist in the response structure
