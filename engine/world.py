@@ -16,6 +16,7 @@ from engine.models import (
     WorldEvent,
     Goal,
     GOALS,
+    QuestState,
     resolve_scene_id,
 )
 
@@ -27,6 +28,10 @@ _TRIGGER_PRIORITY: dict[str, int] = {
     "tick_interval": 3,
     "random": 4,
 }
+
+
+# Completed 所务 stay visible (struck through) this many ticks, then auto-hide.
+QUEST_EXPIRY_TICKS = 6
 
 
 class WorldEngine:
@@ -169,16 +174,33 @@ class WorldEngine:
         return to_scene in source.connections
 
     # ------------------------------------------------------------------
-    # Current objective (所务)
+    # Current objective (所务) + quest log
     # ------------------------------------------------------------------
 
     def current_goal(self, player: Player) -> Goal | None:
-        """Return the player's current objective: the first unsatisfied goal
-        in priority order, or None when the whole arc is complete."""
+        """Return the player's current objective: the first quest that is
+        unlocked but not yet satisfied (by priority order in GOALS), or None
+        when the whole arc is complete. Pure function of player state."""
         for goal in GOALS:
-            if not self._goal_satisfied(goal.id, player):
+            if self._quest_unlocked(goal.id, player) and not self._goal_satisfied(goal.id, player):
                 return goal
         return None
+
+    def _quest_unlocked(self, goal_id: str, player: Player) -> bool:
+        """Deterministic unlock gate keyed on player state. A quest appears in
+        the visible list only once its unlock condition is met — this is what
+        makes the 所务 list 'grow as the story progresses', engine-driven."""
+        visited = set(player.visited_scenes or [])
+        seen = set(player.seen_events or [])
+        if goal_id == "venture_bamboo":
+            return True
+        if goal_id == "probe_anomaly":
+            return "bamboo_forest" in visited
+        if goal_id == "cultivate_breakthrough":
+            return "spirit_herb" in seen
+        if goal_id == "venture_mountain":
+            return player.level == "练气期二层"
+        return False
 
     def _goal_satisfied(self, goal_id: str, player: Player) -> bool:
         """Deterministic satisfaction check keyed on player state only."""
@@ -193,6 +215,60 @@ class WorldEngine:
         if goal_id == "venture_mountain":
             return "mountain_range" in visited
         return False
+
+    def _quest_record(self, player: Player, goal_id: str) -> QuestState | None:
+        """Return the persisted record for a goal, if any."""
+        for q in player.quests or []:
+            if q.id == goal_id:
+                return q
+        return None
+
+    def visible_quests(self, player: Player) -> list[dict]:
+        """The visible 所务 list, derived purely from player state. Each entry
+        is {id, label, status}. Completed quests show only until expiry
+        (QUEST_EXPIRY_TICKS after their recorded completed_tick)."""
+        visible: list[dict] = []
+        for goal in GOALS:
+            if not self._quest_unlocked(goal.id, player):
+                continue
+            if self._goal_satisfied(goal.id, player):
+                rec = self._quest_record(player, goal.id)
+                completed_tick = rec.completed_tick if rec else player.tick
+                if player.tick - completed_tick < QUEST_EXPIRY_TICKS:
+                    visible.append({"id": goal.id, "label": goal.label, "status": "completed"})
+            else:
+                visible.append({"id": goal.id, "label": goal.label, "status": "active"})
+        return visible
+
+    def next_quest(self, player: Player) -> Goal | None:
+        """The first not-yet-unlocked goal (preview line '将解锁…'), or None."""
+        for goal in GOALS:
+            if not self._quest_unlocked(goal.id, player):
+                return goal
+        return None
+
+    def update_quests(self, player: Player) -> Player:
+        """Called once per action, after all state mutations + tick advance.
+        Records completed_tick for newly-satisfied quests (so the visible list
+        can expire them later) and prunes expired records. Returns a new Player.
+
+        The visible list itself is derived from state, so this only maintains
+        the lifecycle records — it does not change what is 'true'."""
+        now = player.tick
+        records: dict[str, QuestState] = {q.id: q for q in player.quests or []}
+        for goal in GOALS:
+            if self._quest_unlocked(goal.id, player) and self._goal_satisfied(goal.id, player):
+                if goal.id not in records:
+                    records[goal.id] = QuestState(
+                        id=goal.id, status="completed",
+                        unlocked_tick=now, completed_tick=now,
+                    )
+        kept = [
+            q for q in records.values()
+            if not (q.status == "completed"
+                    and (now - (q.completed_tick if q.completed_tick is not None else now)) >= QUEST_EXPIRY_TICKS)
+        ]
+        return player.model_copy(update={"quests": list(kept)})
 
     # ------------------------------------------------------------------
     # Tick progression
