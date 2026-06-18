@@ -104,6 +104,11 @@ class NPCRepository:
             return None
         return dict(row)
 
+    def get_all_profiles(self) -> list[dict]:
+        """Return all NPC profile rows (for the 人物 panel's full NPC list)."""
+        rows = self.conn.execute("SELECT * FROM npc_profiles").fetchall()
+        return [dict(r) for r in rows]
+
     def get_memory(self, npc_id: str) -> dict | None:
         row = self.conn.execute(
             "SELECT * FROM npc_memories WHERE npc_id = ?", (npc_id,)

@@ -468,3 +468,21 @@ async def test_game_action_records_visit_and_advances_goal(tmp_path):
     conn2.row_factory = sqlite3.Row
     row = conn2.execute("SELECT visited_scenes FROM players WHERE id='p1'").fetchone()
     assert "bamboo_forest" in json.loads(row["visited_scenes"])
+
+
+@pytest.mark.asyncio
+async def test_npc_repo_lists_all_profiles(tmp_path):
+    """get_all_profiles returns every seeded NPC for the 人物 panel."""
+    from db.connection import init_db
+    from db.repository import NPCRepository
+    from api.app import seed_database
+    from db.repository import PlayerRepository
+
+    conn = sqlite3.connect(str(tmp_path / "t.db"))
+    conn.row_factory = sqlite3.Row
+    init_db(conn)
+    seed_database(PlayerRepository(conn), NPCRepository(conn))
+    profiles = NPCRepository(conn).get_all_profiles()
+    ids = {p["id"] for p in profiles}
+    assert ids == {"linwaner", "chenhao", "old_yang"}
+    conn.close()
