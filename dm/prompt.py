@@ -33,6 +33,7 @@ ENGINE_CONTEXT_TEMPLATES = {
     "fight": "【引擎结算】战斗结果：{combat_result}。造成伤害：{dmg_to_enemy}，受到伤害：{dmg_to_player}，战斗结果：{result}。",
     "move": "【引擎结算】移动成功。",
     "talk": "【引擎结算】与NPC对话。",
+    "intervene": "【引擎结算】玩家选择介入NPC之间的互动。",
     "other": "【引擎结算】自由行动，由DM判断。",
 }
 

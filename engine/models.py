@@ -300,18 +300,7 @@ ALL_EVENTS: list[WorldEvent] = [
         guidance="fight_mountain_range",
         one_time=True,
     ),
-    # NPC-to-NPC interactions
-    WorldEvent(
-        id="waner_chenhao_market_chat",
-        name="师姐与师兄交谈",
-        scene_id="market",
-        trigger=EventTrigger(type="location_enter", conditions={"npc_present": ["linwaner", "chenhao"]}),
-        narrative_hint="林婉儿和陈浩正在低声交谈，你隐约听到“山脉”和“异动”几个字。",
-        guidance="listen_or_talk",
-        allow_intervene=True,
-        intervene_options=["上前搭话", "继续偷听", "默默离开"],
-        one_time=True,
-    ),
+    # NPC-to-NPC interactions are handled by NPC_INTERACTIONS (see below)
     WorldEvent(
         id="elder_scolding",
         name="长老训斥弟子",

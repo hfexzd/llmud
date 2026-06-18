@@ -76,7 +76,7 @@
             try {
                 const res = await fetch(`${API_URL}/player/status`);
                 const data = await res.json();
-                document.getElementById('p-loc').textContent = data.location || '未知';
+                document.getElementById('p-loc').textContent = (data.scene && data.scene.name) || SCENE_NAMES[data.current_scene] || data.current_scene || '未知';
                 document.getElementById('p-level').textContent = data.level || '练气期一层';
                 document.getElementById('p-spirit').textContent = data.spirit_power ?? 0;
                 document.getElementById('p-hp').textContent = `${data.hp ?? 100}/${data.max_hp ?? 100}`;
