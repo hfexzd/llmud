@@ -11,6 +11,7 @@ from dm.prompt import build_dm_prompt
 from engine.classify import classify_intent
 from engine.models import Intent, Player, Encounter, DEFAULT_ENCOUNTER
 from engine.rules import cultivate, resolve_combat, check_breakthrough, compute_attack, compute_defense
+from engine.world import WorldEngine
 from db.repository import PlayerRepository, NPCRepository
 from npc.memory import update_memory, build_memory_context, compute_relationship_stage
 from npc.models import NPCMemory, NPCTurn, KeyFact, DEFAULT_NPC_PROFILE
@@ -26,6 +27,7 @@ def create_router(
     player_repo: PlayerRepository,
     npc_repo: NPCRepository,
     encounter: Encounter,
+    world_engine: WorldEngine,
 ) -> APIRouter:
     """Create a FastAPI router with game endpoints, wiring all subsystems."""
     router = APIRouter()

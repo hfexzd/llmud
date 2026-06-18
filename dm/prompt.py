@@ -1,4 +1,4 @@
-from engine.models import Player, Intent, CombatResult, BreakthroughResult
+from engine.models import Player, Intent, CombatResult, BreakthroughResult, Scene, WorldEvent
 
 
 DM_SYSTEM_TEMPLATE = """你是一款文字修仙 MUD 游戏的"动态地下城主（DM）"。
@@ -11,6 +11,8 @@ DM_SYSTEM_TEMPLATE = """你是一款文字修仙 MUD 游戏的"动态地下城�
 - 当前灵力：{spirit_power}
 - 当前气血：{hp}/{max_hp}
 
+{scene_context}
+{world_event_context}
 {engine_context}
 
 【近期事件】：
@@ -23,7 +25,8 @@ DM_SYSTEM_TEMPLATE = """你是一款文字修仙 MUD 游戏的"动态地下城�
 4. 战斗数值【必须】与引擎结算结果完全一致，不得臆造。
 5. 如果不确定如何描写，也要给出一个简短但有画面感的叙事。
 6. 【叙事一致性】你【必须】参考【近期事件】中的内容！玩家之前做过的事、吃过的东西、去过的地方必须保持一致。如果玩家之前吃了"凝露草"，就不能说吃了"丹药"；如果玩家已经到了"竹林"，就不能说玩家在"柴房"。
-7. 【地点一致性】玩家当前所在地点为"{location}"，你的叙事【必须】以这个地点为场景，不得凭空将玩家传送到其他地点。"""
+7. 【地点一致性】玩家当前所在地点为"{location}"，你的叙事【必须】以这个地点为场景，不得凭空将玩家传送到其他地点。
+8. 【世界事件融合】若【世界事件】中提供了叙事提示，你【必须】将事件自然地融入故事描写中，不得生硬插入或直接复述提示文本。事件应像环境的一部分一样出现，让玩家感受到世界的生动与动态。"""
 
 ENGINE_CONTEXT_TEMPLATES = {
     "cultivate": "【引擎结算】修炼成功，灵力增加。",
@@ -51,6 +54,8 @@ def build_dm_prompt(
     breakthrough: BreakthroughResult | None = None,
     npc_context: str = "",
     recent_stories: list[str] | None = None,
+    scene: Scene | None = None,
+    world_event: WorldEvent | None = None,
 ) -> tuple[str, str]:
     """Build the system and user prompts for the DM LLM call."""
     if intent == Intent.FIGHT and combat_result:
@@ -71,13 +76,33 @@ def build_dm_prompt(
     if recent_stories:
         stories_text = "\n".join(f"- {s}" for s in recent_stories[-5:])
 
+    # Resolve location to Chinese scene name
+    location_name = player.current_scene
+    if scene:
+        location_name = scene.name
+
+    # Build scene context
+    scene_context = ""
+    if scene:
+        scene_context = f"【当前场景】{scene.name}（{scene.atmosphere}）：{scene.description}"
+
+    # Build world event context
+    world_event_context = ""
+    if world_event:
+        world_event_context = f"【世界事件】{world_event.narrative_hint}"
+        if world_event.allow_intervene and world_event.intervene_options:
+            options_str = "、".join(world_event.intervene_options)
+            world_event_context += f"\n【可选行动】{options_str}"
+
     system_prompt = DM_SYSTEM_TEMPLATE.format(
         name=player.name,
-        location=player.current_scene,
+        location=location_name,
         level=player.level,
         spirit_power=player.spirit_power,
         hp=player.hp,
         max_hp=player.max_hp,
+        scene_context=scene_context,
+        world_event_context=world_event_context,
         engine_context=engine_ctx,
         recent_stories=stories_text,
     )

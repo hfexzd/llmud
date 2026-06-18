@@ -8,8 +8,8 @@ from fastapi.staticfiles import StaticFiles
 
 from dm.client import LLMClient
 from db.repository import PlayerRepository, NPCRepository
-from engine.models import DEFAULT_PLAYER, DEFAULT_ENCOUNTER
-from npc.models import DEFAULT_NPC_PROFILE
+from engine.models import DEFAULT_PLAYER, DEFAULT_ENCOUNTER, ALL_NPC_PROFILES
+from engine.world import WorldEngine
 from api.routes import create_router
 from api.deps import get_llm_client, create_db_connection_from_env
 
@@ -19,18 +19,19 @@ def seed_database(player_repo: PlayerRepository, npc_repo: NPCRepository):
     if player_repo.get(DEFAULT_PLAYER.id) is None:
         player_repo.save(DEFAULT_PLAYER)
 
-    if npc_repo.get_profile(DEFAULT_NPC_PROFILE.id) is None:
-        npc_repo.save_profile(
-            npc_id=DEFAULT_NPC_PROFILE.id,
-            name=DEFAULT_NPC_PROFILE.name,
-            persona=DEFAULT_NPC_PROFILE.persona,
-            secret=DEFAULT_NPC_PROFILE.secret,
-            motive=DEFAULT_NPC_PROFILE.motive,
-            default_scene=DEFAULT_NPC_PROFILE.default_scene,
-            favorability=DEFAULT_NPC_PROFILE.favorability,
-            relationship_stage=DEFAULT_NPC_PROFILE.relationship_stage,
-        )
-        npc_repo.save_memory(DEFAULT_NPC_PROFILE.id)
+    for profile in ALL_NPC_PROFILES:
+        if npc_repo.get_profile(profile.id) is None:
+            npc_repo.save_profile(
+                npc_id=profile.id,
+                name=profile.name,
+                persona=profile.persona,
+                secret=profile.secret,
+                motive=profile.motive,
+                default_scene=profile.default_scene,
+                favorability=profile.favorability,
+                relationship_stage=profile.relationship_stage,
+            )
+            npc_repo.save_memory(profile.id)
 
 
 def create_app(llm_client: LLMClient | None = None, db_path: str | None = None) -> FastAPI:
@@ -59,11 +60,13 @@ def create_app(llm_client: LLMClient | None = None, db_path: str | None = None) 
     )
 
     # Include game routes
+    world_engine = WorldEngine()
     router = create_router(
         llm_client=llm,
         player_repo=player_repo,
         npc_repo=npc_repo,
         encounter=DEFAULT_ENCOUNTER,
+        world_engine=world_engine,
     )
     app.include_router(router)
 
