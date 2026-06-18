@@ -204,10 +204,10 @@
             html += `<div class="stat-line"><span>时辰</span><b>${shichenLabel(p.tick)}</b></div>`;
             html += `<div class="panel-label">行囊</div><div>`;
             (p.inventory||[]).forEach(it => {
-                html += `<span class="obj-tag" onclick="prefill('查看${escapeAttr(it)}')">${escapeHtml(it)}</span>`;
+                html += `<span class="obj-tag" data-prefill="查看${escapeAttr(it)}">${escapeHtml(it)}</span>`;
             });
             if (!(p.inventory||[]).length) html += '<span style="color:#8a7aa8;font-size:12px">空空如也</span>';
-            html += `</div><div style="margin-top:8px"><span class="obj-tag" onclick="prefill('修炼')">打坐修炼</span></div>`;
+            html += `</div><div style="margin-top:8px"><span class="obj-tag" data-prefill="修炼">打坐修炼</span></div>`;
             html += '</div>';
 
             // 在场人物
@@ -232,8 +232,8 @@
             let acts = '';
             if (!absent) {
                 acts = `<div class="npc-acts">`
-                    + `<span class="npc-btn go" onclick="prefill('和${escapeAttr(name)}搭话')">搭话</span>`
-                    + `<span class="npc-btn go" onclick="prefill('对${escapeAttr(name)}说：', true)">自由聊天</span>`
+                    + `<span class="npc-btn go" data-prefill="和${escapeAttr(name)}搭话">搭话</span>`
+                    + `<span class="npc-btn go" data-prefill="对${escapeAttr(name)}说：" data-focus="1">自由聊天</span>`
                     + `<span class="npc-btn dim">切磋</span>`
                     + `</div>`;
             }
@@ -253,7 +253,7 @@
             landmarks.forEach(lm => {
                 if (lm && descHtml.includes(escapeHtml(lm))) {
                     descHtml = descHtml.split(escapeHtml(lm)).join(
-                        `<span class="link-obj" onclick="prefill('查看${escapeAttr(lm)}')">${escapeHtml(lm)}</span>`);
+                        `<span class="link-obj" data-prefill="查看${escapeAttr(lm)}">${escapeHtml(lm)}</span>`);
                 }
             });
             let html = `<div class="panel-sec"><div class="panel-label">${escapeHtml(scene.name||'')} · ${escapeHtml(scene.atmosphere||'')}</div>`;
@@ -261,14 +261,14 @@
 
             html += '<div class="panel-sec"><div class="panel-label">可交互物件</div>';
             landmarks.forEach(lm => {
-                html += `<span class="obj-tag" onclick="prefill('查看${escapeAttr(lm)}')">${escapeHtml(lm)} · 查看</span>`;
+                html += `<span class="obj-tag" data-prefill="查看${escapeAttr(lm)}">${escapeHtml(lm)} · 查看</span>`;
             });
             if (!landmarks.length) html += '<span style="color:#8a7aa8;font-size:12px">无可交互物件</span>';
             html += '</div>';
 
             html += '<div class="panel-sec"><div class="panel-label">可前往</div>';
             conns.forEach(cid => {
-                html += `<span class="move-tag" onclick="prefill('去${escapeAttr(SCENE_NAMES[cid]||cid)}')">→ ${escapeHtml(SCENE_NAMES[cid]||cid)}</span>`;
+                html += `<span class="move-tag" data-prefill="去${escapeAttr(SCENE_NAMES[cid]||cid)}">→ ${escapeHtml(SCENE_NAMES[cid]||cid)}</span>`;
             });
             if (!conns.length) html += '<span style="color:#8a7aa8;font-size:12px">无路可去</span>';
             html += '</div>';
@@ -554,6 +554,17 @@
         // Handle Enter key
         document.getElementById('user-input').addEventListener('keydown', function(e) {
             if (e.key === 'Enter') sendAction();
+        });
+
+        // Delegated handler for panel prefill clicks. Panel HTML uses
+        // data-prefill="..." (attribute-escaped via escapeAttr) instead of inline
+        // onclick, so a prefill value containing a quote can't break out of a
+        // nested JS string. data-focus="1" requests input focus.
+        document.addEventListener('click', function(e) {
+            const el = e.target.closest('[data-prefill]');
+            if (!el) return;
+            prefill(el.getAttribute('data-prefill') || '',
+                    el.getAttribute('data-focus') === '1');
         });
 
         // Initial status load
