@@ -72,6 +72,7 @@ def init_db(conn: sqlite3.Connection):
     _migrate_add_column(conn, "players", "seen_events", "TEXT", "'[]'")
     _migrate_add_column(conn, "players", "tick", "INTEGER", "0")
     _migrate_add_column(conn, "players", "visited_scenes", "TEXT", "'[]'")
+    _migrate_add_column(conn, "players", "active_enemy", "TEXT", "NULL")
     _migrate_add_column(conn, "npc_profiles", "default_scene", "TEXT", "'outer_gate'")
 
 

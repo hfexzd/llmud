@@ -36,8 +36,18 @@ def cultivate(player: Player) -> Player:
 
 def resolve_combat(player: Player, enemy: Encounter, flee: bool = False) -> tuple[CombatResult, Player, Encounter]:
     """
-    Deterministic combat resolution. Engine is the sole source of truth for numbers.
-    Returns (CombatResult, updated_player, updated_enemy).
+    Deterministic combat resolution for a single round. Engine is the sole
+    source of truth for numbers. Returns (CombatResult, updated_player, updated_enemy).
+
+    The caller is responsible for persisting updated_enemy.hp across rounds
+    (via the player's active_enemy state) — this function is stateless and
+    only resolves one round against the HP it is given.
+
+    Result is one of:
+      - "win"     enemy HP dropped to 0 (killed)
+      - "lose"    player HP dropped to 0 (defeated)
+      - "ongoing" both still standing — fight continues next round
+      - "flee"    player chose to flee (flee=True)
     """
     p_atk = compute_attack(player)
     p_def = compute_defense(player)
@@ -67,8 +77,8 @@ def resolve_combat(player: Player, enemy: Encounter, flee: bool = False) -> tupl
     elif player_hp_after <= 0:
         result_str = "lose"
     else:
-        # Both alive — combat continues (slice: treat as one round, "win" if enemy <50% HP)
-        result_str = "win" if enemy_hp_after <= enemy.max_hp // 2 else "flee"
+        # Both alive — neither side is finished; the fight resumes next round.
+        result_str = "ongoing"
 
     # Clamp HP
     enemy_remaining = max(0, enemy_hp_after)

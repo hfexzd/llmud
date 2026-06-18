@@ -64,11 +64,17 @@ def build_dm_prompt(
 ) -> tuple[str, str]:
     """Build the system and user prompts for the DM LLM call."""
     if intent == Intent.FIGHT and combat_result:
+        _combat_result_zh = {
+            "win": "胜（妖兽已毙）",
+            "lose": "败（玩家落败）",
+            "ongoing": "相持未决，妖兽仍立",
+            "flee": "撤退",
+        }.get(combat_result.result, combat_result.result)
         engine_ctx = ENGINE_CONTEXT_TEMPLATES["fight"].format(
-            combat_result=f"{combat_result.result}",
+            combat_result=_combat_result_zh,
             dmg_to_enemy=combat_result.dmg_to_enemy,
             dmg_to_player=combat_result.dmg_to_player,
-            result=combat_result.result,
+            result=_combat_result_zh,
         )
     else:
         engine_ctx = ENGINE_CONTEXT_TEMPLATES.get(intent.value, ENGINE_CONTEXT_TEMPLATES["other"])

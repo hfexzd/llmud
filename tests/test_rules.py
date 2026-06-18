@@ -56,6 +56,20 @@ def test_resolve_combat_flee():
     assert result.dmg_to_player == 0
 
 
+def test_resolve_combat_ongoing_when_both_alive():
+    """When neither side is finished, the round ends 'ongoing' so combat can
+    resume next round with the enemy's accumulated damage — not 'win'/'flee'."""
+    player = Player(id="p1", name="张铁柱", level="练气期一层", spirit_power=11,
+                    hp=100, max_hp=100, affinity="火", current_scene="外门", inventory=[])
+    enemy = Encounter(id="e1", name="赤眼妖狼", attack=8, defense=3, hp=30, max_hp=30)
+    result, updated_player, updated_enemy = resolve_combat(player, enemy)
+    assert result.result == "ongoing"
+    # atk = 11*1.0 = 11; dmg = max(1, 11-3) = 8 -> 30-8 = 22
+    assert updated_enemy.hp == 22
+    # def = 11//2+5 = 10; retaliation = max(1, 8-10) = 1 -> 100-1 = 99
+    assert updated_player.hp == 99
+
+
 def test_check_breakthrough_qualifies():
     player = Player(id="p1", name="张铁柱", level="练气期一层", spirit_power=30,
                     hp=100, max_hp=100, affinity="火", current_scene="外门", inventory=[])

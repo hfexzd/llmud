@@ -28,6 +28,9 @@ class PlayerRepository:
         # column yet) still reflects where the player actually is.
         if current_scene not in visited_scenes:
             visited_scenes.append(current_scene)
+        active_enemy = None
+        if "active_enemy" in columns and row["active_enemy"]:
+            active_enemy = json.loads(row["active_enemy"])
 
         return Player(
             id=row["id"],
@@ -42,6 +45,7 @@ class PlayerRepository:
             recent_stories=json.loads(row["recent_stories"]) if "recent_stories" in columns else [],
             seen_events=seen_events,
             visited_scenes=visited_scenes,
+            active_enemy=active_enemy,
             tick=tick,
             created_at=datetime.fromisoformat(row["created_at"]),
             last_seen=datetime.fromisoformat(row["last_seen"]),
@@ -51,13 +55,15 @@ class PlayerRepository:
         self.conn.execute(
             """INSERT INTO players (id, name, level, spirit_power, hp, max_hp, affinity,
                current_scene, inventory, recent_stories, seen_events, visited_scenes,
-               tick, created_at, last_seen)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               active_enemy, tick, created_at, last_seen)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (player.id, player.name, player.level, player.spirit_power,
              player.hp, player.max_hp, player.affinity, player.current_scene,
              json.dumps(player.inventory), json.dumps(player.recent_stories, ensure_ascii=False),
              json.dumps(player.seen_events, ensure_ascii=False),
-             json.dumps(player.visited_scenes, ensure_ascii=False), player.tick,
+             json.dumps(player.visited_scenes, ensure_ascii=False),
+             json.dumps(player.active_enemy, ensure_ascii=False) if player.active_enemy else None,
+             player.tick,
              player.created_at.isoformat(), player.last_seen.isoformat()),
         )
         self.conn.commit()
@@ -66,12 +72,14 @@ class PlayerRepository:
         self.conn.execute(
             """UPDATE players SET name=?, level=?, spirit_power=?, hp=?, max_hp=?,
                affinity=?, current_scene=?, inventory=?, recent_stories=?,
-               seen_events=?, visited_scenes=?, tick=?, last_seen=? WHERE id=?""",
+               seen_events=?, visited_scenes=?, active_enemy=?, tick=?, last_seen=? WHERE id=?""",
             (player.name, player.level, player.spirit_power, player.hp,
              player.max_hp, player.affinity, player.current_scene,
              json.dumps(player.inventory), json.dumps(player.recent_stories, ensure_ascii=False),
              json.dumps(player.seen_events, ensure_ascii=False),
-             json.dumps(player.visited_scenes, ensure_ascii=False), player.tick,
+             json.dumps(player.visited_scenes, ensure_ascii=False),
+             json.dumps(player.active_enemy, ensure_ascii=False) if player.active_enemy else None,
+             player.tick,
              datetime.now().isoformat(), player.id),
         )
         self.conn.commit()

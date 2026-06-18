@@ -25,6 +25,7 @@
         .battle-result.win { background: #2d5a27; color: #95ec69; }
         .battle-result.lose { background: #5a2727; color: #ff6b6b; }
         .battle-result.flee { background: #5a4a27; color: #ffd700; }
+        .battle-result.ongoing { background: #2d4a5a; color: #9dd5ff; }
         .world-event { background: linear-gradient(135deg, #1a2a1a, #2a3a2a); border-left: 4px solid #7bc67e; border-radius: 8px; padding: 10px 14px; margin: 6px 0; font-style: italic; color: #b8e6b8; font-size: 13px; }
         .intervention-card { background: linear-gradient(135deg, #2d1b4e, #4a2d6e); border: 1px solid #7b5ea7; border-radius: 12px; padding: 12px; margin: 6px 0; color: #fff; }
         .intervention-card .intervention-desc { font-size: 13px; color: #d4b8e8; margin-bottom: 8px; }
@@ -154,8 +155,12 @@
         function addBattleCard(container, combat) {
             const card = document.createElement('div');
             card.className = 'battle-card';
-            const resultClass = combat.result === 'win' ? 'win' : combat.result === 'lose' ? 'lose' : 'flee';
-            const resultText = combat.result === 'win' ? '胜' : combat.result === 'lose' ? '败' : '撤退';
+            const resultClass = combat.result === 'win' ? 'win'
+                : combat.result === 'lose' ? 'lose'
+                : combat.result === 'ongoing' ? 'ongoing' : 'flee';
+            const resultText = combat.result === 'win' ? '胜'
+                : combat.result === 'lose' ? '败'
+                : combat.result === 'ongoing' ? '交战中' : '撤退';
             card.innerHTML = `
                 <h3>⚔ ${combat.enemy}</h3>
                 <div class="battle-row"><span>造成伤害</span><span>${combat.dmg_to_enemy}</span></div>

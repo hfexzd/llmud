@@ -44,6 +44,10 @@ class Player(BaseModel):
     # Scenes the player has ever set foot in — drives the objective layer
     # (e.g. "到过竹林" satisfies the 竹林 goal). Seeded with the start scene.
     visited_scenes: list[str] = Field(default_factory=lambda: ["outer_gate"])
+    # An in-progress fight, keyed by scene_id, so enemy HP persists across
+    # rounds and the player can actually wear a beast down. None when no fight
+    # is active (or the enemy was just killed).
+    active_enemy: dict | None = None
     tick: int = 0
     created_at: datetime = Field(default_factory=datetime.now)
     last_seen: datetime = Field(default_factory=datetime.now)

@@ -161,18 +161,38 @@ def create_router(
                 player = player.model_copy(update={"level": breakthrough.to_level})
 
         elif intent == Intent.FIGHT:
-            # Look up encounters for current scene
-            encounter_ids = world_engine.get_encounters_for_scene(player.current_scene)
-            if encounter_ids:
-                # Use the first encounter available in this scene
-                combat_result, player, _ = resolve_combat(player, encounter)
-                if combat_result.result == "lose":
-                    player = player.model_copy(update={"hp": 1})
+            # Continue an in-progress fight in this scene from the enemy's
+            # stored HP, or spawn a fresh enemy. Without persisting HP across
+            # rounds the beast would reset to full every turn and never die.
+            active = player.active_enemy
+            if (active and active.get("scene_id") == player.current_scene
+                    and active.get("hp", 0) > 0):
+                enemy = Encounter(
+                    id=active.get("id", encounter.id),
+                    name=active.get("name", encounter.name),
+                    attack=active.get("attack", encounter.attack),
+                    defense=active.get("defense", encounter.defense),
+                    hp=active.get("hp", encounter.hp),
+                    max_hp=active.get("max_hp", encounter.max_hp),
+                )
             else:
-                # No encounters in this scene — still resolve with default
-                combat_result, player, _ = resolve_combat(player, encounter)
-                if combat_result.result == "lose":
-                    player = player.model_copy(update={"hp": 1})
+                enemy = encounter.model_copy()  # fresh, full-HP enemy
+
+            combat_result, player, updated_enemy = resolve_combat(player, enemy)
+            if combat_result.result == "lose":
+                player = player.model_copy(update={"hp": 1})
+
+            # Persist the enemy's remaining HP so the next attack continues the
+            # fight; clear it once the beast is slain.
+            if combat_result.result == "win":
+                player = player.model_copy(update={"active_enemy": None})
+            else:
+                player = player.model_copy(update={
+                    "active_enemy": {
+                        "scene_id": player.current_scene,
+                        **updated_enemy.model_dump(),
+                    }
+                })
 
         elif intent == Intent.MOVE:
             # Resolve move via world engine

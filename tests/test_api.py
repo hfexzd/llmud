@@ -160,6 +160,52 @@ async def test_game_action_fight(mock_llm_cultivate, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_game_action_combat_accumulates_and_kills(tmp_path):
+    """Consecutive attacks must wear the beast down. Regression: enemy HP used
+    to reset to full every turn, so the beast was unkillable."""
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    # spirit 11 -> atk 11 -> 8 dmg/round; enemy 30 HP -> dies on the 4th hit.
+    PlayerRepository(conn).save(Player(
+        current_scene="bamboo_forest", spirit_power=11, hp=100,
+    ))
+    conn.close()
+
+    mock = MockLLMClient(response=json.dumps({
+        "intent": "fight", "action_valid": True, "invalid_reason": "",
+        "story": "你挥剑斩向妖兽！",
+        "state_delta": {}, "breakthrough": None, "combat": None, "npc_update": None,
+    }, ensure_ascii=False))
+    app = create_app(llm_client=mock, db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        d1 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
+        assert d1["combat"]["result"] == "ongoing"
+        assert d1["combat"]["enemy_remaining_hp"] == 22
+
+        d2 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
+        assert d2["combat"]["result"] == "ongoing"
+        assert d2["combat"]["enemy_remaining_hp"] == 14
+
+        d3 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
+        assert d3["combat"]["result"] == "ongoing"
+        assert d3["combat"]["enemy_remaining_hp"] == 6
+
+        d4 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
+        assert d4["combat"]["result"] == "win"
+        assert d4["combat"]["enemy_remaining_hp"] == 0
+
+        # After the kill the fight ends; a fresh beast spawns on the next attack.
+        d5 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
+        assert d5["combat"]["result"] == "ongoing"
+        assert d5["combat"]["enemy_remaining_hp"] == 22
+
+
+@pytest.mark.asyncio
 async def test_game_action_persistence(mock_llm_cultivate, tmp_path):
     """Second action should see the state changes from the first action."""
     app = _make_app(mock_llm_cultivate, tmp_path)
