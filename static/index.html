@@ -38,6 +38,50 @@
         #input-bar { position: fixed; bottom: 0; width: 100%; height: 56px; background: #f7f7f7; border-top: 1px solid #e0e0e0; display: flex; align-items: center; padding: 0 10px; box-sizing: border-box; }
         #user-input { flex: 1; height: 36px; border: 1px solid #ddd; border-radius: 18px; padding: 0 14px; font-size: 14px; outline: none; background: #fff; }
         #send-btn { width: 56px; height: 36px; background: linear-gradient(135deg, #6b3fa0, #4a2d6e); color: white; border: none; border-radius: 18px; margin-left: 8px; font-size: 13px; cursor: pointer; }
+        #chip-bar { position: fixed; top: 0; right: 0; display: flex; gap: 6px; padding: 6px 10px; z-index: 11; }
+        .chip { background: rgba(255,255,255,0.12); color: #e8d6ff; border: 1px solid rgba(255,255,255,0.2); border-radius: 16px; padding: 4px 12px; font-size: 12px; cursor: pointer; user-select: none; }
+        .chip.on { background: linear-gradient(135deg, #6b3fa0, #8b5fc0); color: #fff; border-color: #ab7fe0; }
+        #drawer-overlay { display: none; position: fixed; inset: 0; top: 0; background: rgba(0,0,0,0.4); z-index: 20; }
+        #drawer { display: none; position: fixed; left: 0; right: 0; bottom: 0; max-height: 80vh; overflow-y: auto; background: #1b1430; color: #e8e0f5; border-top: 2px solid #6b3fa0; border-radius: 16px 16px 0 0; padding: 14px; z-index: 21; box-shadow: 0 -6px 24px rgba(0,0,0,0.5); }
+        #drawer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        #drawer-title { font-size: 15px; font-weight: bold; color: #fff; }
+        #drawer-close { background: rgba(255,255,255,0.1); color: #fff; border: none; border-radius: 50%; width: 26px; height: 26px; cursor: pointer; font-size: 14px; }
+        .panel-sec { margin-bottom: 14px; }
+        .panel-label { font-size: 11px; color: #b8a0d4; text-transform: uppercase; letter-spacing: 1px; margin: 8px 0 6px; }
+        .qrow { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.05); margin-bottom: 6px; font-size: 13px; }
+        .qbox { width: 14px; height: 14px; border: 1.5px solid #8a7aa8; border-radius: 3px; flex: none; margin-top: 2px; }
+        .qrow.done .qbox { background: #5a8a6a; border-color: #5a8a6a; }
+        .qrow.done .qtxt { text-decoration: line-through; color: #8a7aa8; }
+        .qrow.now { background: rgba(107,63,160,0.35); border: 1px solid #8b5fc0; }
+        .qrow.now .qbox { border-color: #c9a0ff; }
+        .qtxt { line-height: 1.5; }
+        .qtag { font-size: 10px; color: #b8a0d4; margin-left: auto; flex: none; }
+        .obj-tag, .move-tag { display: inline-block; border-radius: 8px; padding: 4px 10px; margin: 3px 4px 3px 0; font-size: 12px; cursor: pointer; }
+        .obj-tag { background: rgba(107,179,224,0.18); color: #9dd5ff; border: 1px solid rgba(107,179,224,0.4); }
+        .move-tag { background: rgba(224,176,111,0.18); color: #e0b06f; border: 1px solid rgba(224,176,111,0.4); }
+        .map-node { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); margin-bottom: 6px; font-size: 13px; }
+        .map-node.here { border-color: #9dd5ff; background: rgba(107,179,224,0.18); }
+        .map-node.reach { border-color: #5a8a6a; cursor: pointer; }
+        .map-node.dim { opacity: 0.4; }
+        .map-node .tag { margin-left: auto; font-size: 11px; color: #b8a0d4; }
+        .npc-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 9px; margin-bottom: 8px; }
+        .npc-card.absent { opacity: 0.45; }
+        .npc-head { display: flex; justify-content: space-between; align-items: center; }
+        .npc-head b { color: #ffd9a0; font-size: 13px; }
+        .npc-fav { font-size: 11px; color: #b8a0d4; }
+        .npc-desc { font-size: 11px; color: #b8a0d4; margin: 4px 0; }
+        .npc-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+        .npc-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #e8e0f5; border-radius: 8px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
+        .npc-btn.go { background: rgba(90,138,106,0.4); border-color: #5a8a6a; }
+        .npc-btn.dim { opacity: 0.4; cursor: default; }
+        .stat-line { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
+        .stat-line b { color: #ffd9a0; }
+        .bar { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin: 3px 0 2px; }
+        .bar i { display: block; height: 100%; }
+        .bar.sp i { background: #9dd5ff; } .bar.hp i { background: #6fb3a0; }
+        .bar-pct { font-size: 10px; color: #b8a0d4; text-align: right; }
+        .link-obj { color: #9dd5ff; text-decoration: underline; cursor: pointer; }
+        .scene-desc { font-size: 13px; line-height: 1.7; margin-bottom: 8px; }
     </style>
 </head>
 <body>
@@ -58,6 +102,20 @@
         </div>
     </div>
 
+    <div id="chip-bar">
+        <span class="chip" id="chip-role" onclick="openDrawer('role')">角色</span>
+        <span class="chip" id="chip-place" onclick="openDrawer('place')">地点</span>
+        <span class="chip" id="chip-map" onclick="openDrawer('map')">地图</span>
+    </div>
+    <div id="drawer-overlay" onclick="closeDrawer()"></div>
+    <div id="drawer">
+        <div id="drawer-header">
+            <span id="drawer-title"></span>
+            <button id="drawer-close" onclick="closeDrawer()">×</button>
+        </div>
+        <div id="drawer-body"></div>
+    </div>
+
     <div id="chat-container">
         <!-- Opening message is rendered dynamically by maybeShowIntro() from the player's current scene. -->
     </div>
@@ -73,6 +131,52 @@
 
         const NPC_NAMES = {linwaner: '林婉儿', chenhao: '陈浩', old_yang: '杨老'};
         const SCENE_NAMES = {outer_gate: '外门', inner_gate: '内门', bamboo_forest: '竹林', market: '集市', mountain_range: '山脉'};
+
+        // Display-only maps for NPC richness (no English ids leak to the player).
+        const NPC_ROLE = {linwaner: '师姐', chenhao: '师兄', old_yang: '守门人'};
+        const NPC_HINT = {linwaner: '知心师姐，似有心事', chenhao: '豪爽师兄，常在集市', old_yang: '守门老人，深藏不露'};
+        // 时辰 table — mirror of engine.models.SHICHEN_LABELS (keep in sync).
+        const SHICHEN = ['子时·夜半','丑时·鸡鸣','寅时·平旦','卯时·日出','辰时·晨光初照','巳时·隅中','午时·日中','未时·日昳','申时·晡时','酉时·日入','戌时·黄昏','亥时·人定'];
+        function shichenLabel(tick) { return SHICHEN[(tick || 0) % 12]; }
+
+        // Cached panel data, refreshed by updateStatus() and after each action.
+        let panelData = {scene:null, npcs:[], quests:[], nextQuest:null, player:null};
+
+        // Panel clicks PREFILL the input (focus optional) — never auto-send, so
+        // every action still flows through classify→engine→world→dm.
+        function prefill(text, focus) {
+            const el = document.getElementById('user-input');
+            el.value = text;
+            if (focus !== false) el.focus();
+        }
+
+        let currentDrawer = null;
+        function openDrawer(which) {
+            currentDrawer = which;
+            document.getElementById('drawer-overlay').style.display = 'block';
+            document.getElementById('drawer').style.display = 'block';
+            ['chip-role','chip-place','chip-map'].forEach(id => document.getElementById(id).classList.remove('on'));
+            document.getElementById('chip-' + which).classList.add('on');
+            const titles = {role:'角色 · 所务与人物', place:'地点', map:'地图'};
+            document.getElementById('drawer-title').textContent = titles[which];
+            renderDrawer(which);
+        }
+        function closeDrawer() {
+            currentDrawer = null;
+            document.getElementById('drawer-overlay').style.display = 'none';
+            document.getElementById('drawer').style.display = 'none';
+            ['chip-role','chip-place','chip-map'].forEach(id => document.getElementById(id).classList.remove('on'));
+        }
+        function renderDrawer(which) {
+            const body = document.getElementById('drawer-body');
+            if (which === 'role') body.innerHTML = renderRolePanel();
+            else if (which === 'place') body.innerHTML = renderPlacePanel();
+            else if (which === 'map') body.innerHTML = renderMapPanel();
+        }
+        // Panel renderers are added in Tasks 10-12; stubs so the shell works.
+        function renderRolePanel() { return '<p class="panel-label">（角色面板 — 下一步实现）</p>'; }
+        function renderPlacePanel() { return '<p class="panel-label">（地点面板 — 下一步实现）</p>'; }
+        function renderMapPanel() { return '<p class="panel-label">（地图面板 — 下一步实现）</p>'; }
 
         // The opening line is shown once, on first status load, and must match
         // the player's actual scene — never a hardcoded outer_gate string.
