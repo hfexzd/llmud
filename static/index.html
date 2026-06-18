@@ -572,6 +572,24 @@
                         updateFavorability(result.npc);
                     }
 
+                    // Refresh panel cache from the action response so an open
+                    // drawer updates live without waiting for status re-fetch.
+                    // Action response nests player stats under result.player
+                    // (name/current_scene/tick/level/spirit_power/hp/max_hp/
+                    // attack/defense) but omits affinity/inventory/next_threshold,
+                    // so those fall back to the cached panelData.player values.
+                    panelData = {
+                        scene: result.scene || panelData.scene,
+                        npcs: result.npcs || panelData.npcs,
+                        quests: result.quests || panelData.quests,
+                        nextQuest: result.next_quest || null,
+                        player: Object.assign({}, panelData.player, result.player || {}, {
+                            // keep next_threshold from last status; action resp lacks it
+                            next_threshold: panelData.player && panelData.player.next_threshold,
+                        }),
+                    };
+                    if (currentDrawer) renderDrawer(currentDrawer);
+
                     // Update status bar
                     await updateStatus();
 
