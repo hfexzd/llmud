@@ -57,7 +57,7 @@
     </div>
 
     <div id="chat-container">
-        <div class="msg system"><div class="bubble">【系统】你睁开眼，发现自己正躺在柴房的硬板床上。四周弥漫着霉味，窗外传来师兄们练剑的呼喊声。你想做什么？（试试：修炼、和杨老说话、去内门、去集市）</div></div>
+        <!-- Opening message is rendered dynamically by maybeShowIntro() from the player's current scene. -->
     </div>
 
     <div id="input-bar">
@@ -71,6 +71,10 @@
 
         const NPC_NAMES = {linwaner: '林婉儿', chenhao: '陈浩', old_yang: '杨老'};
         const SCENE_NAMES = {outer_gate: '外门', inner_gate: '内门', bamboo_forest: '竹林', market: '集市', mountain_range: '山脉'};
+
+        // The opening line is shown once, on first status load, and must match
+        // the player's actual scene — never a hardcoded outer_gate string.
+        let introShown = false;
 
         async function updateStatus() {
             try {
@@ -105,9 +109,41 @@
                 } else {
                     sceneInfoEl.style.display = 'none';
                 }
+
+                // Render the opening line once, matching the player's real scene.
+                maybeShowIntro(data);
             } catch(e) {
                 console.error('Status update failed:', e);
             }
+        }
+
+        function maybeShowIntro(data) {
+            if (introShown) return;
+            introShown = true;
+            const scene = data.scene;
+            const sceneName = (scene && scene.name) || SCENE_NAMES[data.current_scene] || data.current_scene || '青云门外门';
+            const npcs = (scene && scene.npcs_present) || [];
+            const conns = (scene && scene.connections) || [];
+            // Hints reflect who is actually here and where the player can go.
+            const hints = [];
+            if (npcs.length) hints.push('和' + (NPC_NAMES[npcs[0]] || npcs[0]) + '说话');
+            conns.slice(0, 2).forEach(c => hints.push('去' + (SCENE_NAMES[c] || c)));
+            hints.push('修炼');
+            const hintStr = `你想做什么？（试试：${hints.join('、')}）`;
+            // Evocative cold-open only for a brand-new game at the outer gate;
+            // otherwise a scene-aware line so the intro never contradicts reality.
+            const prefix = (data.tick === 0 && data.current_scene === 'outer_gate')
+                ? '【系统】你睁开眼，发现自己正躺在柴房的硬板床上。四周弥漫着霉味，窗外传来师兄们练剑的呼喊声。'
+                : `【系统】你此刻身处${sceneName}，四下打量一番。`;
+            const el = document.createElement('div');
+            el.className = 'msg system';
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.textContent = prefix + hintStr;
+            el.appendChild(bubble);
+            const container = document.getElementById('chat-container');
+            container.appendChild(el);
+            container.scrollTop = container.scrollHeight;
         }
 
         function addBattleCard(container, combat) {
