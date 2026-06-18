@@ -243,7 +243,42 @@
                 + `<div class="npc-desc">${escapeHtml(loc)}</div>`
                 + acts + `</div>`;
         }
-        function renderPlacePanel() { return '<p class="panel-label">（地点面板 — 下一步实现）</p>'; }
+        function renderPlacePanel() {
+            const scene = panelData.scene || {};
+            const desc = scene.description || '';
+            const landmarks = scene.landmarks || [];
+            const conns = scene.connections || [];
+            // Turn landmark occurrences in the description into clickable links.
+            let descHtml = escapeHtml(desc);
+            landmarks.forEach(lm => {
+                if (lm && descHtml.includes(escapeHtml(lm))) {
+                    descHtml = descHtml.split(escapeHtml(lm)).join(
+                        `<span class="link-obj" onclick="prefill('查看${escapeHtml(lm)}')">${escapeHtml(lm)}</span>`);
+                }
+            });
+            let html = `<div class="panel-sec"><div class="panel-label">${escapeHtml(scene.name||'')} · ${escapeHtml(scene.atmosphere||'')}</div>`;
+            html += `<div class="scene-desc">${descHtml}</div></div>`;
+
+            html += '<div class="panel-sec"><div class="panel-label">可交互物件</div>';
+            landmarks.forEach(lm => {
+                html += `<span class="obj-tag" onclick="prefill('查看${escapeHtml(lm)}')">${escapeHtml(lm)} · 查看</span>`;
+            });
+            if (!landmarks.length) html += '<span style="color:#8a7aa8;font-size:12px">无可交互物件</span>';
+            html += '</div>';
+
+            html += '<div class="panel-sec"><div class="panel-label">可前往</div>';
+            conns.forEach(cid => {
+                html += `<span class="move-tag" onclick="prefill('去${SCENE_NAMES[cid]||cid}')">→ ${SCENE_NAMES[cid]||cid}</span>`;
+            });
+            if (!conns.length) html += '<span style="color:#8a7aa8;font-size:12px">无路可去</span>';
+            html += '</div>';
+
+            if (lastWorldEvent && lastWorldEvent.name) {
+                html += `<div class="panel-sec"><div class="panel-label">当前异象</div>`
+                     + `<div class="scene-desc" style="color:#9dd5ff">◈ ${escapeHtml(lastWorldEvent.name)}</div></div>`;
+            }
+            return html;
+        }
         function renderMapPanel() { return '<p class="panel-label">（地图面板 — 下一步实现）</p>'; }
 
         // The opening line is shown once, on first status load, and must match
@@ -251,6 +286,7 @@
         let introShown = false;
         // Last shown 所务 label, so we only surface a "所务更新" line when it changes.
         let lastGoalLabel = null;
+        let lastWorldEvent = null;
 
         async function updateStatus() {
             try {
@@ -470,6 +506,7 @@
                     // Show world event if present
                     if (result.world_event) {
                         addWorldEvent(container, result.world_event);
+                        lastWorldEvent = result.world_event;
                     }
 
                     // Show intervention options if present
