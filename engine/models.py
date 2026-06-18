@@ -8,6 +8,7 @@ class Intent(str, Enum):
     TALK = "talk"
     FIGHT = "fight"
     MOVE = "move"
+    INTERVENE = "intervene"
     OTHER = "other"
 
 
@@ -36,9 +37,11 @@ class Player(BaseModel):
     hp: int = 100
     max_hp: int = 100
     affinity: str = "火"
-    location: str = "青云门外门柴房"
+    current_scene: str = "outer_gate"
     inventory: list[str] = Field(default_factory=list)
-    recent_stories: list[str] = Field(default_factory=list)  # Last N story texts for context
+    recent_stories: list[str] = Field(default_factory=list)
+    seen_events: list[str] = Field(default_factory=list)
+    tick: int = 0
     created_at: datetime = Field(default_factory=datetime.now)
     last_seen: datetime = Field(default_factory=datetime.now)
 
@@ -77,5 +80,323 @@ class DMResponse(BaseModel):
     npc_update: dict | None = None
 
 
+# --- Living World Models ---
+
+class Scene(BaseModel):
+    id: str
+    name: str
+    description: str
+    atmosphere: str
+    connections: list[str]
+    available_actions: list[str]
+    encounter_ids: list[str]
+    npc_ids: list[str]
+
+
+class EventTrigger(BaseModel):
+    type: str  # "location_enter" | "tick_interval" | "stat_threshold" | "random"
+    conditions: dict = {}
+    probability: float = 1.0
+
+
+class WorldEvent(BaseModel):
+    id: str
+    name: str
+    scene_id: str
+    trigger: EventTrigger
+    narrative_hint: str
+    guidance: str
+    allow_intervene: bool = False
+    intervene_options: list[str] | None = None
+    one_time: bool = True
+
+
+class SceneSchedule(BaseModel):
+    tick_range: tuple[int, int]
+    scene_id: str
+
+
+class NPCPresence(BaseModel):
+    npc_id: str
+    default_scene: str
+    schedule: list[SceneSchedule] = []
+
+
+class NPCInteraction(BaseModel):
+    id: str
+    npc_ids: list[str]
+    scene_id: str
+    trigger_conditions: dict = {}
+    narrative_hint: str
+    allow_intervene: bool = False
+    intervene_options: list[str] | None = None
+
+
+class WorldState(BaseModel):
+    current_tick: int = 0
+    npc_locations: dict[str, str] = {}
+
+
+class NPCProfileData(BaseModel):
+    """Data-only container for NPC seeding (separate from the interaction model)."""
+    id: str
+    name: str
+    persona: str
+    secret: str
+    motive: str
+    default_scene: str
+    favorability: int = 50
+    relationship_stage: str = "陌生"
+
+
 DEFAULT_PLAYER = Player()
 DEFAULT_ENCOUNTER = Encounter()
+
+# --- Scene Data ---
+
+SCENE_MAP: dict[str, Scene] = {
+    "outer_gate": Scene(
+        id="outer_gate",
+        name="青云门外门",
+        description="外门柴房与练功场，灵气稀薄但清静。初来乍到的修士多在此落脚。",
+        atmosphere="清幽",
+        connections=["inner_gate", "market"],
+        available_actions=["cultivate", "explore"],
+        encounter_ids=[],
+        npc_ids=["old_yang"],
+    ),
+    "inner_gate": Scene(
+        id="inner_gate",
+        name="青云门内门",
+        description="内门修炼场，灵气浓郁。弟子们在此打坐修炼，师姐常在此处。",
+        atmosphere="庄严",
+        connections=["outer_gate", "bamboo_forest"],
+        available_actions=["cultivate", "explore"],
+        encounter_ids=[],
+        npc_ids=["linwaner"],
+    ),
+    "bamboo_forest": Scene(
+        id="bamboo_forest",
+        name="幽竹林",
+        description="竹林深处灵气充沛，偶有奇遇。但也传闻有妖兽出没。",
+        atmosphere="神秘",
+        connections=["inner_gate", "mountain_range"],
+        available_actions=["cultivate", "explore", "fight"],
+        encounter_ids=["e1"],
+        npc_ids=[],
+    ),
+    "market": Scene(
+        id="market",
+        name="修士集市",
+        description="修士们交易灵材丹药的集市，消息灵通，人来人往。",
+        atmosphere="繁忙",
+        connections=["outer_gate"],
+        available_actions=["explore"],
+        encounter_ids=[],
+        npc_ids=["chenhao"],
+    ),
+    "mountain_range": Scene(
+        id="mountain_range",
+        name="妖兽山脉",
+        description="危险的山脉深处，妖兽横行。只有胆大的修士才敢涉足。",
+        atmosphere="危险",
+        connections=["bamboo_forest"],
+        available_actions=["fight", "explore"],
+        encounter_ids=["e1"],
+        npc_ids=[],
+    ),
+}
+
+ENCOUNTERS_BY_SCENE: dict[str, list[str]] = {
+    "bamboo_forest": ["e1"],
+    "mountain_range": ["e1"],
+}
+
+# --- NPC Presence Data ---
+
+NPC_PRESENCES: dict[str, NPCPresence] = {
+    "linwaner": NPCPresence(
+        npc_id="linwaner",
+        default_scene="inner_gate",
+        schedule=[SceneSchedule(tick_range=(10, 20), scene_id="market")],
+    ),
+    "chenhao": NPCPresence(
+        npc_id="chenhao",
+        default_scene="market",
+        schedule=[],
+    ),
+    "old_yang": NPCPresence(
+        npc_id="old_yang",
+        default_scene="outer_gate",
+        schedule=[],
+    ),
+}
+
+# --- Event Pool Data ---
+
+ALL_EVENTS: list[WorldEvent] = [
+    # Environmental hints (direction guidance)
+    WorldEvent(
+        id="faint_spirit_sense",
+        name="灵气波动感知",
+        scene_id="outer_gate",
+        trigger=EventTrigger(type="location_enter", conditions={"first_time": True}),
+        narrative_hint="你隐约感到东方有更浓厚的灵气波动，似乎内门方向灵气更盛。",
+        guidance="explore_inner_gate",
+        one_time=True,
+    ),
+    WorldEvent(
+        id="outer_gate_cultivate_hint",
+        name="外门修炼提示",
+        scene_id="outer_gate",
+        trigger=EventTrigger(type="stat_threshold", conditions={"max_spirit": 15}),
+        narrative_hint="外门虽然灵气稀薄，但胜在清静，正适合初入修途的你静心修炼。",
+        guidance="cultivate",
+        one_time=True,
+    ),
+    WorldEvent(
+        id="bamboo_whisper",
+        name="竹林沙沙声",
+        scene_id="inner_gate",
+        trigger=EventTrigger(type="stat_threshold", conditions={"min_spirit": 20}),
+        narrative_hint="竹林方向传来奇异的沙沙声，似乎有什么不寻常的事正在发生。",
+        guidance="explore_bamboo_forest",
+        one_time=True,
+    ),
+    WorldEvent(
+        id="market_rumor",
+        name="集市传闻",
+        scene_id="market",
+        trigger=EventTrigger(type="tick_interval", conditions={"min_tick": 5}),
+        narrative_hint="集市上有人在低声议论山脉方向的异动，似乎妖兽变得更加活跃了。",
+        guidance="explore_mountain_range",
+        one_time=True,
+    ),
+    # NPC-initiated hints
+    WorldEvent(
+        id="waner_worry",
+        name="师姐心事",
+        scene_id="inner_gate",
+        trigger=EventTrigger(type="location_enter", conditions={"first_time": True}),
+        narrative_hint="师姐似乎心事重重，不时望向竹林方向，欲言又止。",
+        guidance="talk_linwaner",
+        one_time=True,
+    ),
+    WorldEvent(
+        id="merchant_gossip",
+        name="商贩搭话",
+        scene_id="market",
+        trigger=EventTrigger(type="tick_interval", conditions={"min_tick": 3}),
+        narrative_hint="一个商贩主动向你搭话：'道友，最近山里出了好东西，可惜我修为不够……'",
+        guidance="explore_mountain_range",
+        one_time=True,
+    ),
+    WorldEvent(
+        id="chenhao_challenge",
+        name="师兄挑战邀请",
+        scene_id="market",
+        trigger=EventTrigger(type="stat_threshold", conditions={"min_spirit": 25}),
+        narrative_hint="陈浩朝你招手：'师弟，要不要去山脉试试身手？最近那边的妖狼似乎变强了。'",
+        guidance="fight_mountain_range",
+        one_time=True,
+    ),
+    # NPC-to-NPC interactions
+    WorldEvent(
+        id="waner_chenhao_market_chat",
+        name="师姐与师兄交谈",
+        scene_id="market",
+        trigger=EventTrigger(type="location_enter", conditions={"npc_present": ["linwaner", "chenhao"]}),
+        narrative_hint="林婉儿和陈浩正在低声交谈，你隐约听到“山脉”和“异动”几个字。",
+        guidance="listen_or_talk",
+        allow_intervene=True,
+        intervene_options=["上前搭话", "继续偷听", "默默离开"],
+        one_time=True,
+    ),
+    WorldEvent(
+        id="elder_scolding",
+        name="长老训斥弟子",
+        scene_id="inner_gate",
+        trigger=EventTrigger(type="tick_interval", conditions={"min_tick": 8}),
+        narrative_hint="一位长老正在训斥弟子：'竹林禁地，岂是尔等可以随意涉足的！'",
+        guidance="explore_bamboo_forest",
+        one_time=True,
+    ),
+    # Random encounters
+    WorldEvent(
+        id="spirit_herb",
+        name="灵草发现",
+        scene_id="bamboo_forest",
+        trigger=EventTrigger(type="random", conditions={}, probability=0.1),
+        narrative_hint="你在竹林中发现了一株散发着微光的灵草，灵气从中缓缓溢出。",
+        guidance="explore_bamboo_forest",
+        one_time=True,
+    ),
+    WorldEvent(
+        id="strange_traveler",
+        name="神秘旅人",
+        scene_id="market",
+        trigger=EventTrigger(type="random", conditions={}, probability=0.15),
+        narrative_hint="集市角落坐着一个神秘旅人，眼神深邃，似乎在等待着什么。",
+        guidance="talk_stranger",
+        one_time=True,
+    ),
+    # Late-stage hints
+    WorldEvent(
+        id="waner_secret_hint",
+        name="师姐的秘密",
+        scene_id="inner_gate",
+        trigger=EventTrigger(type="stat_threshold", conditions={"min_spirit": 50}),
+        narrative_hint="师姐不经意间说漏了嘴，提到了一个关于宗门的秘密……",
+        guidance="talk_linwaner",
+        one_time=True,
+    ),
+]
+
+# --- NPC Interaction Data ---
+
+NPC_INTERACTIONS: list[NPCInteraction] = [
+    NPCInteraction(
+        id="waner_chenhao_chat",
+        npc_ids=["linwaner", "chenhao"],
+        scene_id="market",
+        trigger_conditions={"tick_min": 5},
+        narrative_hint="林婉儿和陈浩正在交谈，似乎在讨论山脉方向的异动。",
+        allow_intervene=True,
+        intervene_options=["上前搭话", "继续偷听", "默默离开"],
+    ),
+]
+
+# --- New NPC Profiles ---
+
+ALL_NPC_PROFILES: list[NPCProfileData] = [
+    NPCProfileData(
+        id="linwaner",
+        name="林婉儿",
+        persona="青云门知心师姐，温柔体贴，修炼有成，善于倾听。",
+        secret="她其实是宗门长老的私生女，身世不能暴露。",
+        motive="希望找到一个可以信赖的人，但害怕自己的秘密被发现。",
+        default_scene="inner_gate",
+        favorability=50,
+        relationship_stage="陌生",
+    ),
+    NPCProfileData(
+        id="chenhao",
+        name="陈浩",
+        persona="青云门豪爽师兄，爱冒险，性格直率，武艺不凡但冲动。",
+        secret="他偷偷在修炼一门禁术，一旦被发现将面临逐出宗门的危险。",
+        motive="想要变强保护身边的人，但又忍不住禁术的诱惑。",
+        default_scene="market",
+        favorability=30,
+        relationship_stage="陌生",
+    ),
+    NPCProfileData(
+        id="old_yang",
+        name="杨老",
+        persona="外门守门人，沉默寡言但句句关键。看似普通老人，实则深藏不露。",
+        secret="他曾是宗门最强的剑修，因故隐退至此。",
+        motive="守护外门平安，偶尔点拨有缘的年轻修士。",
+        default_scene="outer_gate",
+        favorability=40,
+        relationship_stage="陌生",
+    ),
+]
