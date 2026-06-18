@@ -471,6 +471,59 @@ async def test_game_action_records_visit_and_advances_goal(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_get_player_status_enriched_for_panels(tmp_path):
+    """Status returns everything the 角色/地点 panels need: scene description +
+    landmarks, an npcs card array, the visible quests, next_quest, and
+    next_threshold."""
+    import sqlite3
+    from db.connection import init_db
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    PlayerRepository(conn).save(Player(
+        current_scene="bamboo_forest", tick=4, spirit_power=12,
+        visited_scenes=["outer_gate", "inner_gate", "bamboo_forest"],
+        seen_events=["spirit_herb"],
+    ))
+    conn.close()
+
+    app = create_app(llm_client=MockLLMClient(response="{}"), db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.get("/player/status")
+    assert r.status_code == 200
+    data = json.loads(r.text)
+
+    # Scene description + landmarks
+    assert "description" in data["scene"] and data["scene"]["description"]
+    assert "landmarks" in data["scene"]
+
+    # npcs card array (all NPCs, with present flag)
+    assert "npcs" in data
+    npc_by_id = {n["id"]: n for n in data["npcs"]}
+    assert set(npc_by_id) == {"linwaner", "chenhao", "old_yang"}
+    assert "favorability" in npc_by_id["linwaner"]
+    assert "present" in npc_by_id["linwaner"]
+    # bamboo_forest has no NPCs at tick 4 -> none present
+    assert all(n["present"] is False for n in data["npcs"])
+
+    # quests: venture_bamboo completed, probe_anomaly completed, cultivate active
+    quests = {q["id"]: q["status"] for q in data["quests"]}
+    assert quests["venture_bamboo"] == "completed"
+    assert quests["probe_anomaly"] == "completed"
+    assert quests["cultivate_breakthrough"] == "active"
+
+    # next_quest is the first not-yet-unlocked goal
+    assert data["next_quest"]["label"] == "深入妖兽山脉，试炼身手"
+
+    # next_threshold for 练气期一层 is 30
+    assert data["next_threshold"] == 30
+
+
+@pytest.mark.asyncio
 async def test_npc_repo_lists_all_profiles(tmp_path):
     """get_all_profiles returns every seeded NPC for the 人物 panel."""
     from db.connection import init_db

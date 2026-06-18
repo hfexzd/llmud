@@ -8,8 +8,8 @@ from pydantic import BaseModel
 from dm.client import LLMClient
 from dm.contract import parse_dm_response_with_retry
 from dm.prompt import build_dm_prompt
-from engine.classify import classify_intent, classify_intent_llm
-from engine.models import Intent, Player, Encounter, DEFAULT_ENCOUNTER, NPCInteraction, EventTrigger, WorldEvent, SCENE_MAP
+from engine.classify import classify_intent, classify_intent_llm, resolve_npc_target
+from engine.models import Intent, Player, Encounter, DEFAULT_ENCOUNTER, NPCInteraction, EventTrigger, WorldEvent, SCENE_MAP, next_spirit_threshold
 from engine.rules import cultivate, resolve_combat, check_breakthrough, compute_attack, compute_defense, move
 from engine.world import WorldEngine
 from db.repository import PlayerRepository, NPCRepository
@@ -37,12 +37,11 @@ def create_router(
     # ------------------------------------------------------------------
     @router.get("/player/status")
     def get_status():
-        """Return current player status including scene information."""
+        """Return current player status including scene + panel data."""
         player = player_repo.get("p1")
         if player is None:
             return {"error": "Player not found"}
 
-        # Enrich with scene details
         scene = world_engine.get_scene(player.current_scene)
         scene_info = None
         if scene:
@@ -51,14 +50,32 @@ def create_router(
                 "id": scene.id,
                 "name": scene.name,
                 "atmosphere": scene.atmosphere,
+                "description": scene.description,
+                "landmarks": scene.landmarks,
                 "npcs_present": npcs_present,
                 "connections": scene.connections,
             }
+
+        # NPC cards for the 人物 panel: all NPCs, with present flag + profile data.
+        present_ids = set(scene_info["npcs_present"]) if scene_info else set()
+        npcs = [
+            {
+                "id": p["id"],
+                "favorability": p.get("favorability", 50),
+                "relationship_stage": p.get("relationship_stage", "陌生"),
+                "default_scene": p.get("default_scene", "outer_gate"),
+                "present": p["id"] in present_ids,
+            }
+            for p in npc_repo.get_all_profiles()
+        ]
 
         goal = world_engine.current_goal(player)
         goal_info = {"id": goal.id, "label": goal.label} if goal else {
             "id": None, "label": "暂无要务，随心而行",
         }
+
+        next_quest = world_engine.next_quest(player)
+        next_quest_info = {"label": next_quest.label} if next_quest else None
 
         return {
             "name": player.name,
@@ -74,6 +91,10 @@ def create_router(
             "defense": compute_defense(player),
             "scene": scene_info,
             "goal": goal_info,
+            "npcs": npcs,
+            "quests": world_engine.visible_quests(player),
+            "next_quest": next_quest_info,
+            "next_threshold": next_spirit_threshold(player.level),
         }
 
     # ------------------------------------------------------------------
