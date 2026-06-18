@@ -174,6 +174,51 @@ class TestValidateMove:
 
 
 # -------------------------------------------------------------------
+# TestResolveSceneMove
+# -------------------------------------------------------------------
+
+
+class TestResolveSceneMove:
+    def test_exact_scene_id(self, engine: WorldEngine, fresh_player: Player):
+        status, result = engine.resolve_scene_move(fresh_player, "inner_gate")
+        assert status == "ok"
+        assert result == "inner_gate"
+
+    def test_exact_full_name(self, engine: WorldEngine, fresh_player: Player):
+        status, result = engine.resolve_scene_move(fresh_player, "青云门内门")
+        assert status == "ok"
+        assert result == "inner_gate"
+
+    def test_short_alias(self, engine: WorldEngine, fresh_player: Player):
+        status, result = engine.resolve_scene_move(fresh_player, "去内门")
+        assert status == "ok"
+        assert result == "inner_gate"
+
+    def test_natural_language_phrase(self, engine: WorldEngine, fresh_player: Player):
+        """The reported bug: '去内门灵泉旁修炼' must resolve to inner_gate."""
+        status, result = engine.resolve_scene_move(fresh_player, "去内门灵泉旁修炼")
+        assert status == "ok"
+        assert result == "inner_gate"
+
+    def test_unreachable_scene(self, engine: WorldEngine, fresh_player: Player):
+        # bamboo_forest is not directly connected to outer_gate
+        status, result = engine.resolve_scene_move(fresh_player, "去竹林")
+        assert status == "error"
+        # Error must use Chinese scene names, never raw ids
+        assert "无法从青云门外门前往幽竹林" in result
+
+    def test_unknown_destination(self, engine: WorldEngine, fresh_player: Player):
+        status, result = engine.resolve_scene_move(fresh_player, "去火星")
+        assert status == "error"
+        assert "未知地点" in result
+
+    def test_empty_destination(self, engine: WorldEngine, fresh_player: Player):
+        status, result = engine.resolve_scene_move(fresh_player, "")
+        assert status == "error"
+        assert "未知地点" in result
+
+
+# -------------------------------------------------------------------
 # TestAdvanceTick
 # -------------------------------------------------------------------
 

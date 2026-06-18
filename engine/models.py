@@ -207,6 +207,43 @@ SCENE_MAP: dict[str, Scene] = {
     ),
 }
 
+# Short, natural-language keywords players use to refer to a scene.
+# The full official names and scene ids are matched separately, so this only
+# needs the colloquial short forms (mirrors the frontend SCENE_NAMES map).
+SCENE_ALIASES: dict[str, str] = {
+    "外门": "outer_gate",
+    "内门": "inner_gate",
+    "竹林": "bamboo_forest",
+    "集市": "market",
+    "山脉": "mountain_range",
+}
+
+
+def resolve_scene_id(text: str | None) -> str | None:
+    """Resolve free-form destination text to a scene id.
+
+    Matching priority:
+      1. exact scene id (e.g. "inner_gate")
+      2. exact full scene name (e.g. "青云门内门")
+      3. alias keyword contained anywhere in the text (e.g. "去内门灵泉旁修炼" → "inner_gate")
+
+    Longer aliases are tried first so a more specific keyword wins over a
+    shorter substring. Returns the scene id, or None if nothing matches.
+    """
+    text = (text or "").strip()
+    if not text:
+        return None
+    if text in SCENE_MAP:
+        return text
+    for sid, scene in SCENE_MAP.items():
+        if scene.name == text:
+            return sid
+    for alias in sorted(SCENE_ALIASES, key=len, reverse=True):
+        if alias in text:
+            return SCENE_ALIASES[alias]
+    return None
+
+
 ENCOUNTERS_BY_SCENE: dict[str, list[str]] = {
     "bamboo_forest": ["e1"],
     "mountain_range": ["e1"],

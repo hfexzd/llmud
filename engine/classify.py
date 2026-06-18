@@ -1,5 +1,5 @@
 import re
-from engine.models import Intent
+from engine.models import Intent, resolve_scene_id
 
 # Regex patterns for fast-path classification
 CULTIVATE_PATTERNS = [
@@ -49,7 +49,10 @@ def classify_intent(action_text: str, llm_client=None) -> tuple[Intent, dict]:
         return Intent.INTERVENE, params
 
     if _match_patterns(action_text, MOVE_PATTERNS):
-        params["destination"] = action_text  # DM will interpret
+        # Extract a concrete target scene when the text names one (e.g.
+        # "去内门灵泉旁修炼" → "inner_gate"); fall back to the raw text so the
+        # world layer can still attempt alias matching or report an error.
+        params["destination"] = resolve_scene_id(action_text) or action_text
         return Intent.MOVE, params
 
     if _match_patterns(action_text, CULTIVATE_PATTERNS):

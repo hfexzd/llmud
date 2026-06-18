@@ -14,6 +14,7 @@ from engine.models import (
     Player,
     Scene,
     WorldEvent,
+    resolve_scene_id,
 )
 
 
@@ -203,25 +204,23 @@ class WorldEngine:
     ) -> tuple[str, str]:
         """Try to resolve *destination_text* into a valid move.
 
+        Accepts a scene id, the full scene name, or natural-language text
+        containing a scene alias (e.g. "去内门灵泉旁修炼" → "inner_gate").
+
         Returns (status, scene_id_or_message):
           - ("ok", scene_id)        on success
           - ("error", msg)          on failure
         """
-        # Try exact scene_id match first
-        target_id: str | None = None
-        if destination_text in SCENE_MAP:
-            target_id = destination_text
-        else:
-            # Fallback: match by scene name (case-insensitive)
-            for sid, scene in SCENE_MAP.items():
-                if scene.name == destination_text:
-                    target_id = sid
-                    break
+        target_id = resolve_scene_id(destination_text)
 
         if target_id is None:
             return ("error", f"未知地点: {destination_text}")
 
         if not self.validate_move(player.current_scene, target_id):
-            return ("error", f"无法从 {player.current_scene} 前往 {target_id}")
+            # Use Chinese scene names in the error — never expose raw ids to the player.
+            from_scene = SCENE_MAP.get(player.current_scene)
+            from_name = from_scene.name if from_scene else player.current_scene
+            to_name = SCENE_MAP[target_id].name
+            return ("error", f"无法从{from_name}前往{to_name}")
 
         return ("ok", target_id)
