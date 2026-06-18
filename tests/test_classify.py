@@ -115,3 +115,28 @@ async def test_classify_llm_returns_none_on_unknown_intent_name():
     client = _StubClient(json.dumps({"intent": "fly", "destination": ""}))
     intent, params = await classify_intent_llm("飞", client, "内门", [], [])
     assert intent is None
+
+
+def test_resolve_npc_target_matches_name_in_text():
+    from engine.classify import resolve_npc_target
+    names = {"linwaner": "林婉儿", "chenhao": "陈浩"}
+    assert resolve_npc_target("对林婉儿说：最近可好", names) == "linwaner"
+
+
+def test_resolve_npc_target_no_match_returns_none():
+    from engine.classify import resolve_npc_target
+    names = {"linwaner": "林婉儿", "chenhao": "陈浩"}
+    assert resolve_npc_target("随便聊聊", names) is None
+
+
+def test_resolve_npc_target_empty_names_returns_none():
+    from engine.classify import resolve_npc_target
+    assert resolve_npc_target("对林婉儿说", {}) is None
+
+
+def test_resolve_npc_target_first_match_wins_on_ambiguous():
+    """If text mentions two NPCs, the first by dict order wins (stable)."""
+    from engine.classify import resolve_npc_target
+    names = {"linwaner": "林婉儿", "chenhao": "陈浩"}
+    # Both names present; dict insertion order -> linwaner first
+    assert resolve_npc_target("林婉儿和陈浩都在", names) == "linwaner"

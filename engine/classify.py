@@ -77,6 +77,22 @@ def classify_intent(action_text: str, llm_client=None) -> tuple[Intent, dict]:
     return Intent.OTHER, params
 
 
+def resolve_npc_target(text: str, npc_name_by_id: dict[str, str]) -> str | None:
+    """Return the id of an NPC whose name appears in *text*, or None.
+
+    Used by the api layer to target a named NPC for TALK (e.g. '对林婉儿说…'
+    -> 'linwaner') when multiple NPCs are in a scene. The caller builds the
+    {id: name} map from the NPCs actually present, so only present NPCs can be
+    targeted. First match (by dict insertion order) wins.
+    """
+    if not npc_name_by_id:
+        return None
+    for npc_id, name in npc_name_by_id.items():
+        if name and name in text:
+            return npc_id
+    return None
+
+
 _INTENT_NAME_TO_ENUM = {
     "cultivate": Intent.CULTIVATE,
     "fight": Intent.FIGHT,
