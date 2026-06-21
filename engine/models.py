@@ -863,3 +863,73 @@ PHASE_0_BIBLE = WorldBible(
     ],
     ending_hints={},
 )
+
+
+# --- Terminal Archetypes (M4 ending system) ---
+
+class TerminalArchetype(BaseModel):
+    """An ending condition the world can resolve into.
+
+    Evaluated by check_ending() each tick. When the condition fires,
+    WorldState.sealed=True and WorldState.ending=archetype.id.
+    """
+    id: str
+    name: str
+    condition: dict  # predicate dict (same shape as evaluate_condition)
+    finale_guidance: str  # injected into the finale LLM prompt
+    priority: int  # evaluation order (higher = checked first)
+
+
+TERMINAL_ARCHETYPES: list[TerminalArchetype] = [
+    # Seven archetypes spanning sweet/bitter/tragic emotional spectrum.
+    # Evaluated in priority order: more specific ones first, wanderer last.
+    TerminalArchetype(
+        id="ascension",
+        name="飞升成仙",
+        condition={"level": "筑基期"},
+        finale_guidance="玩家最终飞升成仙，超脱尘世。结局应当壮丽超然，回顾一路修行的艰辛与成长，带着对师门与同伴的温情告别。",
+        priority=10,
+    ),
+    TerminalArchetype(
+        id="demonic",
+        name="堕入魔道",
+        condition={"tension_resolved": "demonic_temptation"},
+        finale_guidance="玩家被心魔吞噬，堕入魔道。结局应当悲怆而决绝，曾经的同门反目，挚友痛心，玩家在力量与道义间选择了力量。",
+        priority=9,
+    ),
+    TerminalArchetype(
+        id="fall",
+        name="陨落",
+        condition={"tension_resolved": "ultimate_sacrifice"},
+        finale_guidance="玩家在大劫中陨落，以身殉道。结局应当壮烈感人，玩家的牺牲守护了重要的人或宗门，虽死无憾。",
+        priority=8,
+    ),
+    TerminalArchetype(
+        id="unrequited",
+        name="求不得",
+        condition={"tension_resolved": "lost_love"},
+        finale_guidance="玩家得到了力量/地位，却失去了最重要的人。结局应当怅然若失，得到与失去交织，带着淡淡的哀伤与释然。",
+        priority=7,
+    ),
+    TerminalArchetype(
+        id="unifier",
+        name="一统江湖",
+        condition={"tension_resolved": "sect_unified"},
+        finale_guidance="玩家整合了各大势力，开创新秩序。结局应当宏大有气魄，展现玩家作为一代宗师的格局与胸怀。",
+        priority=6,
+    ),
+    TerminalArchetype(
+        id="hermit",
+        name="归隐山林",
+        condition={"tension_resolved": "peaceful_retreat"},
+        finale_guidance="玩家功成身退，携所爱归隐山林。结局应当温馨宁静，平淡中见真意，体现返璞归真的人生境界。",
+        priority=5,
+    ),
+    TerminalArchetype(
+        id="wanderer",
+        name="行遍天下",
+        condition={"always": True},  # fallback — fires if no other ending hit
+        finale_guidance="玩家没有特定的命运终点，将继续在这片大陆上游历。结局应当开放而充满希望，暗示旅途永不完结。",
+        priority=1,
+    ),
+]
