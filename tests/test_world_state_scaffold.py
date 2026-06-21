@@ -23,9 +23,13 @@ class TestPhase0Bible:
         assert any(i.name == "灵草" for i in PHASE_0_BIBLE.items)
         assert any(s.name == "青云剑诀" for s in PHASE_0_BIBLE.skills)
 
-    def test_tensions_empty_in_m1(self):
-        # Real tension data + machine arrive in M2.
-        assert PHASE_0_BIBLE.tensions == []
+    def test_tensions_populated_in_m2(self):
+        # Phase-0 tensions arrived in M2 Task 1 (4 hand-authored entries).
+        ids = [t.id for t in PHASE_0_BIBLE.tensions]
+        assert ids == [
+            "venture_bamboo", "probe_anomaly",
+            "cultivate_breakthrough", "venture_mountain",
+        ]
 
 
 from engine.models import WorldState, PHASE_0_BIBLE, Player

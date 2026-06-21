@@ -209,6 +209,12 @@ GOALS: list[Goal] = [
 ]
 
 
+# Lookup by id for the 所务 derivation (phase-0 tensions share ids with these
+# goals, so the player-visible labels/guidance stay constant when selection
+# moves off the GOALS list in M2).
+GOAL_BY_ID: dict[str, Goal] = {g.id: g for g in GOALS}
+
+
 class SceneSchedule(BaseModel):
     tick_range: tuple[int, int]
     scene_id: str
@@ -749,7 +755,88 @@ PHASE_0_BIBLE = WorldBible(
                   requirement="灵根·火", effect="火属性攻击招式", axis="成长",
                   lore="以火灵根催动的烈掌。"),
     ],
-    tensions=[],
+    tensions=[
+        TensionSpec(
+            id="venture_bamboo",
+            name="同探幽竹林",
+            axis=["陪伴", "探索"],
+            emotion="执念",
+            involved_npcs=["linwaner"],
+            involved_factions=["qingyun_sect"],
+            trigger=TensionTrigger(type="stat", conditions={"always": True}),
+            resolution_paths=[
+                ResolutionPath(
+                    id="reach_bamboo",
+                    label="抵达幽竹林",
+                    condition={"visited": "bamboo_forest"},
+                    outcome_state={},
+                    ending_lean=None,
+                ),
+            ],
+            pressure_weight=1,
+            difficulty=1,
+        ),
+        TensionSpec(
+            id="probe_anomaly",
+            name="查探灵草异气",
+            axis=["探索"],
+            emotion="求不得",
+            involved_npcs=["linwaner"],
+            involved_factions=["qingyun_sect"],
+            trigger=TensionTrigger(type="stat", conditions={"visited": "bamboo_forest"}),
+            resolution_paths=[
+                ResolutionPath(
+                    id="witness_herb",
+                    label="得见灵草异象",
+                    condition={"seen_event": "spirit_herb"},
+                    outcome_state={},
+                    ending_lean=None,
+                ),
+            ],
+            pressure_weight=1,
+            difficulty=1,
+        ),
+        TensionSpec(
+            id="cultivate_breakthrough",
+            name="突破练气期二层",
+            axis=["成长"],
+            emotion="执念",
+            involved_npcs=[],
+            involved_factions=["qingyun_sect"],
+            trigger=TensionTrigger(type="stat", conditions={"seen_event": "spirit_herb"}),
+            resolution_paths=[
+                ResolutionPath(
+                    id="breakthrough",
+                    label="突破至练气期二层",
+                    condition={"level": "练气期二层"},
+                    outcome_state={},
+                    ending_lean=None,
+                ),
+            ],
+            pressure_weight=2,
+            difficulty=2,
+        ),
+        TensionSpec(
+            id="venture_mountain",
+            name="深入妖兽山脉",
+            axis=["成长", "探索"],
+            emotion="执念",
+            involved_npcs=[],
+            involved_factions=[],
+            trigger=TensionTrigger(type="stat", conditions={"level": "练气期二层"}),
+            resolution_paths=[
+                ResolutionPath(
+                    id="reach_mountain",
+                    label="抵达妖兽山脉",
+                    condition={"visited": "mountain_range"},
+                    outcome_state={},
+                    ending_lean=None,
+                ),
+            ],
+            pressure_weight=1,
+            difficulty=2,
+        ),
+    ],
     npc_models=[
         BehaviorModel(
             npc_id="linwaner",

@@ -16,11 +16,14 @@ from engine.models import (
     WorldEvent,
     Goal,
     GOALS,
+    GOAL_BY_ID,
     QuestState,
     resolve_scene_id,
     WorldState,
     WorldBible,
     NPCRuntimeState,
+    TensionRuntime,
+    ResolvedTension,
 )
 
 
@@ -337,6 +340,56 @@ class WorldEngine:
             return ("error", f"从{from_name}没有直达{to_name}的路，你只得暂且作罢。")
 
         return ("ok", target_id)
+
+
+# ----------------------------------------------------------------------
+# Condition evaluator — interprets the dict predicates on
+# TensionTrigger.conditions / ResolutionPath.condition against the player
+# and world state. Pure, deterministic, no LLM. AND across keys: every key
+# must hold. Unknown predicate keys fail safe (False).
+# ----------------------------------------------------------------------
+
+def evaluate_condition(condition: dict, player: Player, world_state: WorldState) -> bool:
+    """Return True iff every predicate in *condition* holds for (player, world_state).
+
+    Supported keys (AND-combined; empty dict → True):
+      - always: bool             — truthy → True
+      - visited: scene_id         — scene_id in player.visited_scenes
+      - seen_event: event_id       — event_id in player.seen_events
+      - level: 境界 str            — player.level == value
+      - min_spirit: int            — player.spirit_power >= value
+      - min_tick: int              — player.tick >= value
+      - tension_resolved: tid       — tid in world_state.resolved_tensions
+    """
+    if not condition:
+        return True
+    visited = set(player.visited_scenes or [])
+    seen = set(player.seen_events or [])
+    for key, val in condition.items():
+        if key == "always":
+            if not val:
+                return False
+        elif key == "visited":
+            if val not in visited:
+                return False
+        elif key == "seen_event":
+            if val not in seen:
+                return False
+        elif key == "level":
+            if player.level != val:
+                return False
+        elif key == "min_spirit":
+            if player.spirit_power < val:
+                return False
+        elif key == "min_tick":
+            if player.tick < val:
+                return False
+        elif key == "tension_resolved":
+            if not any(rt.tension_id == val for rt in world_state.resolved_tensions):
+                return False
+        else:
+            return False  # unknown predicate — fail safe
+    return True
 
 
 # ----------------------------------------------------------------------
