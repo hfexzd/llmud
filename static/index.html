@@ -277,9 +277,14 @@
             // Items — suggest use if any
             if (inv.length > 0) chips.push(`使用${inv[0]}`);
 
+            // Equipped items indicator
+            const wepName = player.weapon || null;
+            const armName = player.armor || null;
+
             bar.innerHTML = chips.map(c =>
                 `<span class="chip" data-prefill="${escapeAttr(c)}">${escapeHtml(c)}</span>`
-            ).join('');
+            ).join('') + (wepName ? `<span class="chip" style="opacity:0.6;font-size:10px">🗡${escapeHtml(wepName)}</span>` : '')
+                + (armName ? `<span class="chip" style="opacity:0.6;font-size:10px">🛡${escapeHtml(armName)}</span>` : '');
         }
             const p = panelData.player || {};
             const quests = panelData.quests || [];
