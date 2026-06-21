@@ -21,6 +21,7 @@ from safety.filter import pre_filter_input, post_filter_output
 
 class ActionRequest(BaseModel):
     user_input: str
+    offline_directive: str | None = None
 
 
 def _resolve_talk_target(player, filtered_input, world_engine, npc_repo):
@@ -502,6 +503,10 @@ def create_router(
             last_seen = last_seen.replace(tzinfo=timezone.utc)
         seconds_offline = (now_dt - last_seen).total_seconds()
         offline_summary_for_response = None
+        dir_from_request = getattr(request, 'offline_directive', None)
+        if dir_from_request and dir_from_request in ("闭关", "历练", "静养") and dir_from_request != player.offline_directive:
+            player = player.model_copy(update={"offline_directive": dir_from_request})
+
         if seconds_offline > 60:  # more than 1 minute offline
             player, world_state, offline_summary = advance_offline(
                 player, world_state, bible, now=now_dt, directive=player.offline_directive,

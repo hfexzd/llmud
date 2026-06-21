@@ -787,7 +787,7 @@
                 const response = await fetch(`${API_URL}/game/action`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_input: text })
+                    body: JSON.stringify({ user_input: text, offline_directive: (document.getElementById('offline-directive')?.value || '闭关') })
                 });
 
                 const reader = response.body.getReader();
