@@ -942,6 +942,7 @@
 
                 } catch(e) {
                     // Fallback: show raw text
+                    aiBubbleEl.innerText = fullText || '（传信飞鸽迷路了……）';
                     console.log('JSON parse failed, showing raw text', e);
                 }
 
