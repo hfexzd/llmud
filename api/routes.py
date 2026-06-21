@@ -409,10 +409,18 @@ def create_router(
                         cur_fav = profile_row.get("favorability", 50)
                         rarity = next((s.rarity for s in PHASE_0_BIBLE.items if s.name == item_name), "凡")
                         gift_value = 10 if rarity == "灵" else 5
+                        # NPC gift preferences
+                        _item_cats = {"灵芝":"灵材","蛇胆":"灵材","洗髓丹":"丹药","灵草":"灵材","凝露草":"灵材","聚气丹":"丹药","解毒丹":"丹药","灵鱼":"灵材","湖心珠":"法器","青锋剑":"法器","布甲":"防具"}
+                        npc_likes = {"medicine_elder": ["灵材", "丹药"], "linwaner": ["灵材"], "chenhao": ["法器"], "old_yang": ["丹药"]}
+                        liked = [cat for cat in (npc_likes.get(target.id) or []) if cat in (_item_cats.get(item_name) or [])]
+                        if liked:
+                            gift_value += 3
+                            gift_message = f"你将{item_name}送给了{target.name}。[好感度+{gift_value}！对方很喜欢]"
+                        else:
+                            gift_message = f"你将{item_name}送给了{target.name}。[好感度+{gift_value}]"
                         new_fav = min(100, cur_fav + gift_value)
                         new_stage = compute_relationship_stage(new_fav)
                         npc_repo.update_favorability(target.id, new_fav, new_stage)
-                        gift_message = f"你将{item_name}送给了{target.name}。[好感度+{gift_value}]"
 
         # Help system
         help_message = None
