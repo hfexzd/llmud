@@ -24,11 +24,11 @@ class ActionRequest(BaseModel):
     offline_directive: str | None = None
 
 
-def _resolve_talk_target(player, filtered_input, world_engine, npc_repo):
+def _resolve_talk_target(player, filtered_input, world_engine, npc_repo, world_state=None):
     """Pick the NPC id a TALK action addresses: a named NPC present in the
     scene if the input names one, else the first present NPC, else the
     default. Mirrors resolve_scene_id's philosophy for NPC targeting."""
-    npcs_in_scene = world_engine.get_npcs_in_scene(player.current_scene, player.tick)
+    npcs_in_scene = world_engine.get_npcs_in_scene(player.current_scene, player.tick, world_state)
     name_by_id = {}
     for nid in npcs_in_scene:
         profile = npc_repo.get_profile(nid)
@@ -98,10 +98,12 @@ def create_router(
         if player is None:
             return {"error": "Player not found"}
 
+        world_state = world_repo.get("default") or WorldState()
+
         scene = world_engine.get_scene(player.current_scene)
         scene_info = None
         if scene:
-            npcs_present = world_engine.get_npcs_in_scene(scene.id, player.tick)
+            npcs_present = world_engine.get_npcs_in_scene(scene.id, player.tick, world_state)
             scene_info = {
                 "id": scene.id,
                 "name": scene.name,
@@ -126,7 +128,6 @@ def create_router(
             for p in npc_repo.get_all_profiles()
         ]
 
-        world_state = world_repo.get("default") or WorldState()
         bible = PHASE_0_BIBLE
         # When no /game/action has run yet, the persisted world_state has no
         # tensions, so 所务 methods would return nothing. Derive tensions from
@@ -1086,7 +1087,7 @@ def create_router(
             # Determine target NPC: a named NPC present in the scene if the
             # input names one (e.g. "对陈浩说…"), else the first present NPC,
             # else the default. See _resolve_talk_target.
-            target_npc_id = _resolve_talk_target(player, filtered_input, world_engine, npc_repo)
+            target_npc_id = _resolve_talk_target(player, filtered_input, world_engine, npc_repo, world_state)
 
             profile_row = npc_repo.get_profile(target_npc_id)
             npc_profile = dict(profile_row) if profile_row else {}
@@ -1373,7 +1374,7 @@ def create_router(
             if dm_response.npc_update:
                 # Use the target NPC: named NPC if the input named one, else first
                 # present, else default. Same resolution as the TALK context build.
-                target_npc_id = _resolve_talk_target(player, filtered_input, world_engine, npc_repo)
+                target_npc_id = _resolve_talk_target(player, filtered_input, world_engine, npc_repo, world_state)
 
                 npc_update_dict = dm_response.npc_update
                 profile_row = npc_repo.get_profile(target_npc_id)
@@ -1428,7 +1429,7 @@ def create_router(
             # Build scene info for response
             scene_response = None
             if scene:
-                npcs_in_scene_now = world_engine.get_npcs_in_scene(scene.id, player.tick)
+                npcs_in_scene_now = world_engine.get_npcs_in_scene(scene.id, player.tick, world_state)
                 scene_response = {
                     "id": scene.id,
                     "name": scene.name,
@@ -1559,7 +1560,7 @@ def create_router(
             if dm_response.npc_update:
                 # Use the same target NPC id determined earlier (named NPC if the
                 # input named one, else first present, else default).
-                target_npc_id_final = _resolve_talk_target(player, filtered_input, world_engine, npc_repo)
+                target_npc_id_final = _resolve_talk_target(player, filtered_input, world_engine, npc_repo, world_state)
                 profile_row = npc_repo.get_profile(target_npc_id_final)
                 profile_dict = dict(profile_row) if profile_row else {}
                 rest["npc"] = {

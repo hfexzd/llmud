@@ -56,12 +56,22 @@ class WorldEngine:
     # NPC presence
     # ------------------------------------------------------------------
 
-    def get_npcs_in_scene(self, scene_id: str, tick: int) -> list[str]:
+    def get_npcs_in_scene(self, scene_id: str, tick: int,
+                          world_state: WorldState | None = None) -> list[str]:
         """Return NPC ids present in *scene_id* at the given *tick*.
 
-        An NPC follows its schedule if the tick falls within a scheduled
-        tick_range; otherwise they are at their default_scene.
+        Checks world_state.npc_state first (dynamic positions from DM
+        world_delta), then falls back to the static NPC_PRESENCES schedule.
         """
+        # Dynamic positions from world_state take priority
+        if world_state and world_state.npc_state:
+            dynamic = [
+                nid for nid, ns in world_state.npc_state.items()
+                if ns.scene_id == scene_id
+            ]
+            if dynamic:
+                return dynamic
+
         result: list[str] = []
         for npc_id, presence in NPC_PRESENCES.items():
             current_scene = presence.default_scene
