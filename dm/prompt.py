@@ -14,6 +14,9 @@ DM_SYSTEM_TEMPLATE = """你是一款文字修仙 MUD 游戏的"动态地下城�
 - 当前境界：{level}
 - 当前灵力：{spirit_power}
 - 当前气血：{hp}/{max_hp}
+- 灵石：{stones}
+- 物品：{inventory}
+- 装备：{equipment}
 
 {canon_context}
 {scene_context}
@@ -146,6 +149,12 @@ def build_dm_prompt(
         f"- 功法/招式：{_catalog_line(canon['skills'], '一门功法、招式')}"
     )
 
+    inv_str = "、".join(player.inventory) if player.inventory else "（空）"
+    equip_parts = []
+    if player.weapon: equip_parts.append(f"武器·{player.weapon}")
+    if player.armor: equip_parts.append(f"防具·{player.armor}")
+    equip_str = " | ".join(equip_parts) if equip_parts else "（无）"
+
     system_prompt = DM_SYSTEM_TEMPLATE.format(
         name=player.name,
         location=location_name,
@@ -153,6 +162,9 @@ def build_dm_prompt(
         spirit_power=player.spirit_power,
         hp=player.hp,
         max_hp=player.max_hp,
+        stones=player.spirit_stones,
+        inventory=inv_str,
+        equipment=equip_str,
         canon_context=canon_context,
         scene_context=scene_context,
         world_event_context=world_event_context,
