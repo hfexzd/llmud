@@ -412,6 +412,12 @@ def create_router(
             else:
                 _response_extras[0] = "你找了一圈，没有发现可食用的蘑菇。"
 
+        # Wreath making at bamboo_forest
+        if "编花环" in filtered_input and player.current_scene == "bamboo_forest":
+            new_inv = list(player.inventory or []) + ["花环"]
+            player = player.model_copy(update={"inventory": new_inv})
+            _response_extras[0] = "你采来野花，编了一个漂亮的花环。获得【花环】。"
+
         # Bamboo flute crafting at bamboo_forest
         if "做笛" in filtered_input and player.current_scene == "bamboo_forest":
             new_inv = list(player.inventory or []) + ["竹笛"]
