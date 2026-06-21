@@ -740,7 +740,7 @@
             container.scrollTop = container.scrollHeight;
         }
 
-        function playCombatSound(result) {
+        function playCombatSound(result, combo) {
             if (!window.__soundOn) return;
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -748,16 +748,26 @@
                 const gain = ctx.createGain();
                 osc.connect(gain); gain.connect(ctx.destination);
                 gain.gain.value = 0.08;
-                if (result === 'win') { osc.frequency.value = 660; osc.type = 'sine'; setTimeout(() => { osc.frequency.value = 880; }, 100); }
-                else if (result === 'lose') { osc.frequency.value = 330; osc.type = 'sawtooth'; }
+                if (result === 'win') {
+                    if (combo >= 3) {
+                        osc.frequency.value = 523; osc.type = 'sine';
+                        setTimeout(() => { osc.frequency.value = 659; }, 80);
+                        setTimeout(() => { osc.frequency.value = 784; }, 160);
+                        setTimeout(() => { osc.frequency.value = 1047; }, 240);
+                        gain.gain.value = 0.12;
+                    } else {
+                        osc.frequency.value = 660; osc.type = 'sine';
+                        setTimeout(() => { osc.frequency.value = 880; }, 100);
+                    }
+                } else if (result === 'lose') { osc.frequency.value = 330; osc.type = 'sawtooth'; }
                 else { osc.frequency.value = 440; osc.type = 'triangle'; }
-                osc.start(); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-                osc.stop(ctx.currentTime + 0.3);
+                osc.start(); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+                osc.stop(ctx.currentTime + 0.4);
             } catch(e) {}
         }
 
         function addBattleCard(container, combat) {
-            playCombatSound(combat.result);
+            playCombatSound(combat.result, combat.combo || 0);
             if (combat.crit) {
                 const el = document.getElementById('chat-container');
                 el.style.transition = 'transform 0.05s';
