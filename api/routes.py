@@ -248,6 +248,28 @@ def create_router(
         """Return version info."""
         return {"branch": "feat/living-world", "commits": 148, "tests": 277}
 
+    @router.get("/game/runs")
+    def list_runs():
+        """List saved completed game runs."""
+        import os, json
+        save_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "saves")
+        runs = []
+        if os.path.isdir(save_dir):
+            for fname in sorted(os.listdir(save_dir), reverse=True):
+                if fname.startswith("run-") and fname.endswith(".json"):
+                    try:
+                        with open(os.path.join(save_dir, fname), "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        runs.append({
+                            "id": fname.replace(".json", ""),
+                            "ended_at": data.get("ended_at", ""),
+                            "player": data.get("player", {}),
+                            "ending": data.get("world", {}).get("ending", ""),
+                        })
+                    except Exception:
+                        pass
+        return {"runs": runs}
+
     @router.post("/game/reset")
     def reset_game():
         """Save current run to history, then reset all game state."""

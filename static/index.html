@@ -108,6 +108,26 @@
         .ending-btn { background: linear-gradient(135deg, #ffd700, #ff8c00); color: #1a0a2e;
           border: none; border-radius: 24px; padding: 12px 32px; margin-top: 24px;
           font-size: 16px; font-weight: bold; cursor: pointer; }
+        #main-menu { position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+          background: radial-gradient(ellipse at center, #1a0a2e 0%, #0a0a1a 100%);
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          z-index: 1001; }
+        #main-menu.hidden { display: none; }
+        .menu-title { color: #ffd700; font-size: 32px; margin-bottom: 4px; letter-spacing: 4px; }
+        .menu-sub { color: #b8a0d4; font-size: 14px; margin-bottom: 32px; }
+        .menu-btn { display: block; width: 260px; padding: 14px 0; margin: 8px 0;
+          border: 1px solid rgba(255,255,255,0.15); border-radius: 12px;
+          background: rgba(255,255,255,0.06); color: #e8e0f5; font-size: 16px;
+          cursor: pointer; text-align: center; transition: all 0.2s; }
+        .menu-btn:hover { background: rgba(255,255,255,0.14); border-color: #9dd5ff; color: #fff; }
+        .menu-btn.primary { background: linear-gradient(135deg, #6b3fa0, #4a2d6e); border-color: #9dd5ff; }
+        .menu-btn.primary:hover { background: linear-gradient(135deg, #7b4fb0, #5a3d7e); }
+        .menu-btn.danger { border-color: rgba(255,107,107,0.3); }
+        .menu-btn.danger:hover { background: rgba(255,107,107,0.15); border-color: #ff6b6b; }
+        #runs-list { max-height: 40vh; overflow-y: auto; width: 300px; margin-top: 8px; }
+        .run-item { padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.08);
+          color: #b8a0d4; font-size: 13px; cursor: pointer; }
+        .run-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -149,6 +169,15 @@
         <div style="color:#6b3fa0;font-size:28px;font-weight:bold;letter-spacing:4px">修 仙  MUD</div>
         <div style="color:#4a2d6e;font-size:12px;letter-spacing:2px">— 灵 境 之 旅 —</div>
         <div style="color:#b8a0d4;font-size:13px;margin-top:8px">正在加载...</div>
+    </div>
+    <div id="main-menu">
+        <div class="menu-title">修 仙 MUD</div>
+        <div class="menu-sub">— 灵 境 之 旅 —</div>
+        <button class="menu-btn primary" onclick="continueGame()">继续上次的故事</button>
+        <button class="menu-btn" onclick="resetGame()">重新开始</button>
+        <button class="menu-btn" onclick="showRuns()">游戏历程回顾</button>
+        <div id="runs-list" style="display:none"></div>
+        <button class="menu-btn" id="runs-back" style="display:none;margin-top:8px" onclick="hideRuns()">← 返回菜单</button>
     </div>
     <div id="scene-panel"></div>
     <div id="scene-toggle" onclick="toggleScenePanel()" title="点击展开/收起场景面板">▼ 场景</div>
@@ -976,10 +1005,70 @@
             document.getElementById('favorability-fill').style.width = `${npc.favorability ?? 50}%`;
         }
 
+        // --- Main Menu ---
+        function hideMainMenu() {
+            document.getElementById('main-menu').classList.add('hidden');
+            document.getElementById('loading-screen').style.display = 'none';
+        }
+
+        function showMainMenu() {
+            document.getElementById('main-menu').classList.remove('hidden');
+            hideRuns();
+        }
+
+        function continueGame() {
+            const hasPlayer = panelData.player && panelData.player.tick > 0;
+            if (hasPlayer || document.getElementById('chat-container').children.length > 0) {
+                hideMainMenu();
+            } else {
+                // No save exists, start fresh
+                resetGame();
+            }
+        }
+
         async function resetGame() {
             await fetch('/game/reset', {method:'POST'});
-            location.reload();
+            document.getElementById('chat-container').innerHTML = '';
+            panelData = {scene:null, npcs:[], quests:[], nextQuest:null, player:null, suggested_actions:[]};
+            showMainMenu();
+            updateStatus();
         }
+
+        async function showRuns() {
+            const list = document.getElementById('runs-list');
+            const back = document.getElementById('runs-back');
+            try {
+                const resp = await fetch('/game/runs');
+                const data = await resp.json();
+                if (!data.runs || !data.runs.length) {
+                    list.innerHTML = '<div style="color:#8a7aa8;font-size:13px;padding:8px">暂无历程记录</div>';
+                } else {
+                    list.innerHTML = data.runs.map(r => `
+                        <div class="run-item">
+                            <div style="color:#e8e0f5">${r.player?.name||'?'} · ${r.player?.level||'?'} · 回合${r.player?.tick||0}</div>
+                            <div style="font-size:11px;color:#8a7aa8">${r.ended_at||''} ${r.ending?' · 结局:'+ENDING_NAMES[r.ending]:''}</div>
+                        </div>
+                    `).join('');
+                }
+                list.style.display = 'block';
+                back.style.display = 'block';
+            } catch(e) {
+                list.innerHTML = '<div style="color:#ff6b6b;font-size:13px">加载失败</div>';
+                list.style.display = 'block';
+                back.style.display = 'block';
+            }
+        }
+
+        function hideRuns() {
+            document.getElementById('runs-list').style.display = 'none';
+            document.getElementById('runs-back').style.display = 'none';
+        }
+
+        const ENDING_NAMES = {
+            ascension:'飞升成仙', demonic:'堕入魔道', fall:'陨落',
+            unrequited:'求不得', unifier:'一统江湖', hermit:'归隐山林',
+            wanderer:'行遍天下'
+        };
 
         function showEndingCard(ending, storyText) {
             if (!ending) return;
@@ -990,7 +1079,7 @@
                     <h1>${ending.name || ''}</h1>
                     <div class="subtitle">旅程落幕</div>
                     <div class="ending-story">${storyText || ''}</div>
-                    <button class="ending-btn" onclick="resetGame()">重新开始</button>
+                    <button class="ending-btn" onclick="this.closest('.ending-overlay').remove();showMainMenu()">返回主菜单</button>
                 </div>
             `;
             document.body.appendChild(overlay);
@@ -1404,9 +1493,11 @@
             sendAction();
         });
 
-        // Initial status load
+        // Initial load — show main menu, load scenes in background
+        document.getElementById('loading-screen').style.display = 'none';
+        showMainMenu();
         loadWorldScenes();
-        updateStatus();
+        updateStatus();  // background load to check for existing save
     </script>
 </body>
 </html>
