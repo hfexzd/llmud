@@ -285,6 +285,24 @@ def create_router(
         # to the DM prompt (that arrives in M3 with the outcome resolver).
         world_state = world_repo.get("default") or WorldState()
         bible = PHASE_0_BIBLE  # M5 swaps in LLM-regenerated bibles; M1 is always phase-0
+
+        # M6: offline catch-up — if player was away, advance world before pipeline
+        from datetime import datetime, timezone
+        from engine.offline import advance_offline
+        now_dt = datetime.now(timezone.utc)
+        last_seen = player.last_seen
+        if last_seen.tzinfo is None:
+            last_seen = last_seen.replace(tzinfo=timezone.utc)
+        seconds_offline = (now_dt - last_seen).total_seconds()
+        offline_summary_for_response = None
+        if seconds_offline > 60:  # more than 1 minute offline
+            player, world_state, offline_summary = advance_offline(
+                player, world_state, bible, now=now_dt, directive=player.offline_directive,
+            )
+            player_repo.update(player)
+            world_repo.save(world_state)
+            offline_summary_for_response = offline_summary
+
         world_state = npc_step(world_state, bible, player.tick)
         world_state = tension_tick(world_state, bible, player)
         world_state = world_state.model_copy(update={"tick": player.tick})
@@ -691,6 +709,10 @@ def create_router(
                     "name": world_event.name,
                     "narrative_hint": world_event.narrative_hint,
                 }
+
+            # M6: surface offline catch-up summary if player was away
+            if offline_summary_for_response:
+                rest["offline_summary"] = offline_summary_for_response
 
             # Add intervention info to response
             if intervention:
