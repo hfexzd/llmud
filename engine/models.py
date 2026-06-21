@@ -84,6 +84,7 @@ class Player(BaseModel):
     last_seen: datetime = Field(default_factory=datetime.now)
     offline_directive: str = "闭关"  # 闭关 | 历练 | 静养
     spirit_stones: int = 100
+    auto_loot: bool = True
 
 
 class Encounter(BaseModel):

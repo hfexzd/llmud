@@ -156,6 +156,7 @@ def create_router(
             "affinity": player.affinity,
             "inventory": player.inventory,
             "spirit_stones": player.spirit_stones,
+            "auto_loot": player.auto_loot,
             "weapon": player.weapon,
             "armor": player.armor,
             "attack": compute_attack(player),
@@ -328,15 +329,18 @@ def create_router(
             # fight; clear it once the beast is slain.
             if combat_result.result == "win":
                 player = player.model_copy(update={"active_enemy": None})
-                # Loot: spirit stones + chance for item
-                stones_gained = 5
+                # Loot: spirit stones + spirit power
+                stones_gained = 5 if player.auto_loot else 0
                 spirit_gained = 2
-                player = player.model_copy(update={
-                    "spirit_stones": player.spirit_stones + stones_gained,
-                    "spirit_power": player.spirit_power + spirit_gained,
-                })
+                updates = {"spirit_power": player.spirit_power + spirit_gained}
+                if stones_gained > 0:
+                    updates["spirit_stones"] = player.spirit_stones + stones_gained
+                player = player.model_copy(update=updates)
                 if not _response_extras[0]:
-                    _response_extras[0] = f"战斗胜利！获得{stones_gained}灵石，灵力+{spirit_gained}。"
+                    msg = f"战斗胜利！灵力+{spirit_gained}"
+                    if stones_gained > 0:
+                        msg += f"，获得{stones_gained}灵石"
+                    _response_extras[0] = msg + "。"
             else:
                 player = player.model_copy(update={
                     "active_enemy": {
@@ -437,6 +441,11 @@ def create_router(
                     player = player.model_copy(update={"spirit_stones": player.spirit_stones - 10})
                     _response_extras[0] = f"你给了{bribe_target.name}10灵石。[好感度+5]"
 
+        # Auto-loot toggle
+        if "自动拾取" in filtered_input or "自动收集" in filtered_input:
+            player = player.model_copy(update={"auto_loot": not player.auto_loot})
+            _response_extras[0] = f"自动拾取已{'开启' if player.auto_loot else '关闭'}。"
+
         # Help system
         help_message = None
         if filtered_input in ("帮助", "help", "？", "?"):
@@ -472,7 +481,8 @@ def create_router(
                 "• 炼制[丹药] — 在灵药谷炼丹\n\n"
                 "【其他】\n"
                 "• 休息/疗伤 — 恢复气血\n"
-                "• 帮助 — 显示此帮助"
+                "• 帮助 — 显示此帮助\n"
+                "• 自动拾取 — 切换战斗自动拾取灵石"
             )
 
         # Response extras (mutable container to avoid closure scoping issues)
