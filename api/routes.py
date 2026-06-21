@@ -1278,6 +1278,22 @@ def create_router(
                             # Retry failed — keep the clamped original
                             pass
 
+                    # Story-based NPC sync: if the DM's story mentions an NPC
+                    # by name and the player moved, auto-move that NPC to the
+                    # current scene. This catches cases where the DM narrates
+                    # NPC accompaniment but forgets the world_delta update.
+                    if intent == Intent.MOVE and story:
+                        from engine.models import ALL_NPC_PROFILES
+                        for npc_p in ALL_NPC_PROFILES:
+                            if npc_p.name in story:
+                                prev_state = world_state.npc_state.get(npc_p.id)
+                                if prev_state and prev_state.scene_id != player.current_scene:
+                                    wd = dict(clamped.world_delta or {})
+                                    wd.setdefault("npc", {})
+                                    wd["npc"].setdefault(npc_p.id, {})
+                                    wd["npc"][npc_p.id]["scene_id"] = player.current_scene
+                                    clamped = clamped.model_copy(update={"world_delta": wd})
+
                     # Apply validated + clamped world_delta to world_state
                     if clamped.world_delta:
                         world_state = apply_world_delta(world_state, clamped.world_delta)
