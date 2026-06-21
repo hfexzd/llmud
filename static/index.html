@@ -858,6 +858,17 @@
                         container.appendChild(entryCard);
                     }
 
+                    // Quest completion celebration
+                    if (result.quests && result.quests.length > 0 && result.quests.every(q => q.status === 'completed') && result.player && result.player.tick > 1) {
+                        const cel = document.createElement('div');
+                        cel.className = 'world-event';
+                        cel.style.borderColor = '#ffd700';
+                        cel.style.background = 'linear-gradient(135deg,#2d2a1a,#3a2a1a)';
+                        cel.style.color = '#ffd700';
+                        cel.textContent = '✨ 所有所务已完成！继续探索世界，或在20回合后触发结局。';
+                        container.appendChild(cel);
+                    }
+
                     // Show help message
                     if (result.help) {
                         const card = document.createElement('div');
