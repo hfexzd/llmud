@@ -274,6 +274,9 @@
                 const wepB = p.weapon&&{'剑':5,'刀':4,'掌':3,'拳':2,'杖':3}[Object.keys({'剑':5,'刀':4,'掌':3,'拳':2,'杖':3}).find(k=>p.weapon.includes(k))]||0;
                 chips.push(`战斗 (攻${estAtk+wepB})`);
             }
+            // Quick rest when HP is low
+            const hpPctLow = (p.hp||100) / (p.max_hp||100);
+            if (hpPctLow < 0.5) chips.push('休息');
 
             // Movement — show all connections as quick-travel chips
             const conns = scene.connections || [];
