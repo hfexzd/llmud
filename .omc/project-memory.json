@@ -147,14 +147,14 @@
   "hotPaths": [
     {
       "path": "static\\index.html",
-      "accessCount": 408,
-      "lastAccessed": 1782034742589,
+      "accessCount": 424,
+      "lastAccessed": 1782035366558,
       "type": "file"
     },
     {
       "path": "api\\routes.py",
-      "accessCount": 277,
-      "lastAccessed": 1782034940841,
+      "accessCount": 283,
+      "lastAccessed": 1782035296070,
       "type": "file"
     },
     {

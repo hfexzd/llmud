@@ -407,6 +407,16 @@ def create_router(
             player = player.model_copy(update={"spirit_power": player.spirit_power + gain})
             _response_extras[0] = f"你在练功场上练习招式，灵力略有精进（灵力+{gain}）。"
 
+        # Fishing at misty_lake
+        if "钓鱼" in filtered_input and player.current_scene == "misty_lake":
+            import random as _rand
+            if _rand.random() < 0.4:
+                new_inv = list(player.inventory or []) + ["灵鱼"]
+                player = player.model_copy(update={"inventory": new_inv})
+                _response_extras[0] = "你钓到了一条灵鱼！"
+            else:
+                _response_extras[0] = "你钓了一会儿，但什么也没钓到。"
+
         # NPC gift system: give item to NPC to increase favorability
         gift_message = None
         import re as _re

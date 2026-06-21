@@ -300,6 +300,8 @@
                 chips.push('向药老请教');
                 chips.push('炼制聚气丹');
             }
+            // Fishing at misty_lake
+            if (scene.id === 'misty_lake') chips.push('钓鱼');
 
             // Items — suggest healing items when low HP, otherwise first item
             const hpPct3 = (p.hp||100) / (p.max_hp||100);
