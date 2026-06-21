@@ -80,6 +80,7 @@ class Player(BaseModel):
     tick: int = 0
     created_at: datetime = Field(default_factory=datetime.now)
     last_seen: datetime = Field(default_factory=datetime.now)
+    offline_directive: str = "闭关"  # 闭关 | 历练 | 静养
 
 
 class Encounter(BaseModel):

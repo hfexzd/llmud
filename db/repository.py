@@ -36,9 +36,12 @@ class PlayerRepository:
         from engine.models import QuestState
         quests = [QuestState(**q) for q in quests_data]
 
+        offline_directive = row["offline_directive"] if "offline_directive" in columns else "闭关"
+
         return Player(
             id=row["id"],
             name=row["name"],
+            offline_directive=offline_directive,
             level=row["level"],
             spirit_power=row["spirit_power"],
             hp=row["hp"],
@@ -60,8 +63,8 @@ class PlayerRepository:
         self.conn.execute(
             """INSERT INTO players (id, name, level, spirit_power, hp, max_hp, affinity,
                current_scene, inventory, recent_stories, seen_events, visited_scenes,
-               active_enemy, tick, quests, created_at, last_seen)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               active_enemy, tick, quests, created_at, last_seen, offline_directive)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (player.id, player.name, player.level, player.spirit_power,
              player.hp, player.max_hp, player.affinity, player.current_scene,
              json.dumps(player.inventory), json.dumps(player.recent_stories, ensure_ascii=False),
@@ -70,7 +73,8 @@ class PlayerRepository:
              json.dumps(player.active_enemy, ensure_ascii=False) if player.active_enemy else None,
              player.tick,
              json.dumps([q.model_dump() for q in player.quests], ensure_ascii=False),
-             player.created_at.isoformat(), player.last_seen.isoformat()),
+             player.created_at.isoformat(), player.last_seen.isoformat(),
+             player.offline_directive),
         )
         self.conn.commit()
 
@@ -78,7 +82,8 @@ class PlayerRepository:
         self.conn.execute(
             """UPDATE players SET name=?, level=?, spirit_power=?, hp=?, max_hp=?,
                affinity=?, current_scene=?, inventory=?, recent_stories=?,
-               seen_events=?, visited_scenes=?, active_enemy=?, tick=?, quests=?, last_seen=? WHERE id=?""",
+               seen_events=?, visited_scenes=?, active_enemy=?, tick=?, quests=?,
+               last_seen=?, offline_directive=? WHERE id=?""",
             (player.name, player.level, player.spirit_power, player.hp,
              player.max_hp, player.affinity, player.current_scene,
              json.dumps(player.inventory), json.dumps(player.recent_stories, ensure_ascii=False),
@@ -87,7 +92,7 @@ class PlayerRepository:
              json.dumps(player.active_enemy, ensure_ascii=False) if player.active_enemy else None,
              player.tick,
              json.dumps([q.model_dump() for q in player.quests], ensure_ascii=False),
-             datetime.now().isoformat(), player.id),
+             datetime.now().isoformat(), player.offline_directive, player.id),
         )
         self.conn.commit()
 

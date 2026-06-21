@@ -38,7 +38,8 @@ def init_db(conn: sqlite3.Connection):
             tick INTEGER NOT NULL DEFAULT 0,
             quests TEXT NOT NULL DEFAULT '[]',
             created_at TEXT NOT NULL,
-            last_seen TEXT NOT NULL
+            last_seen TEXT NOT NULL,
+            offline_directive TEXT NOT NULL DEFAULT '闭关'
         )
     """)
 
@@ -83,6 +84,7 @@ def init_db(conn: sqlite3.Connection):
     _migrate_add_column(conn, "players", "active_enemy", "TEXT", "NULL")
     _migrate_add_column(conn, "players", "quests", "TEXT", "'[]'")
     _migrate_add_column(conn, "npc_profiles", "default_scene", "TEXT", "'outer_gate'")
+    _migrate_add_column(conn, "players", "offline_directive", "TEXT", "'闭关'")
 
 
 def get_db(db_path: str = "llmud.db") -> sqlite3.Connection:
