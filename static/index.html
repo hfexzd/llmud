@@ -269,32 +269,35 @@
                     osc.stop(ctx.currentTime + 1.5);
                 } catch(e) {}
             }
-            // Auto-expand both panels on scene change, then collapse after 5s
+            // Update toggle labels (don't force-expand — player controls that)
             const panel2 = document.getElementById('scene-panel');
             const toggle2 = document.getElementById('scene-toggle');
             const chips2 = document.getElementById('action-chips');
             const actToggle2 = document.getElementById('action-toggle');
             const sceneLabel = `场景 · ${scene.name||''} · ${scene.atmosphere||''}`;
             if (panel2 && toggle2) {
-                panel2.classList.remove('collapsed');
-                toggle2.innerHTML = '&#9660; ' + sceneLabel;
+                toggle2.innerHTML = panel2.classList.contains('collapsed') ? '&#9654; ' + sceneLabel : '&#9660; ' + sceneLabel;
             }
             if (chips2 && actToggle2) {
-                chips2.classList.remove('collapsed');
-                actToggle2.innerHTML = '⚡ 行动';
+                actToggle2.innerHTML = chips2.classList.contains('collapsed') ? '&#9654; 行动' : '&#9654; 行动';
             }
+            // Restart collapse timers only for expanded panels
             if (_sceneCollapseTimer) clearTimeout(_sceneCollapseTimer);
             if (_actionCollapseTimer) clearTimeout(_actionCollapseTimer);
-            _sceneCollapseTimer = setTimeout(() => {
-                if (panel2) { panel2.classList.add('collapsed'); }
-                if (toggle2) { toggle2.innerHTML = '&#9654; ' + sceneLabel; }
-                _sceneCollapseTimer = null;
-            }, 5000);
-            _actionCollapseTimer = setTimeout(() => {
-                if (chips2) { chips2.classList.add('collapsed'); }
-                if (actToggle2) { actToggle2.innerHTML = '&#9654; 行动'; }
-                _actionCollapseTimer = null;
-            }, 5000);
+            if (panel2 && !panel2.classList.contains('collapsed')) {
+                _sceneCollapseTimer = setTimeout(() => {
+                    panel2.classList.add('collapsed');
+                    toggle2.innerHTML = '&#9654; ' + sceneLabel;
+                    _sceneCollapseTimer = null;
+                }, 5000);
+            }
+            if (chips2 && !chips2.classList.contains('collapsed')) {
+                _actionCollapseTimer = setTimeout(() => {
+                    chips2.classList.add('collapsed');
+                    actToggle2.innerHTML = '&#9654; 行动';
+                    _actionCollapseTimer = null;
+                }, 5000);
+            }
         }
 
         function toggleActionChips() {
