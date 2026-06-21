@@ -341,6 +341,15 @@ def create_router(
         elif intent == Intent.TALK:
             pass  # NPC interaction handled in DM phase
 
+        # Rest/heal
+        if "休息" in filtered_input or "疗伤" in filtered_input:
+            heal = min(20, player.max_hp - player.hp)
+            if heal > 0:
+                player = player.model_copy(update={"hp": player.hp + heal})
+                _response_extras[0] = f"你休息片刻，恢复了{heal}点气血。"
+            else:
+                _response_extras[0] = "你精神饱满，无需休息。"
+
         # NPC gift system: give item to NPC to increase favorability
         gift_message = None
         import re as _re
@@ -388,6 +397,7 @@ def create_router(
                 "• 出售[物品] — 出售物品\n"
                 "• 炼制[丹药] — 在灵药谷炼丹\n\n"
                 "【其他】\n"
+                "• 休息/疗伤 — 恢复气血\n"
                 "• 帮助 — 显示此帮助"
             )
 
