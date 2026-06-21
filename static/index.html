@@ -807,7 +807,7 @@
             if (combat.result !== 'win' && combat.player_remaining_hp < 30 && combat.player_remaining_hp > 0) {
                 const warn = document.createElement('div');
                 warn.style.cssText = 'font-size:11px;color:#ff6b6b;text-align:center;padding:4px;margin-top:2px';
-                warn.textContent = '⚠️ 气血不足，建议休息或使用丹药。';
+                warn.textContent = combat.player_remaining_hp < 15 ? '🚨 危险！气血即将耗尽，快使用丹药或撤退！' : '⚠️ 气血不足，建议休息或使用丹药。';
                 container.appendChild(warn);
             }
         }
