@@ -66,6 +66,13 @@ def init_db(conn: sqlite3.Connection):
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS world_state (
+            id TEXT PRIMARY KEY,
+            data TEXT NOT NULL
+        )
+    """)
+
     conn.commit()
 
     # Migrations for existing databases that lack the new columns

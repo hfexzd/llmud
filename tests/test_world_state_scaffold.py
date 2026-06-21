@@ -73,3 +73,40 @@ class TestTensionTickStub:
         assert out is not ws
         assert out.world_pressure == 3
         assert out.tensions == {}
+
+
+from engine.models import NPCRuntimeState, TensionRuntime
+from db.repository import WorldRepository
+
+
+class TestWorldRepository:
+    def test_get_returns_none_when_absent(self, db_conn):
+        repo = WorldRepository(db_conn)
+        assert repo.get() is None
+
+    def test_save_then_get_round_trip(self, db_conn):
+        repo = WorldRepository(db_conn)
+        ws = WorldState(
+            tick=42, phase_id=0, world_pressure=7,
+            npc_state={"chenhao": NPCRuntimeState(npc_id="chenhao", scene_id="market",
+                                                  mood="eager", goal_progress={"g": 5})},
+            tensions={"t1": TensionRuntime(status="active", pressure=2,
+                                           progress={"rally": 10})},
+        )
+        repo.save(ws)
+        got = repo.get()
+        assert got is not None
+        assert got.tick == 42
+        assert got.world_pressure == 7
+        assert got.npc_state["chenhao"].scene_id == "market"
+        assert got.npc_state["chenhao"].goal_progress == {"g": 5}
+        assert got.tensions["t1"].status == "active"
+        assert got.tensions["t1"].progress == {"rally": 10}
+
+    def test_save_overwrites_existing(self, db_conn):
+        repo = WorldRepository(db_conn)
+        repo.save(WorldState(tick=1))
+        repo.save(WorldState(tick=2, world_pressure=5))
+        got = repo.get()
+        assert got.tick == 2
+        assert got.world_pressure == 5

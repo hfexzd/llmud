@@ -1,7 +1,7 @@
 import json
 import sqlite3
 from datetime import datetime
-from engine.models import Player
+from engine.models import Player, WorldState
 
 
 class PlayerRepository:
@@ -156,5 +156,31 @@ class NPCRepository:
         self.conn.execute(
             "UPDATE npc_profiles SET favorability=?, relationship_stage=? WHERE id=?",
             (new_value, new_stage, npc_id),
+        )
+        self.conn.commit()
+
+
+class WorldRepository:
+    """Persists the single WorldState (keyed 'default') as one JSON blob.
+
+    Single-column `data` keeps the schema flexible as WorldState grows across
+    milestones — no per-field migrations needed for world-state evolution.
+    """
+
+    def __init__(self, conn: sqlite3.Connection):
+        self.conn = conn
+
+    def get(self, world_id: str = "default") -> WorldState | None:
+        row = self.conn.execute(
+            "SELECT data FROM world_state WHERE id = ?", (world_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return WorldState.model_validate_json(row["data"])
+
+    def save(self, state: WorldState, world_id: str = "default") -> None:
+        self.conn.execute(
+            "INSERT OR REPLACE INTO world_state (id, data) VALUES (?, ?)",
+            (world_id, state.model_dump_json()),
         )
         self.conn.commit()
