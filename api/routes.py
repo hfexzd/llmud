@@ -402,6 +402,12 @@ def create_router(
             else:
                 _response_extras[0] = "你精神饱满，无需休息。"
 
+        # Leaf collecting at bamboo_forest
+        if "拾叶" in filtered_input and player.current_scene == "bamboo_forest":
+            new_inv = list(player.inventory or []) + ["竹叶"]
+            player = player.model_copy(update={"inventory": new_inv})
+            _response_extras[0] = "你捡起一片翠绿的竹叶，收进怀里。获得【竹叶】。"
+
         # Flower viewing at bamboo_forest
         if "赏花" in filtered_input and player.current_scene == "bamboo_forest":
             player = player.model_copy(update={"spirit_power": player.spirit_power + 1})
