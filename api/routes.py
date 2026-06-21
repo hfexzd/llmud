@@ -606,6 +606,17 @@ def create_router(
             player = player.model_copy(update={"spirit_power": player.spirit_power + 1})
             _response_extras[0] = "你仰望天空，看云卷云舒，心绪随之舒展。（灵力+1）"
 
+        # Barbecue at mountain_range
+        if "烤肉" in filtered_input and player.current_scene == "mountain_range":
+            if "野兔" in (player.inventory or []):
+                new_inv = list(player.inventory)
+                new_inv.remove("野兔")
+                heal_food = 15
+                player = player.model_copy(update={"inventory": new_inv, "hp": min(player.max_hp, player.hp + heal_food)})
+                _response_extras[0] = f"你烤熟了野兔，香气四溢。（气血+{heal_food}）"
+            else:
+                _response_extras[0] = "你没有可以烤的食材。"
+
         # Bonfire at mountain_range
         if "生火" in filtered_input and player.current_scene == "mountain_range":
             heal_fire = min(15, player.max_hp - player.hp)
