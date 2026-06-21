@@ -402,6 +402,12 @@ def create_router(
             else:
                 _response_extras[0] = "你精神饱满，无需休息。"
 
+        # Archery at outer_gate
+        if "射箭" in filtered_input and player.current_scene == "outer_gate":
+            import random as _arch
+            player = player.model_copy(update={"spirit_power": player.spirit_power + 1})
+            _response_extras[0] = f"你射出了{_arch.randint(1,10)}支箭，{_arch.choice(['命中靶心！','偏了一点。','脱靶了……','正中红心！'])}"
+
         # Training dummy at outer_gate (safe practice)
         if ("练功" in filtered_input or "练习" in filtered_input) and player.current_scene == "outer_gate":
             gain = 1

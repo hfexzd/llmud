@@ -269,7 +269,7 @@
             // Scene-based actions
             const sceneActions = scene.available_actions || [];
             if (sceneActions.includes('cultivate')) { chips.push('修炼'); chips.push('连续修炼'); }
-            if (scene.id === 'outer_gate') chips.push('练功');
+            if (scene.id === 'outer_gate') { chips.push('练功'); chips.push('射箭'); }
             if (sceneActions.includes('explore')) chips.push('探索');
             if (sceneActions.includes('fight')) {
                 const estAtk = Math.floor((p.spirit_power||0) * (p.level === '练气期一层'?1:p.level==='练气期二层'?1.2:p.level==='练气期三层'?1.5:p.level==='筑基期一层'?2:1));
