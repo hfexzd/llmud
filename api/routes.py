@@ -320,7 +320,11 @@ def create_router(
                 visited = list(player.visited_scenes or [])
                 if result not in visited:
                     visited.append(result)
-                    player = player.model_copy(update={"visited_scenes": visited})
+                    player = player.model_copy(update={
+                        "visited_scenes": visited,
+                        "spirit_stones": player.spirit_stones + 5,
+                    })
+                    item_use_message = "探索了新场景！获得5灵石。"
             else:
                 move_error = result  # Store the error message
 
@@ -376,6 +380,9 @@ def create_router(
                 "【其他】\n"
                 "• 帮助 — 显示此帮助"
             )
+
+        # Item messages (initialized early so explore reward can set it)
+        item_use_message = None
 
         # Item inspection: if input contains "查看" + item name, show description
         item_inspect_message = None
@@ -490,7 +497,6 @@ def create_router(
                     break
 
         # Item usage: if input contains "使用" + item name, consume from inventory
-        item_use_message = None
         if "使用" in filtered_input:
             from engine.rules import use_item
             for part in filtered_input.split("使用"):
