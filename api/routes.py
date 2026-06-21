@@ -101,12 +101,23 @@ def create_router(
             for p in npc_repo.get_all_profiles()
         ]
 
-        goal = world_engine.current_goal(player)
+        world_state = world_repo.get("default") or WorldState()
+        bible = PHASE_0_BIBLE
+        # When no /game/action has run yet, the persisted world_state has no
+        # tensions, so 所务 methods would return nothing. Derive tensions from
+        # current player state once (pure + idempotent on already-populated
+        # state) so /player/status shows the right goal before any action is
+        # taken — mirrors the pre-tension behavior where goals came from player
+        # state directly.
+        if not world_state.tensions:
+            world_state = tension_tick(world_state, bible, player)
+
+        goal = world_engine.current_goal(player, world_state, bible)
         goal_info = {"id": goal.id, "label": goal.label} if goal else {
             "id": None, "label": "暂无要务，随心而行",
         }
 
-        next_quest = world_engine.next_quest(player)
+        next_quest = world_engine.next_quest(player, world_state, bible)
         next_quest_info = {"label": next_quest.label} if next_quest else None
 
         return {
@@ -124,7 +135,7 @@ def create_router(
             "scene": scene_info,
             "goal": goal_info,
             "npcs": npcs,
-            "quests": world_engine.visible_quests(player),
+            "quests": world_engine.visible_quests(player, world_state, bible),
             "next_quest": next_quest_info,
             "next_threshold": next_spirit_threshold(player.level),
         }
@@ -336,7 +347,7 @@ def create_router(
         # Current objective (所务) — deterministic, from player state. Computed
         # after the world layer so visited_scenes / seen_events / breakthrough
         # are up to date; used both to steer the DM and to surface in the response.
-        goal = world_engine.current_goal(player)
+        goal = world_engine.current_goal(player, world_state, bible)
 
         system_prompt, user_prompt = build_dm_prompt(
             player=player,
@@ -506,7 +517,7 @@ def create_router(
             # final. Runs BEFORE persistence so the records are actually saved.
             # The visible list is derived from state; this only maintains records
             # for strike-through/expiry.
-            player = world_engine.update_quests(player)
+            player = world_engine.update_quests(player, world_state, bible)
 
             # Persist player state
             player_repo.update(player)
@@ -528,7 +539,7 @@ def create_router(
             # Recompute the current objective from the final player state (a
             # breakthrough applied above may have advanced it) and surface it so
             # the status bar always shows the player's direction.
-            goal = world_engine.current_goal(player)
+            goal = world_engine.current_goal(player, world_state, bible)
             goal_info = {"id": goal.id, "label": goal.label} if goal else {
                 "id": None, "label": "暂无要务，随心而行",
             }
@@ -567,8 +578,8 @@ def create_router(
                     }
                     for p in npc_repo.get_all_profiles()
                 ],
-                "quests": world_engine.visible_quests(player),
-                "next_quest": ({"label": nq.label} if (nq := world_engine.next_quest(player)) else None),
+                "quests": world_engine.visible_quests(player, world_state, bible),
+                "next_quest": ({"label": nq.label} if (nq := world_engine.next_quest(player, world_state, bible)) else None),
             }
 
             # Add world event info to response

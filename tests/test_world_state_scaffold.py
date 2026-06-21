@@ -132,6 +132,31 @@ class TestPipelineWorldTick:
             assert s.status_code == 200
             assert s.json()["current_scene"] == "outer_gate"
 
+    @pytest.mark.asyncio
+    async def test_action_surfaces_tension_driven_goal(self, tmp_path):
+        """End-to-end: a fresh cultivate action surfaces venture_bamboo as the
+        current 所务 (always-active tension) in both the action response and
+        /player/status, proving the pipeline threads world_state + bible into
+        the tension-derived 所务 methods."""
+        mock = MockLLMClient(response=json.dumps({
+            "story": "你静心修炼片刻。", "intent": "cultivate",
+            "action_valid": True, "invalid_reason": "", "state_delta": {},
+            "breakthrough": None, "combat": None, "npc_update": None,
+        }, ensure_ascii=False))
+        app = _make_app(mock, tmp_path)
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            r = await client.post("/game/action", json={"user_input": "修炼"})
+            assert r.status_code == 200
+            body = json.loads(r.text)
+            assert body["goal"]["id"] == "venture_bamboo"
+            assert body["quests"][0]["id"] == "venture_bamboo"
+            assert body["quests"][0]["status"] == "active"
+            # /player/status reads the persisted world_state and agrees
+            s = await client.get("/player/status")
+            assert s.status_code == 200
+            assert s.json()["goal"]["id"] == "venture_bamboo"
+
 
 class TestWorldRepository:
     def test_get_returns_none_when_absent(self, db_conn):
