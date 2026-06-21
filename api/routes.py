@@ -1082,15 +1082,11 @@ def create_router(
         npc_context = ""
         npc_update_dict = None
 
-        # Track last TALK target so MOVE actions auto-move the NPC with the player
-        _last_talk_npc = None
-
         if intent == Intent.TALK:
             # Determine target NPC: a named NPC present in the scene if the
             # input names one (e.g. "对陈浩说…"), else the first present NPC,
             # else the default. See _resolve_talk_target.
             target_npc_id = _resolve_talk_target(player, filtered_input, world_engine, npc_repo)
-            _last_talk_npc = target_npc_id
 
             profile_row = npc_repo.get_profile(target_npc_id)
             npc_profile = dict(profile_row) if profile_row else {}
@@ -1160,6 +1156,7 @@ def create_router(
 
             # M3: will be set after validator runs in the else branch
             world_delta_for_response = None
+            npc_actions = []
 
             # M4: if world is sealed, use finale prompt and skip normal LLM
             if world_state.sealed and world_state.ending:
@@ -1281,14 +1278,6 @@ def create_router(
                             # Retry failed — keep the clamped original
                             pass
 
-                    # Auto-move last-talked NPC to current scene on MOVE
-                    if intent == Intent.MOVE and _last_talk_npc:
-                        wd = dict(clamped.world_delta or {})
-                        wd.setdefault("npc", {})
-                        wd["npc"].setdefault(_last_talk_npc, {})
-                        wd["npc"][_last_talk_npc]["scene_id"] = player.current_scene
-                        clamped = clamped.model_copy(update={"world_delta": wd})
-
                     # Apply validated + clamped world_delta to world_state
                     if clamped.world_delta:
                         world_state = apply_world_delta(world_state, clamped.world_delta)
@@ -1300,6 +1289,26 @@ def create_router(
                         world_repo.save(world_state)
 
                     world_delta_for_response = clamped.world_delta
+
+                    # Build human-readable NPC action strings from world_delta
+                    npc_actions = []
+                    if clamped.world_delta and clamped.world_delta.get("npc"):
+                        from engine.models import ALL_NPC_PROFILES, SCENE_MAP
+                        npc_name_by_id = {p.id: p.name for p in ALL_NPC_PROFILES}
+                        scene_name_by_id = {sid: s.name for sid, s in SCENE_MAP.items()}
+                        for nid, nd in clamped.world_delta["npc"].items():
+                            name = npc_name_by_id.get(nid, nid)
+                            if "scene_id" in nd:
+                                to_name = scene_name_by_id.get(nd["scene_id"], nd["scene_id"])
+                                prev_scene = world_state.npc_state.get(nid)
+                                prev_name = scene_name_by_id.get(prev_scene.scene_id, prev_scene.scene_id) if prev_scene else None
+                                if prev_name and prev_name != to_name:
+                                    npc_actions.append(f"{name}从{prev_name}来到了{to_name}")
+                                elif not prev_name:
+                                    npc_actions.append(f"{name}来到了{to_name}")
+                            if "mood" in nd:
+                                mood_cn = {"hopeful":"心怀期待","eager":"跃跃欲试","curious":"好奇打量","serene":"静心凝神","burdened":"心事重重","grateful":"心怀感激","watchful":"警觉四顾","angry":"怒形于色","worried":"忧心忡忡","determined":"意志坚定"}.get(nd["mood"], nd["mood"])
+                                npc_actions.append(f"{name}的神色变得{mood_cn}")
 
                     if violations:
                         print(f"[validator] violations: {violations}")
@@ -1413,6 +1422,7 @@ def create_router(
                 "action_valid": dm_response.action_valid,
                 "state_delta": dm_response.state_delta or {},
                 "world_delta": world_delta_for_response,
+                "npc_actions": npc_actions,
                 "player": {
                     "name": player.name,
                     "current_scene": player.current_scene,

@@ -1178,6 +1178,17 @@
                         }
                     }
 
+                    // Show NPC actions from world_delta
+                    if (result.npc_actions && result.npc_actions.length) {
+                        result.npc_actions.forEach(act => {
+                            const card = document.createElement('div');
+                            card.className = 'battle-card';
+                            card.style.cssText = 'background:linear-gradient(135deg,#1a1a2e,#1a2a1a);border-color:#3a5a3a;padding:8px 12px;font-size:12px;color:#9dd5aa';
+                            card.innerHTML = `👤 ${escapeHtml(act)}`;
+                            container.appendChild(card);
+                        });
+                    }
+
                     // Show intervention options if present
                     if (result.intervention) {
                         addIntervention(container, result.intervention);
