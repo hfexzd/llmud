@@ -410,6 +410,13 @@ def create_router(
             player = player.model_copy(update={"spirit_power": player.spirit_power + 1})
             _response_extras[0] = f"你看到一只{seen}从竹林间飞过。（灵力+1）"
 
+        # Stretching/exercise at outer_gate
+        if "锻炼" in filtered_input and player.current_scene == "outer_gate":
+            hp_gain = min(5, player.max_hp - player.hp)
+            if hp_gain > 0:
+                player = player.model_copy(update={"hp": player.hp + hp_gain})
+            _response_extras[0] = f"你在练功场上活动筋骨。{'（气血+'+str(hp_gain)+'）' if hp_gain > 0 else '（精神饱满）'}"
+
         # Archery at outer_gate
         if "射箭" in filtered_input and player.current_scene == "outer_gate":
             import random as _arch
