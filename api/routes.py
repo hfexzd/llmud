@@ -564,10 +564,11 @@ def create_router(
         # Item usage: if input contains "使用" + item name, consume from inventory
         if "使用" in filtered_input:
             from engine.rules import use_item
+            confirmed = "确认使用" in filtered_input
             for part in filtered_input.split("使用"):
                 part = part.strip()
                 if part and len(part) >= 2:
-                    new_p, msg = use_item(player, part)
+                    new_p, msg = use_item(player, part, confirmed=confirmed)
                     if new_p != player:  # item was consumed
                         player = new_p
                         _response_extras[0] = msg

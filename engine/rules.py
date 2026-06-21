@@ -162,11 +162,15 @@ def move(player: Player, destination: str) -> Player:
     return player.model_copy(update={"current_scene": destination})
 
 
-def use_item(player: Player, item_name: str) -> tuple[Player, str]:
+_RARE_CONFIRM_ITEMS = {"洗髓丹", "蛇胆", "湖心珠"}
+
+
+def use_item(player: Player, item_name: str, confirmed: bool = False) -> tuple[Player, str]:
     """Use a consumable item from the player's inventory.
 
     Looks up the item in PHASE_0_BIBLE items. If found and the player has it,
     consumes one and applies the effect. Returns (updated_player, message).
+    Rare items require confirmed=True (caller should prompt first).
     """
     if not player.inventory:
         return player, "你身上没有携带任何物品。"
@@ -177,6 +181,10 @@ def use_item(player: Player, item_name: str) -> tuple[Player, str]:
     if not matched:
         return player, f"你没有{item_name}。"
     item_key = matched[0]
+
+    # Rare items need confirmation
+    if item_key in _RARE_CONFIRM_ITEMS and not confirmed:
+        return player, f"⚠️ {item_key}是稀有物品，再次输入「确认使用{item_key}」以确认。"
 
     # Look up the item spec
     item_spec = None
