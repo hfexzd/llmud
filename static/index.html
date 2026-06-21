@@ -525,15 +525,21 @@
             const resultClass = combat.result === 'win' ? 'win'
                 : combat.result === 'lose' ? 'lose'
                 : combat.result === 'ongoing' ? 'ongoing' : 'flee';
-            const resultText = combat.result === 'win' ? '胜'
-                : combat.result === 'lose' ? '败'
+            const resultText = combat.result === 'win' ? '胜！'
+                : combat.result === 'lose' ? '败……'
                 : combat.result === 'ongoing' ? '交战中' : '撤退';
+            // Estimate max HP (30 for e1, 40 for e2, 50 for e3)
+            const estMaxHp = Math.max(combat.enemy_remaining_hp, combat.dmg_to_enemy + (combat.enemy_remaining_hp > 0 ? combat.enemy_remaining_hp : 0), 30);
+            const enemyHpPct = Math.max(0, Math.min(100, (combat.enemy_remaining_hp / estMaxHp) * 100));
+            const playerHpPct = Math.max(0, Math.min(100, (combat.player_remaining_hp / 100) * 100));
             card.innerHTML = `
                 <h3>⚔ ${combat.enemy}</h3>
-                <div class="battle-row"><span>造成伤害</span><span>${combat.dmg_to_enemy}</span></div>
-                <div class="battle-row"><span>受到伤害</span><span>${combat.dmg_to_player}</span></div>
-                <div class="battle-row"><span>敌方剩余</span><span>${combat.enemy_remaining_hp} HP</span></div>
-                <div class="battle-row"><span>我方剩余</span><span>${combat.player_remaining_hp} HP</span></div>
+                <div class="battle-row" style="color:#ff6b6b"><span>你造成</span><span style="font-size:18px;font-weight:bold">${combat.dmg_to_enemy}</span></div>
+                <div style="font-size:11px;color:#8a7aa8;margin:2px 0">敌方 ${combat.enemy_remaining_hp}/${estMaxHp}</div>
+                <div class="bar" style="height:4px;background:rgba(255,107,107,0.2)"><i style="display:block;height:100%;background:#ff6b6b;width:${enemyHpPct}%;border-radius:2px"></i></div>
+                <div class="battle-row" style="color:#6fb3a0;margin-top:6px"><span>你承受</span><span style="font-size:18px;font-weight:bold">${combat.dmg_to_player}</span></div>
+                <div style="font-size:11px;color:#8a7aa8;margin:2px 0">我方 ${combat.player_remaining_hp}/100</div>
+                <div class="bar" style="height:4px;background:rgba(111,179,160,0.2)"><i style="display:block;height:100%;background:#6fb3a0;width:${playerHpPct}%;border-radius:2px"></i></div>
                 <div class="battle-result ${resultClass}">${resultText}</div>
             `;
             container.appendChild(card);
