@@ -1298,8 +1298,11 @@ def create_router(
                             ]
                             matched = any(re.search(p, story) for p in patterns)
                             if matched:
+                                print(f'[npc_sync] MATCHED {name} in story, checking position...')
                                 prev_state = world_state.npc_state.get(npc_p.id)
+                                print(f'[npc_sync] {name} prev={prev_state.scene_id if prev_state else None}, player={player.current_scene}')
                                 if prev_state and prev_state.scene_id != player.current_scene:
+                                    print(f'[npc_sync] MOVING {name} to {player.current_scene}')
                                     wd = dict(clamped.world_delta or {})
                                     wd.setdefault("npc", {})
                                     wd["npc"].setdefault(npc_p.id, {})
