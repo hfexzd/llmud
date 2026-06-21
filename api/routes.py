@@ -320,11 +320,13 @@ def create_router(
                 player = player.model_copy(update={"active_enemy": None})
                 # Loot: spirit stones + chance for item
                 stones_gained = 5
+                spirit_gained = 2
                 player = player.model_copy(update={
                     "spirit_stones": player.spirit_stones + stones_gained,
+                    "spirit_power": player.spirit_power + spirit_gained,
                 })
                 if not _response_extras[0]:
-                    _response_extras[0] = f"战斗胜利！获得{stones_gained}灵石。"
+                    _response_extras[0] = f"战斗胜利！获得{stones_gained}灵石，灵力+{spirit_gained}。"
             else:
                 player = player.model_copy(update={
                     "active_enemy": {
