@@ -402,6 +402,14 @@ def create_router(
             else:
                 _response_extras[0] = "你精神饱满，无需休息。"
 
+        # Bird watching at bamboo_forest
+        if "观鸟" in filtered_input and player.current_scene == "bamboo_forest":
+            import random as _bird
+            birds = ["翠鸟", "画眉", "黄鹂", "白鹤"]
+            seen = _bird.choice(birds)
+            player = player.model_copy(update={"spirit_power": player.spirit_power + 1})
+            _response_extras[0] = f"你看到一只{seen}从竹林间飞过。（灵力+1）"
+
         # Archery at outer_gate
         if "射箭" in filtered_input and player.current_scene == "outer_gate":
             import random as _arch
