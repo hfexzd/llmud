@@ -286,8 +286,8 @@
             const armBonus = {'袍':3,'甲':5,'衣':2,'铠':6,'盾':4};
             const wepB = p.weapon ? Object.entries(wepBonus).find(([k])=>p.weapon.includes(k)) : null;
             const armB = p.armor ? Object.entries(armBonus).find(([k])=>p.armor.includes(k)) : null;
-            if (p.weapon) html += `<div class="stat-line"><span>武器</span><b style="color:#9dd5ff">${escapeHtml(p.weapon)} ${wepB?'(攻+'+wepB[1]+')':''}</b></div>`;
-            if (p.armor) html += `<div class="stat-line"><span>防具</span><b style="color:#9dd5ff">${escapeHtml(p.armor)} ${armB?'(防+'+armB[1]+')':''}</b></div>`;
+            if (p.weapon) html += `<div class="stat-line"><span>武器</span><b style="color:#9dd5ff">${escapeHtml(p.weapon)} ${wepB?'(攻+'+wepB[1]+')':''} <span class="obj-tag" style="font-size:10px;padding:1px 6px;background:rgba(255,107,107,0.2);border-color:#ff6b6b;color:#ff6b6b;cursor:pointer" data-prefill="卸下${escapeAttr(p.weapon)}">卸下</span></b></div>`;
+            if (p.armor) html += `<div class="stat-line"><span>防具</span><b style="color:#9dd5ff">${escapeHtml(p.armor)} ${armB?'(防+'+armB[1]+')':''} <span class="obj-tag" style="font-size:10px;padding:1px 6px;background:rgba(255,107,107,0.2);border-color:#ff6b6b;color:#ff6b6b;cursor:pointer" data-prefill="卸下${escapeAttr(p.armor)}">卸下</span></b></div>`;
             html += `<div class="panel-label">行囊</div><div>`;
             const rarityColors = {'灵':'#ffd700','凡':'#b8a0d4'};
             (p.inventory||[]).forEach(it => {
