@@ -928,7 +928,7 @@ TERMINAL_ARCHETYPES: list[TerminalArchetype] = [
     TerminalArchetype(
         id="wanderer",
         name="行遍天下",
-        condition={"always": True},  # fallback — fires if no other ending hit
+        condition={"always": True, "min_tick": 20},  # fallback — fires if no other ending hit, after min 20 ticks
         finale_guidance="玩家没有特定的命运终点，将继续在这片大陆上游历。结局应当开放而充满希望，暗示旅途永不完结。",
         priority=1,
     ),

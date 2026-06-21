@@ -290,6 +290,13 @@ def create_router(
         world_state = world_state.model_copy(update={"tick": player.tick})
         world_repo.save(world_state)
 
+        # M4: check ending after world tick
+        from engine.ending import check_ending
+        ending_id = check_ending(world_state, bible, player)
+        if ending_id:
+            world_state = world_state.model_copy(update={"sealed": True, "ending": ending_id})
+            world_repo.save(world_state)
+
         # Get current scene info
         scene = world_engine.get_scene(player.current_scene)
 
@@ -402,7 +409,29 @@ def create_router(
             # M3: will be set after validator runs in the else branch
             world_delta_for_response = None
 
-            if move_error:
+            # M4: if world is sealed, use finale prompt and skip normal LLM
+            if world_state.sealed and world_state.ending:
+                from dm.prompt import build_ending_prompt
+                from engine.models import TERMINAL_ARCHETYPES
+                ending_system, _ = build_ending_prompt(
+                    world_state.ending,
+                    world_state.resolved_tensions,
+                    player,
+                    bible,
+                )
+                story = ""
+                if llm_client is not None:
+                    try:
+                        story = await llm_client.generate(ending_system, user_prompt)
+                        story, _ = post_filter_output(story)
+                    except Exception:
+                        story = f"【终章】{player.name}的旅程走到了终点。"
+                dm_response = DMResponse(
+                    intent=intent, action_valid=True,
+                    story=story,
+                )
+                yield json.dumps(story, ensure_ascii=False)[1:-1]
+            elif move_error:
                 # Engine-authoritative: the move was invalid, so narrate the
                 # engine's in-world error directly. No LLM story is streamed.
                 dm_response = DMResponse(
@@ -683,6 +712,15 @@ def create_router(
                 rest["npc"] = {
                     "favorability": profile_dict.get("favorability", 50),
                     "relationship_stage": profile_dict.get("relationship_stage", "陌生"),
+                }
+
+            # M4: surface ending info if world is sealed
+            if world_state.ending:
+                from engine.models import TERMINAL_ARCHETYPES
+                archetype = next((a for a in TERMINAL_ARCHETYPES if a.id == world_state.ending), None)
+                rest["ending"] = {
+                    "id": world_state.ending,
+                    "name": archetype.name if archetype else world_state.ending,
                 }
 
             # Close the story string, then splice in the rest. rest_json begins

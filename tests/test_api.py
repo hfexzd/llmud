@@ -10,7 +10,7 @@ from api.routes import create_router
 from dm.client import MockLLMClient
 from db.connection import init_db
 from db.repository import PlayerRepository, NPCRepository, WorldRepository
-from engine.models import Player, DEFAULT_ENCOUNTER
+from engine.models import Player, WorldState, DEFAULT_ENCOUNTER
 from engine.world import WorldEngine
 
 
@@ -815,3 +815,66 @@ class TestValidatorIntegration:
 
         # Should have called generate twice (original + retry)
         assert mock_llm_client.generate.call_count == 2
+
+
+class TestEndingIntegration:
+    """M4: ending detection and finale flow."""
+
+    @pytest.mark.asyncio
+    async def test_wanderer_fires_as_fallback(self, db_conn, mock_llm_client):
+        """A normal action on a fresh world triggers the wanderer ending (fallback)."""
+        mock_llm_client.generate_stream = None
+        mock_llm_client.generate.return_value = (
+            '{"intent":"cultivate","story":"你盘膝修炼，灵气涌动。","action_valid":true}'
+        )
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        player_repo.save(Player(id="p1", current_scene="outer_gate", tick=25))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "修炼"})
+            assert response.status_code == 200
+            data = response.json()
+            assert "ending" in data
+            # wanderer is the fallback ending -- should fire after min_tick=20
+            assert data["ending"]["id"] == "wanderer"
+
+    @pytest.mark.asyncio
+    async def test_sealed_world_skips_llm(self, db_conn, mock_llm_client):
+        """A sealed world returns an ending response without calling the LLM."""
+        mock_llm_client.generate_stream = None
+        mock_llm_client.generate.return_value = (
+            '{"intent":"cultivate","story":"无用","action_valid":true}'
+        )
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        player_repo.save(Player(id="p1", current_scene="outer_gate", tick=3))
+
+        # Manually seal the world
+        world_repo.save(WorldState(sealed=True, ending="wanderer", tick=3))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "修炼"})
+            assert response.status_code == 200
+            data = response.json()
+            assert data["ending"]["id"] == "wanderer"
+            # LLM is called once for the finale narration (spec §9)
+            assert mock_llm_client.generate.call_count == 1
+            # The finale story should be present
+            assert len(data.get("story", "")) > 0

@@ -20,11 +20,18 @@ def test_ascension_hits_when_level_met():
     assert result == "ascension"
 
 
-def test_wanderer_fires_as_fallback():
-    """When no other condition is met, wanderer fires (condition: always)."""
+def test_wanderer_fires_as_fallback_after_min_tick():
+    """When no other condition is met and min_tick is satisfied, wanderer fires."""
     ws = WorldState(tensions={})
-    result = check_ending(ws, PHASE_0_BIBLE, Player())
+    result = check_ending(ws, PHASE_0_BIBLE, Player(tick=25))
     assert result == "wanderer"
+
+
+def test_wanderer_does_not_fire_before_min_tick():
+    """Before min_tick threshold, wanderer (the fallback) does not fire."""
+    ws = WorldState(tensions={})
+    result = check_ending(ws, PHASE_0_BIBLE, Player(tick=3))
+    assert result is None
 
 
 def test_demonic_hits_when_tension_resolved():
