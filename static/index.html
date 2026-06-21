@@ -918,6 +918,7 @@
 
                     // Quest completion celebration
                     if (result.quests && result.quests.length > 0 && result.quests.every(q => q.status === 'completed') && result.player && result.player.tick > 1) {
+                        playBeep(1047, 0.15); setTimeout(() => playBeep(1319, 0.2), 150);
                         const cel = document.createElement('div');
                         cel.className = 'world-event';
                         cel.style.borderColor = '#ffd700';
