@@ -635,8 +635,18 @@
             const arm = data.armor;
             document.getElementById('p-weapon-display').style.display = wep ? 'inline' : 'none';
             document.getElementById('p-armor-display').style.display = arm ? 'inline' : 'none';
-            if (wep) document.getElementById('p-weapon').textContent = wep;
-            if (arm) document.getElementById('p-armor').textContent = arm;
+            const wepBonus = {'剑':5,'刀':4,'掌':3,'拳':2,'杖':3};
+            const armBonus = {'袍':3,'甲':5,'衣':2,'铠':6,'盾':4};
+            if (wep) {
+                document.getElementById('p-weapon').textContent = wep;
+                const wB = Object.entries(wepBonus).find(([k])=>wep.includes(k));
+                document.getElementById('p-weapon-display').title = wB ? `攻击+${wB[1]}` : '';
+            }
+            if (arm) {
+                document.getElementById('p-armor').textContent = arm;
+                const aB = Object.entries(armBonus).find(([k])=>arm.includes(k));
+                document.getElementById('p-armor-display').title = aB ? `防御+${aB[1]}` : '';
+            }
 
                 // 在场人物 / 通道 live in the 地点 & 角色 panels — not duplicated
                 // in the top status bar (keeps the bar one compact row).
