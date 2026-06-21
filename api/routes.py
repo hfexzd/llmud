@@ -598,6 +598,12 @@ def create_router(
                     npc_repo.update_favorability(social_target.id, new_fav, new_stage)
                     _response_extras[0] = f"你向{social_target.name}挥了挥手。（好感度+1）"
 
+        # Weather forecast
+        if filtered_input in ("天气", "天气预报"):
+            weathers = ["☀️ 晴空万里", "⛅ 多云", "☁️ 阴天", "🌦️ 阵雨", "🌧️ 下雨", "⛈️ 雷暴"]
+            wth = weathers[(player.tick * 7) % len(weathers)]
+            _response_extras[0] = f"当前天气：{wth}。"
+
         # Fun commands
         if filtered_input == "抛硬币":
             import random as _coin
