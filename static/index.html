@@ -317,8 +317,8 @@
             let html = '<div class="panel-sec"><div class="panel-label">所务 · 随缘而启</div>';
             quests.forEach(q => {
                 const cls = q.status === 'completed' ? 'qrow done' : 'qrow now';
-                const tag = q.status === 'completed' ? '将隐去' : '进行中';
-                html += `<div class="${cls}"><div class="qbox"></div><div class="qtxt">${escapeHtml(q.label)}</div><div class="qtag">${tag}</div></div>`;
+                const tag = q.status === 'completed' ? '✅ 已完' : '⏳ 进行';
+                html += `<div class="${cls}"><div class="qbox">${q.status === 'completed' ? '✓' : ''}</div><div class="qtxt">${escapeHtml(q.label)}</div><div class="qtag">${tag}</div></div>`;
             });
             if (panelData.nextQuest) {
                 html += `<div style="font-size:11px;color:#8a7aa8;padding:2px 4px">（将解锁：${escapeHtml(panelData.nextQuest.label)}…）</div>`;
