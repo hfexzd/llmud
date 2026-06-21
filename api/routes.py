@@ -402,6 +402,16 @@ def create_router(
             else:
                 _response_extras[0] = "你精神饱满，无需休息。"
 
+        # Mushroom foraging at bamboo_forest
+        if "采蘑菇" in filtered_input and player.current_scene == "bamboo_forest":
+            import random as _mush
+            if _mush.random() < 0.6:
+                new_inv = list(player.inventory or []) + ["蘑菇"]
+                player = player.model_copy(update={"inventory": new_inv})
+                _response_extras[0] = "你在竹林中发现了一丛鲜嫩的蘑菇，小心翼翼地摘下。（获得蘑菇）"
+            else:
+                _response_extras[0] = "你找了一圈，没有发现可食用的蘑菇。"
+
         # Leaf collecting at bamboo_forest
         if "拾叶" in filtered_input and player.current_scene == "bamboo_forest":
             new_inv = list(player.inventory or []) + ["竹叶"]
