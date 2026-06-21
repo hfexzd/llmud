@@ -432,6 +432,17 @@ def create_router(
             player = player.model_copy(update={"spirit_power": player.spirit_power + gain})
             _response_extras[0] = f"你在湖边仰望星空，心旷神怡（灵力+{gain}）。"
 
+        # Spring bathing at spirit_valley (灵泉眼)
+        if "沐浴" in filtered_input and player.current_scene == "spirit_valley":
+            heal_spring = min(10, player.max_hp - player.hp)
+            spirit_spring = 1
+            updates = {}
+            if heal_spring > 0:
+                updates["hp"] = player.hp + heal_spring
+            updates["spirit_power"] = player.spirit_power + spirit_spring
+            player = player.model_copy(update=updates)
+            _response_extras[0] = f"你在灵泉眼中沐浴，身心舒畅。" + (f"（气血+{heal_spring}，灵力+{spirit_spring}）" if heal_spring > 0 else f"（灵力+{spirit_spring}）")
+
         # Herb gathering at spirit_valley
         if "采药" in filtered_input and player.current_scene == "spirit_valley":
             import random as _herb
