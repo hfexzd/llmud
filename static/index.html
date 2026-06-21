@@ -421,7 +421,10 @@
                     const favColors = {80:'#ff6b9d',60:'#7bc67e',30:'#b8a0d4'};
                     const favColor = fav >= 80 ? favColors[80] : fav >= 60 ? favColors[60] : favColors[30];
                     const label = role ? `${escapeHtml(name)} · ${escapeHtml(role)}` : escapeHtml(name);
-                    html += `<span class="who-tag" data-prefill="和${escapeAttr(name)}搭话" title="好感度:${fav}" style="border-color:${favColor}">${moodIcon} ${label} · 搭话</span>`;
+                    const hint = NPC_HINT[n.id] || '';
+                    html += `<div style="margin-bottom:4px"><span class="who-tag" data-prefill="和${escapeAttr(name)}搭话" title="好感度:${fav}" style="border-color:${favColor}">${moodIcon} ${label} · 搭话</span>`;
+                    if (hint) html += `<div style="font-size:11px;color:#8a7aa8;margin:2px 0 0 4px">${escapeHtml(hint)}</div>`;
+                    html += `</div>`;
                 });
             } else {
                 html += '<span style="color:#8a7aa8;font-size:12px">四下无人</span>';
