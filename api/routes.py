@@ -414,6 +414,12 @@ def create_router(
             player = player.model_copy(update={"spirit_stones": player.spirit_stones - 5})
             _response_extras[0] = f"🔮 湖隐掐指一算：{_fortune.choice(fortunes)}。（花费5灵石）"
 
+        # Meditation at inner_gate
+        if "冥想" in filtered_input and player.current_scene == "inner_gate":
+            gain = 3
+            player = player.model_copy(update={"spirit_power": player.spirit_power + gain})
+            _response_extras[0] = f"你在祭坛前静心冥想，感悟天地灵气（灵力+{gain}）。"
+
         # Drinking at market (fun flavor)
         if "喝酒" in filtered_input and player.current_scene == "market" and player.spirit_stones >= 3:
             player = player.model_copy(update={"spirit_stones": player.spirit_stones - 3, "spirit_power": player.spirit_power + 1})
