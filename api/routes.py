@@ -261,6 +261,7 @@ def create_router(
         combat_result = None
         breakthrough = None
         move_error = None
+        _response_extras = [None]  # mutable container for closure-safe extra messages
 
         if intent == Intent.CULTIVATE:
             player = cultivate(player)
@@ -333,7 +334,7 @@ def create_router(
                         "visited_scenes": visited,
                         "spirit_stones": player.spirit_stones + 5,
                     })
-                    item_use_message = "探索了新场景！获得5灵石。"
+                    _response_extras[0] = "探索了新场景！获得5灵石。"
             else:
                 move_error = result  # Store the error message
 
@@ -390,12 +391,19 @@ def create_router(
                 "• 帮助 — 显示此帮助"
             )
 
-        # Item messages (initialized early so explore reward can set it)
-        item_use_message = None
+        # Response extras (mutable container to avoid closure scoping issues)
+        _response_extras = [None]
+
+        # Helper to set _response_extras[0]
+        def _set_item_use(msg):
+            _response_extras[0] = msg
+
+        # Reset response extras for this action
+        _response_extras[0] = None
 
         # Item/NPC inspection: if input contains "查看" + name, show description
         item_inspect_message = None
-        if "查看" in filtered_input and not item_use_message:
+        if "查看" in filtered_input and not _response_extras[0]:
             for part in filtered_input.split("查看"):
                 part = part.strip()
                 if part and len(part) >= 2:
@@ -464,7 +472,7 @@ def create_router(
                         new_inv = list(player.inventory)
                         new_inv.remove(part)
                         player = player.model_copy(update={"inventory": new_inv})
-                        item_use_message = f"丢弃了{part}。"
+                        _response_extras[0] = f"丢弃了{part}。"
                     break
 
         # Alchemy: craft items at spirit_valley
@@ -522,7 +530,7 @@ def create_router(
                     new_p, msg = use_item(player, part)
                     if new_p != player:  # item was consumed
                         player = new_p
-                        item_use_message = msg
+                        _response_extras[0] = msg
                         break
 
         # Step 4: World layer — advance tick, check events, check NPC interactions
@@ -626,8 +634,8 @@ def create_router(
             if event_id in reward_map and reward_map[event_id] not in player.inventory:
                 new_inv = list(player.inventory) + [reward_map[event_id]]
                 player = player.model_copy(update={"inventory": new_inv})
-                if not item_use_message:
-                    item_use_message = f"🎁 获得了{reward_map[event_id]}！"
+                if not _response_extras[0]:
+                    _response_extras[0] = f"🎁 获得了{reward_map[event_id]}！"
 
         # Step 5: Narrative (DM LLM call)
         npc_context = ""
@@ -911,8 +919,8 @@ def create_router(
                     and "洗髓丹" not in (player.inventory or [])):
                 new_inv = list(player.inventory or []) + ["洗髓丹"]
                 player = player.model_copy(update={"inventory": new_inv})
-                if not item_use_message:
-                    item_use_message = "🎉 所有所务完成！获得洗髓丹！"
+                if not _response_extras[0]:
+                    _response_extras[0] = "🎉 所有所务完成！获得洗髓丹！"
 
             # Persist player state
             player_repo.update(player)
@@ -996,8 +1004,7 @@ def create_router(
                 rest["offline_summary"] = offline_summary_for_response
 
             # Surface item use message if an item was consumed
-            if item_use_message:
-                rest["item_use"] = item_use_message
+            if _response_extras[0]: rest["item_use"] = _response_extras[0]
 
             # Surface item inspect message if an item was examined
             if item_inspect_message:
