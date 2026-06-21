@@ -385,7 +385,19 @@ def create_router(
         # Help system
         help_message = None
         if filtered_input in ("帮助", "help", "？", "?"):
+            # Scene-specific tip
+            scene_tips = {
+                "outer_gate": "💡 外门清静，适合修炼。与杨老交谈或许能获得指点。",
+                "inner_gate": "💡 林婉儿师姐似有心事，试着和她聊聊。",
+                "bamboo_forest": "💡 竹林深处有妖兽出没，小心战斗。",
+                "market": "💡 集市可以买卖物品。试试「购买聚气丹」。",
+                "mountain_range": "💡 山脉深处危险重重，准备好再探索。",
+                "spirit_valley": "💡 药老精通炼丹，收集材料来找他炼制丹药。",
+                "misty_lake": "💡 湖边隐士深不可测，或许能学到什么。",
+            }
+            scene_tip = scene_tips.get(player.current_scene, "")
             help_message = (
+                (scene_tip + "\n\n") if scene_tip else "") + (
                 "【基本指令】\n"
                 "• 修炼 — 提升灵力\n"
                 "• 探索 — 探索当前场景\n"
