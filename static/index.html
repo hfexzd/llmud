@@ -463,6 +463,8 @@
                 {id: 'inner_gate',     x: 150, y: 110, icon: '阁', name: '青云门内门'},
                 {id: 'bamboo_forest',  x: 250, y: 110, icon: '竹', name: '幽竹林'},
                 {id: 'mountain_range', x: 350, y: 110, icon: '山', name: '妖兽山脉'},
+                {id: 'spirit_valley',  x: 200, y: 36,  icon: '谷', name: '灵药谷'},
+                {id: 'misty_lake',     x: 400, y: 36,  icon: '湖', name: '雾隐湖'},
             ];
             const byId = {};
             NODES.forEach(n => byId[n.id] = n);
@@ -472,6 +474,8 @@
                 ['outer_gate', 'inner_gate'],
                 ['inner_gate', 'bamboo_forest'],
                 ['bamboo_forest', 'mountain_range'],
+                ['bamboo_forest', 'spirit_valley'],
+                ['mountain_range', 'misty_lake'],
             ];
 
             const W = 400, H = 168;
