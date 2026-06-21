@@ -311,6 +311,13 @@ def create_router(
             # fight; clear it once the beast is slain.
             if combat_result.result == "win":
                 player = player.model_copy(update={"active_enemy": None})
+                # Loot: spirit stones + chance for item
+                stones_gained = 5
+                player = player.model_copy(update={
+                    "spirit_stones": player.spirit_stones + stones_gained,
+                })
+                if not _response_extras[0]:
+                    _response_extras[0] = f"战斗胜利！获得{stones_gained}灵石。"
             else:
                 player = player.model_copy(update={
                     "active_enemy": {
