@@ -298,7 +298,7 @@ class NPCProfileData(BaseModel):
     relationship_stage: str = "陌生"
 
 
-DEFAULT_PLAYER = Player()
+DEFAULT_PLAYER = Player(inventory=["凝露草", "聚气丹"])
 DEFAULT_ENCOUNTER = Encounter()
 VALLEY_ENCOUNTER = Encounter(
     id="e2", name="毒鳞蟒", attack=12, defense=5, hp=40, max_hp=40,
