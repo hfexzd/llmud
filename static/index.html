@@ -282,8 +282,12 @@
             html += `<div class="bar-pct">${p.hp??0} / ${p.max_hp??0}</div>`;
             html += `<div class="stat-line"><span>时辰</span><b>${shichenLabel(p.tick)}</b></div>`;
             html += `<div class="stat-line"><span>灵石</span><b style="color:#ffd700">${p.spirit_stones??0}</b></div>`;
-            if (p.weapon) html += `<div class="stat-line"><span>武器</span><b style="color:#9dd5ff">${escapeHtml(p.weapon)}</b></div>`;
-            if (p.armor) html += `<div class="stat-line"><span>防具</span><b style="color:#9dd5ff">${escapeHtml(p.armor)}</b></div>`;
+            const wepBonus = {'剑':5,'刀':4,'掌':3,'拳':2,'杖':3};
+            const armBonus = {'袍':3,'甲':5,'衣':2,'铠':6,'盾':4};
+            const wepB = p.weapon ? Object.entries(wepBonus).find(([k])=>p.weapon.includes(k)) : null;
+            const armB = p.armor ? Object.entries(armBonus).find(([k])=>p.armor.includes(k)) : null;
+            if (p.weapon) html += `<div class="stat-line"><span>武器</span><b style="color:#9dd5ff">${escapeHtml(p.weapon)} ${wepB?'(攻+'+wepB[1]+')':''}</b></div>`;
+            if (p.armor) html += `<div class="stat-line"><span>防具</span><b style="color:#9dd5ff">${escapeHtml(p.armor)} ${armB?'(防+'+armB[1]+')':''}</b></div>`;
             html += `<div class="panel-label">行囊</div><div>`;
             const rarityColors = {'灵':'#ffd700','凡':'#b8a0d4'};
             (p.inventory||[]).forEach(it => {
