@@ -234,7 +234,8 @@
 
             // Present NPCs — suggest talk
             const present = npcs.filter(n => n.present);
-            if (present.length > 0) chips.push(`和${present[0].id==='linwaner'?'林婉儿':present[0].id==='chenhao'?'陈浩':'药老'}搭话`);
+            const npcDisplayNames = {'linwaner':'林婉儿','chenhao':'陈浩','old_yang':'杨老','medicine_elder':'药老','lake_hermit':'湖隐'};
+            if (present.length > 0) chips.push(`和${npcDisplayNames[present[0].id]||present[0].id}搭话`);
 
             // Items — suggest use if any
             if (inv.length > 0) chips.push(`使用${inv[0]}`);
