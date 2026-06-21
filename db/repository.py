@@ -1,7 +1,7 @@
 import json
 import sqlite3
 from datetime import datetime
-from engine.models import Player
+from engine.models import Player, WorldState
 
 
 class PlayerRepository:
@@ -23,10 +23,25 @@ class PlayerRepository:
         )
         seen_events = json.loads(row["seen_events"]) if "seen_events" in columns else []
         tick = row["tick"] if "tick" in columns else 0
+        visited_scenes = json.loads(row["visited_scenes"]) if "visited_scenes" in columns else []
+        # Seed with the current scene so a migrated save (no visited_scenes
+        # column yet) still reflects where the player actually is.
+        if current_scene not in visited_scenes:
+            visited_scenes.append(current_scene)
+        active_enemy = None
+        if "active_enemy" in columns and row["active_enemy"]:
+            active_enemy = json.loads(row["active_enemy"])
+
+        quests_data = json.loads(row["quests"]) if "quests" in columns and row["quests"] else []
+        from engine.models import QuestState
+        quests = [QuestState(**q) for q in quests_data]
+
+        offline_directive = row["offline_directive"] if "offline_directive" in columns else "闭关"
 
         return Player(
             id=row["id"],
             name=row["name"],
+            offline_directive=offline_directive,
             level=row["level"],
             spirit_power=row["spirit_power"],
             hp=row["hp"],
@@ -36,6 +51,9 @@ class PlayerRepository:
             inventory=json.loads(row["inventory"]),
             recent_stories=json.loads(row["recent_stories"]) if "recent_stories" in columns else [],
             seen_events=seen_events,
+            visited_scenes=visited_scenes,
+            active_enemy=active_enemy,
+            quests=quests,
             tick=tick,
             created_at=datetime.fromisoformat(row["created_at"]),
             last_seen=datetime.fromisoformat(row["last_seen"]),
@@ -44,13 +62,19 @@ class PlayerRepository:
     def save(self, player: Player) -> None:
         self.conn.execute(
             """INSERT INTO players (id, name, level, spirit_power, hp, max_hp, affinity,
-               current_scene, inventory, recent_stories, seen_events, tick, created_at, last_seen)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               current_scene, inventory, recent_stories, seen_events, visited_scenes,
+               active_enemy, tick, quests, created_at, last_seen, offline_directive)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (player.id, player.name, player.level, player.spirit_power,
              player.hp, player.max_hp, player.affinity, player.current_scene,
              json.dumps(player.inventory), json.dumps(player.recent_stories, ensure_ascii=False),
-             json.dumps(player.seen_events, ensure_ascii=False), player.tick,
-             player.created_at.isoformat(), player.last_seen.isoformat()),
+             json.dumps(player.seen_events, ensure_ascii=False),
+             json.dumps(player.visited_scenes, ensure_ascii=False),
+             json.dumps(player.active_enemy, ensure_ascii=False) if player.active_enemy else None,
+             player.tick,
+             json.dumps([q.model_dump() for q in player.quests], ensure_ascii=False),
+             player.created_at.isoformat(), player.last_seen.isoformat(),
+             player.offline_directive),
         )
         self.conn.commit()
 
@@ -58,13 +82,23 @@ class PlayerRepository:
         self.conn.execute(
             """UPDATE players SET name=?, level=?, spirit_power=?, hp=?, max_hp=?,
                affinity=?, current_scene=?, inventory=?, recent_stories=?,
-               seen_events=?, tick=?, last_seen=? WHERE id=?""",
+               seen_events=?, visited_scenes=?, active_enemy=?, tick=?, quests=?,
+               last_seen=?, offline_directive=? WHERE id=?""",
             (player.name, player.level, player.spirit_power, player.hp,
              player.max_hp, player.affinity, player.current_scene,
              json.dumps(player.inventory), json.dumps(player.recent_stories, ensure_ascii=False),
-             json.dumps(player.seen_events, ensure_ascii=False), player.tick,
-             datetime.now().isoformat(), player.id),
+             json.dumps(player.seen_events, ensure_ascii=False),
+             json.dumps(player.visited_scenes, ensure_ascii=False),
+             json.dumps(player.active_enemy, ensure_ascii=False) if player.active_enemy else None,
+             player.tick,
+             json.dumps([q.model_dump() for q in player.quests], ensure_ascii=False),
+             datetime.now().isoformat(), player.offline_directive, player.id),
         )
+        self.conn.commit()
+
+    def delete(self, player_id: str) -> None:
+        """Delete a player record."""
+        self.conn.execute("DELETE FROM players WHERE id = ?", (player_id,))
         self.conn.commit()
 
 
@@ -79,6 +113,11 @@ class NPCRepository:
         if row is None:
             return None
         return dict(row)
+
+    def get_all_profiles(self) -> list[dict]:
+        """Return all NPC profile rows (for the 人物 panel's full NPC list)."""
+        rows = self.conn.execute("SELECT * FROM npc_profiles").fetchall()
+        return [dict(r) for r in rows]
 
     def get_memory(self, npc_id: str) -> dict | None:
         row = self.conn.execute(
@@ -128,4 +167,40 @@ class NPCRepository:
             "UPDATE npc_profiles SET favorability=?, relationship_stage=? WHERE id=?",
             (new_value, new_stage, npc_id),
         )
+        self.conn.commit()
+
+    def delete_all_memories(self) -> None:
+        """Delete all NPC memory records (for game reset)."""
+        self.conn.execute("DELETE FROM npc_memories")
+        self.conn.commit()
+
+
+class WorldRepository:
+    """Persists the single WorldState (keyed 'default') as one JSON blob.
+
+    Single-column `data` keeps the schema flexible as WorldState grows across
+    milestones — no per-field migrations needed for world-state evolution.
+    """
+
+    def __init__(self, conn: sqlite3.Connection):
+        self.conn = conn
+
+    def get(self, world_id: str = "default") -> WorldState | None:
+        row = self.conn.execute(
+            "SELECT data FROM world_state WHERE id = ?", (world_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return WorldState.model_validate_json(row["data"])
+
+    def save(self, state: WorldState, world_id: str = "default") -> None:
+        self.conn.execute(
+            "INSERT OR REPLACE INTO world_state (id, data) VALUES (?, ?)",
+            (world_id, state.model_dump_json()),
+        )
+        self.conn.commit()
+
+    def delete(self, world_id: str = "default") -> None:
+        """Delete a world state record."""
+        self.conn.execute("DELETE FROM world_state WHERE id = ?", (world_id,))
         self.conn.commit()

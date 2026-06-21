@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd D:/projects/llmud && PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python -m pytest --tb=short -q 2>&1 | tail -2 && git add static/index.html && git commit -m \\\"fix: remove unimplemented continuo...",
+  "error": "Exit code 1\n.............................................................            [100%]\r\n277 passed in 4.76s\r\nOn branch feat/living-world\nYour branch is up to date with 'origin/feat/living-world'.\n\nChanges not staged for commit:\n  (use \"git add <file>...\" to update what will be committed)\n  (use \"git restore <file>...\" to discard changes in working directory)\n\tmodified:   .omc/project-memory.json\n\nno changes added to commit (use \"git add\" and/or \"git commit -a\")",
+  "timestamp": "2026-06-21T09:30:03.030Z",
+  "retry_count": 1
+}

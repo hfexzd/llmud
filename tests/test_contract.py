@@ -103,3 +103,19 @@ def test_parse_json_with_markdown_fences():
     raw = f"```json\n{json.dumps(inner)}\n```"
     result = parse_dm_response(raw)
     assert result.intent == Intent.MOVE
+
+
+def test_parse_dm_response_with_world_delta():
+    raw = '''{"intent":"explore","story":"你察觉到竹林中灵气异动……","world_delta":{"tension":{"probe_anomaly":{"pressure":1,"progress":{"witness_herb":10}}},"npc":{"linwaner":{"mood":"curious"}},"faction":{"青云门":{"trust":2}}}}'''
+    result = parse_dm_response(raw)
+    assert result.world_delta is not None
+    assert result.world_delta["tension"]["probe_anomaly"]["pressure"] == 1
+    assert result.world_delta["tension"]["probe_anomaly"]["progress"]["witness_herb"] == 10
+    assert result.world_delta["npc"]["linwaner"]["mood"] == "curious"
+    assert result.world_delta["faction"]["青云门"]["trust"] == 2
+
+
+def test_parse_dm_response_without_world_delta():
+    raw = '''{"intent":"cultivate","story":"你盘膝修炼……"}'''
+    result = parse_dm_response(raw)
+    assert result.world_delta is None

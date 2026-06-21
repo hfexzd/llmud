@@ -12,7 +12,7 @@ def test_compute_attack_practitioner_layer_1():
         hp=100, max_hp=100, affinity="火", current_scene="青云门外门柴房",
         inventory=[]
     )
-    assert compute_attack(player) == 10
+    assert compute_attack(player) == 12  # 10 base + 2 fire affinity
 
 
 def test_compute_defense_practitioner_layer_1():
@@ -39,9 +39,9 @@ def test_resolve_combat_win():
     player = Player(id="p1", name="张铁柱", level="练气期一层", spirit_power=50,
                     hp=100, max_hp=100, affinity="火", current_scene="外门", inventory=[])
     enemy = Encounter(id="e1", name="赤眼妖狼", attack=8, defense=3, hp=30, max_hp=30)
-    result, updated_player, updated_enemy = resolve_combat(player, enemy)
-    # attack=50*1.0=50, dmg_to_enemy=max(1,50-3)=47
-    assert result.dmg_to_enemy == 47
+    result, updated_player, updated_enemy = resolve_combat(player, enemy, crit_chance=0)
+    # attack=50*1.0+2(fire)=52, dmg_to_enemy=max(1,52-3)=49
+    assert result.dmg_to_enemy == 49
     assert result.result == "win"
     assert updated_enemy.hp == 0  # 30 - 47 clamped to 0
 
@@ -50,10 +50,24 @@ def test_resolve_combat_flee():
     player = Player(id="p1", name="张铁柱", level="练气期一层", spirit_power=10,
                     hp=100, max_hp=100, affinity="火", current_scene="外门", inventory=[])
     enemy = Encounter(id="e1", name="赤眼妖狼", attack=8, defense=3, hp=30, max_hp=30)
-    result, _, _ = resolve_combat(player, enemy, flee=True)
+    result, _, _ = resolve_combat(player, enemy, flee=True, crit_chance=0)
     assert result.result == "flee"
     assert result.dmg_to_enemy == 0
     assert result.dmg_to_player == 0
+
+
+def test_resolve_combat_ongoing_when_both_alive():
+    """When neither side is finished, the round ends 'ongoing' so combat can
+    resume next round with the enemy's accumulated damage — not 'win'/'flee'."""
+    player = Player(id="p1", name="张铁柱", level="练气期一层", spirit_power=11,
+                    hp=100, max_hp=100, affinity="火", current_scene="外门", inventory=[])
+    enemy = Encounter(id="e1", name="赤眼妖狼", attack=8, defense=3, hp=30, max_hp=30)
+    result, updated_player, updated_enemy = resolve_combat(player, enemy, crit_chance=0)
+    assert result.result == "ongoing"
+    # atk = 11*1.0 = 11; dmg = max(1, 11-3) = 8 -> 30-8 = 22
+    assert updated_enemy.hp == 20  # 11*1+2(fire)=13 atk, -3 def = 10 dmg, 30-10=20
+    # def = 11//2+5 = 10; retaliation = max(1, 8-10) = 1 -> 100-1 = 99
+    assert updated_player.hp == 99
 
 
 def test_check_breakthrough_qualifies():
@@ -90,3 +104,27 @@ def test_move_preserves_other_fields():
     assert result.spirit_power == 42
     assert result.hp == 80
     assert result.current_scene == "inner_gate"
+
+
+def test_next_spirit_threshold_for_layer_1():
+    from engine.models import next_spirit_threshold
+    assert next_spirit_threshold("练气期一层") == 30
+
+
+def test_next_spirit_threshold_for_max_level_returns_none():
+    from engine.models import next_spirit_threshold
+    # 金丹期一层 is the last tier in LEVEL_TABLE
+    assert next_spirit_threshold("金丹期一层") is None
+
+
+def test_next_spirit_threshold_unknown_level_returns_none():
+    from engine.models import next_spirit_threshold
+    assert next_spirit_threshold("渡劫期") is None
+
+
+def test_shichen_label_cycles_every_12_ticks():
+    from engine.models import shichen_label
+    assert shichen_label(0) == "子时·夜半"
+    assert shichen_label(4) == "辰时·晨光初照"
+    assert shichen_label(12) == "子时·夜半"
+    assert shichen_label(25) == shichen_label(1)

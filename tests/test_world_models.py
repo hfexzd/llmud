@@ -3,6 +3,8 @@ from engine.models import (
     Scene, EventTrigger, WorldEvent, NPCPresence, SceneSchedule,
     NPCInteraction, WorldState, Player, Intent, ENCOUNTERS_BY_SCENE,
     SCENE_MAP, ALL_EVENTS, NPC_PRESENCES, NPC_INTERACTIONS,
+    NPCRuntimeState, TensionRuntime, WorldBible, FactionSpec, ItemSpec,
+    SkillSpec, TensionSpec, TensionTrigger, BehaviorModel,
 )
 
 
@@ -22,12 +24,14 @@ class TestSceneModel:
         assert "inner_gate" in scene.connections
 
     def test_scene_map_has_all_five(self):
-        assert len(SCENE_MAP) == 5
+        assert len(SCENE_MAP) == 7
         assert "outer_gate" in SCENE_MAP
         assert "inner_gate" in SCENE_MAP
         assert "bamboo_forest" in SCENE_MAP
         assert "market" in SCENE_MAP
         assert "mountain_range" in SCENE_MAP
+        assert "spirit_valley" in SCENE_MAP
+        assert "misty_lake" in SCENE_MAP
 
     def test_scene_connections_are_bidirectional(self):
         for scene_id, scene in SCENE_MAP.items():
@@ -93,11 +97,58 @@ class TestNPCPresenceModel:
 class TestWorldStateModel:
     def test_world_state_defaults(self):
         state = WorldState()
-        assert state.current_tick == 0
-        assert state.npc_locations == {}
+        assert state.tick == 0
+        assert state.npc_state == {}
 
     def test_intervene_intent_exists(self):
         assert Intent.INTERVENE.value == "intervene"
+
+
+class TestEmergentWorldModels:
+    def test_world_state_defaults(self):
+        state = WorldState()
+        assert state.tick == 0
+        assert state.phase_id == 0
+        assert state.world_pressure == 0
+        assert state.tensions == {}
+        assert state.npc_state == {}
+        assert state.faction_state == {}
+        assert state.resolved_tensions == []
+        assert state.sealed is False
+        assert state.ending is None
+
+    def test_npc_runtime_state_defaults(self):
+        s = NPCRuntimeState(npc_id="chenhao", scene_id="market")
+        assert s.npc_id == "chenhao"
+        assert s.scene_id == "market"
+        assert s.mood == ""
+        assert s.goal_progress == {}
+        assert s.schedule_tick == 0
+        assert s.last_autonomous_action is None
+
+    def test_world_bible_holds_content_catalogs(self):
+        bible = WorldBible(phase_id=0, phase_title="练气篇",
+                          scenes=[Scene(id="outer_gate", name="x", description="d", atmosphere="a",
+                                        connections=[], available_actions=[], encounter_ids=[], npc_ids=[])],
+                          factions=[FactionSpec(id="qingyun_sect", name="青云门", type="门派")],
+                          items=[ItemSpec(id="spirit_herb", name="灵草", kind="灵材")],
+                          skills=[SkillSpec(id="qs", name="青云剑诀", kind="功法")],
+                          tensions=[], npc_models=[BehaviorModel(npc_id="linwaner")])
+        assert bible.phase_id == 0
+        assert len(bible.scenes) == 1
+        assert bible.factions[0].id == "qingyun_sect"
+        assert bible.items[0].kind == "灵材"
+        assert bible.skills[0].name == "青云剑诀"
+        assert bible.npc_models[0].npc_id == "linwaner"
+
+    def test_tension_spec_carries_axis_and_emotion(self):
+        t = TensionSpec(id="beast_surge", name="妖兽潮", axis=["探索", "成长"],
+                       emotion="失所有", trigger=TensionTrigger(type="stat", conditions={}))
+        assert t.axis == ["探索", "成长"]
+        assert t.emotion == "失所有"
+        assert t.trigger.type == "stat"
+        assert t.pressure_weight == 1
+        assert t.difficulty == 1
 
 
 class TestPlayerModelChanges:

@@ -11,8 +11,17 @@ from engine.models import (
     SCENE_MAP,
     EventTrigger,
     WorldEvent,
+    WorldState,
+    QuestState,
+    PHASE_0_BIBLE,
 )
-from engine.world import WorldEngine
+from engine.world import WorldEngine, tension_tick
+
+
+def _ws(player: Player) -> WorldState:
+    """Run the tension machine against a fresh world state so the 所务
+    derivation methods have up-to-date tension statuses to project."""
+    return tension_tick(WorldState(), PHASE_0_BIBLE, player)
 
 
 @pytest.fixture
@@ -128,8 +137,8 @@ class TestCheckEvents:
         assert event is not None
 
     def test_no_event_for_scene_with_none(self, engine: WorldEngine):
-        """mountain_range has no events defined in ALL_EVENTS."""
-        player = Player(current_scene="mountain_range")
+        """Events with un-met conditions do not fire (mountain lake hint needs tick>=15)."""
+        player = Player(current_scene="mountain_range", tick=3)
         event = engine.check_events("mountain_range", player)
         assert event is None
 
@@ -171,6 +180,117 @@ class TestValidateMove:
 
     def test_invalid_move_nonexistent_dest(self, engine: WorldEngine):
         assert engine.validate_move("outer_gate", "does_not_exist") is False
+
+
+# -------------------------------------------------------------------
+# TestResolveSceneMove
+# -------------------------------------------------------------------
+
+
+# -------------------------------------------------------------------
+# TestCurrentGoal
+# -------------------------------------------------------------------
+
+
+class TestCurrentGoal:
+    def test_fresh_player_gets_bamboo_goal(self, engine: WorldEngine, fresh_player: Player):
+        """A new player has not visited 竹林, so the first objective is to go there."""
+        goal = engine.current_goal(fresh_player, _ws(fresh_player), PHASE_0_BIBLE)
+        assert goal is not None
+        assert goal.id == "venture_bamboo"
+
+    def test_after_visiting_bamboo_advances_to_anomaly(self, engine: WorldEngine):
+        player = Player(visited_scenes=["outer_gate", "bamboo_forest"])
+        goal = engine.current_goal(player, _ws(player), PHASE_0_BIBLE)
+        assert goal is not None
+        assert goal.id == "probe_anomaly"
+
+    def test_after_spirit_herb_advances_to_breakthrough(self, engine: WorldEngine):
+        player = Player(visited_scenes=["bamboo_forest"], seen_events=["spirit_herb"])
+        goal = engine.current_goal(player, _ws(player), PHASE_0_BIBLE)
+        assert goal is not None
+        assert goal.id == "cultivate_breakthrough"
+
+    def test_after_breakthrough_advances_to_mountain(self, engine: WorldEngine):
+        player = Player(
+            level="练气期二层", visited_scenes=["bamboo_forest"], seen_events=["spirit_herb"],
+        )
+        goal = engine.current_goal(player, _ws(player), PHASE_0_BIBLE)
+        assert goal is not None
+        assert goal.id == "venture_mountain"
+
+    def test_all_done_returns_none(self, engine: WorldEngine):
+        player = Player(
+            level="练气期二层", visited_scenes=["bamboo_forest", "mountain_range"],
+            seen_events=["spirit_herb"],
+        )
+        assert engine.current_goal(player, _ws(player), PHASE_0_BIBLE) is None
+
+    def test_goal_never_leaks_english_id(self, engine: WorldEngine, fresh_player: Player):
+        """The 所务 label is player-facing in-world text — never a raw id."""
+        goal = engine.current_goal(fresh_player, _ws(fresh_player), PHASE_0_BIBLE)
+        assert goal is not None
+        assert goal.id not in goal.label
+
+
+class TestResolveSceneMove:
+    def test_exact_scene_id(self, engine: WorldEngine, fresh_player: Player):
+        status, result = engine.resolve_scene_move(fresh_player, "inner_gate")
+        assert status == "ok"
+        assert result == "inner_gate"
+
+    def test_exact_full_name(self, engine: WorldEngine, fresh_player: Player):
+        status, result = engine.resolve_scene_move(fresh_player, "青云门内门")
+        assert status == "ok"
+        assert result == "inner_gate"
+
+    def test_short_alias(self, engine: WorldEngine, fresh_player: Player):
+        status, result = engine.resolve_scene_move(fresh_player, "去内门")
+        assert status == "ok"
+        assert result == "inner_gate"
+
+    def test_natural_language_phrase(self, engine: WorldEngine, fresh_player: Player):
+        """The reported bug: '去内门灵泉旁修炼' must resolve to inner_gate."""
+        status, result = engine.resolve_scene_move(fresh_player, "去内门灵泉旁修炼")
+        assert status == "ok"
+        assert result == "inner_gate"
+
+    def test_unreachable_scene(self, engine: WorldEngine, fresh_player: Player):
+        # bamboo_forest is not directly connected to outer_gate
+        status, result = engine.resolve_scene_move(fresh_player, "去竹林")
+        assert status == "error"
+        # Error must use Chinese scene names, never raw ids
+        assert "青云门外门" in result
+        assert "幽竹林" in result
+
+    def test_unknown_destination(self, engine: WorldEngine, fresh_player: Player):
+        status, result = engine.resolve_scene_move(fresh_player, "去火星")
+        assert status == "error"
+        # In-world fallback — no system-style "未知地点: X"
+        assert "寻不到这般去处" in result
+
+    def test_empty_destination(self, engine: WorldEngine, fresh_player: Player):
+        status, result = engine.resolve_scene_move(fresh_player, "")
+        assert status == "error"
+        assert "寻不到这般去处" in result
+
+    def test_landmark_altar(self, engine: WorldEngine, fresh_player: Player):
+        """A landmark introduced by DM narration ('去祭坛看看') resolves to its scene."""
+        status, result = engine.resolve_scene_move(fresh_player, "去祭坛看看")
+        assert status == "ok"
+        assert result == "inner_gate"
+
+    def test_landmark_spring(self, engine: WorldEngine, fresh_player: Player):
+        status, result = engine.resolve_scene_move(fresh_player, "去灵泉")
+        assert status == "ok"
+        assert result == "inner_gate"
+
+    def test_landmark_in_current_scene_is_noop(self, engine: WorldEngine, fresh_player: Player):
+        """A landmark in the player's current scene is a local move, not a failed transition."""
+        # fresh_player is at outer_gate, whose landmarks include 柴房
+        status, result = engine.resolve_scene_move(fresh_player, "去柴房")
+        assert status == "ok"
+        assert result == "outer_gate"
 
 
 # -------------------------------------------------------------------
@@ -237,3 +357,98 @@ class TestEdgeCases:
         assert "linwaner" not in npcs
         npcs_at_inner = engine.get_npcs_in_scene("inner_gate", 25)
         assert "linwaner" in npcs_at_inner
+
+
+# -------------------------------------------------------------------
+# TestQuestStateModel
+# -------------------------------------------------------------------
+
+
+class TestQuestStateModel:
+    def test_quest_state_defaults(self):
+        from engine.models import QuestState
+        q = QuestState(id="venture_bamboo", status="active", unlocked_tick=0)
+        assert q.status == "active"
+        assert q.completed_tick is None
+        assert q.unlocked_tick == 0
+
+    def test_player_has_empty_quests_by_default(self):
+        from engine.models import Player
+        assert Player().quests == []
+
+
+# -------------------------------------------------------------------
+# TestQuestLog
+# -------------------------------------------------------------------
+
+
+class TestQuestLog:
+    def test_fresh_visible_quests_shows_only_venture_bamboo(self, engine: WorldEngine):
+        """A new player has only venture_bamboo unlocked (it is always unlocked)."""
+        player = Player()
+        v = engine.visible_quests(player, _ws(player), PHASE_0_BIBLE)
+        ids = [q["id"] for q in v]
+        assert ids == ["venture_bamboo"]
+        assert v[0]["status"] == "active"
+
+    def test_visible_after_bamboo_shows_completed_plus_anomaly(self, engine: WorldEngine):
+        player = Player(visited_scenes=["outer_gate", "bamboo_forest"])
+        v = {
+            q["id"]: q["status"]
+            for q in engine.visible_quests(player, _ws(player), PHASE_0_BIBLE)
+        }
+        assert v["venture_bamboo"] == "completed"
+        assert v["probe_anomaly"] == "active"
+        # cultivate/venture not unlocked yet -> not visible
+        assert "cultivate_breakthrough" not in v
+        assert "venture_mountain" not in v
+
+    def test_next_quest_is_first_locked(self, engine: WorldEngine):
+        assert engine.next_quest(Player(), _ws(Player()), PHASE_0_BIBLE).id == "probe_anomaly"
+        player = Player(visited_scenes=["bamboo_forest"], seen_events=["spirit_herb"])
+        assert engine.next_quest(player, _ws(player), PHASE_0_BIBLE).id == "venture_mountain"
+
+    def test_next_quest_none_when_all_unlocked(self, engine: WorldEngine):
+        player = Player(
+            level="练气期二层", visited_scenes=["bamboo_forest"], seen_events=["spirit_herb"],
+        )
+        assert engine.next_quest(player, _ws(player), PHASE_0_BIBLE) is None
+
+    def test_update_quests_records_completed_tick(self, engine: WorldEngine):
+        player = Player(tick=3, visited_scenes=["outer_gate", "bamboo_forest"])
+        updated = engine.update_quests(player, _ws(player), PHASE_0_BIBLE)
+        rec = next(q for q in updated.quests if q.id == "venture_bamboo")
+        assert rec.status == "completed"
+        assert rec.completed_tick == 3
+
+    def test_completed_quest_expires_after_6_ticks(self, engine: WorldEngine):
+        # venture_bamboo was completed at tick 2; now at tick 8 (>= 6 later)
+        player = Player(
+            tick=8, visited_scenes=["outer_gate", "bamboo_forest"],
+            quests=[QuestState(id="venture_bamboo", status="completed",
+                               unlocked_tick=0, completed_tick=2)],
+        )
+        v = engine.visible_quests(player, _ws(player), PHASE_0_BIBLE)
+        assert "venture_bamboo" not in [q["id"] for q in v]
+
+    def test_completed_quest_visible_within_6_ticks(self, engine: WorldEngine):
+        player = Player(
+            tick=5, visited_scenes=["outer_gate", "bamboo_forest"],
+            quests=[QuestState(id="venture_bamboo", status="completed",
+                               unlocked_tick=0, completed_tick=2)],
+        )
+        v = {
+            q["id"]: q["status"]
+            for q in engine.visible_quests(player, _ws(player), PHASE_0_BIBLE)
+        }
+        assert v["venture_bamboo"] == "completed"
+
+    def test_current_goal_gated_on_unlock(self, engine: WorldEngine):
+        """current_goal = first active tension; venture_bamboo is always active
+        for a fresh player, so behavior matches the old GOALS-iteration."""
+        assert engine.current_goal(Player(), _ws(Player()), PHASE_0_BIBLE).id == "venture_bamboo"
+        player = Player(
+            level="练气期二层", visited_scenes=["bamboo_forest", "mountain_range"],
+            seen_events=["spirit_herb"],
+        )
+        assert engine.current_goal(player, _ws(player), PHASE_0_BIBLE) is None

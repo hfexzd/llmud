@@ -36,8 +36,10 @@ def init_db(conn: sqlite3.Connection):
             recent_stories TEXT NOT NULL DEFAULT '[]',
             seen_events TEXT NOT NULL DEFAULT '[]',
             tick INTEGER NOT NULL DEFAULT 0,
+            quests TEXT NOT NULL DEFAULT '[]',
             created_at TEXT NOT NULL,
-            last_seen TEXT NOT NULL
+            last_seen TEXT NOT NULL,
+            offline_directive TEXT NOT NULL DEFAULT '闭关'
         )
     """)
 
@@ -65,13 +67,24 @@ def init_db(conn: sqlite3.Connection):
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS world_state (
+            id TEXT PRIMARY KEY,
+            data TEXT NOT NULL
+        )
+    """)
+
     conn.commit()
 
     # Migrations for existing databases that lack the new columns
     _migrate_add_column(conn, "players", "current_scene", "TEXT", "'outer_gate'")
     _migrate_add_column(conn, "players", "seen_events", "TEXT", "'[]'")
     _migrate_add_column(conn, "players", "tick", "INTEGER", "0")
+    _migrate_add_column(conn, "players", "visited_scenes", "TEXT", "'[]'")
+    _migrate_add_column(conn, "players", "active_enemy", "TEXT", "NULL")
+    _migrate_add_column(conn, "players", "quests", "TEXT", "'[]'")
     _migrate_add_column(conn, "npc_profiles", "default_scene", "TEXT", "'outer_gate'")
+    _migrate_add_column(conn, "players", "offline_directive", "TEXT", "'闭关'")
 
 
 def get_db(db_path: str = "llmud.db") -> sqlite3.Connection:

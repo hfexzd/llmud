@@ -14,6 +14,17 @@ from engine.models import (
     Player,
     Scene,
     WorldEvent,
+    Goal,
+    GOALS,
+    GOAL_BY_ID,
+    QuestState,
+    resolve_scene_id,
+    WorldState,
+    WorldBible,
+    NPCRuntimeState,
+    TensionRuntime,
+    ResolvedTension,
+    FactionRuntime,
 )
 
 
@@ -24,6 +35,10 @@ _TRIGGER_PRIORITY: dict[str, int] = {
     "tick_interval": 3,
     "random": 4,
 }
+
+
+# Completed 所务 stay visible (struck through) this many ticks, then auto-hide.
+QUEST_EXPIRY_TICKS = 6
 
 
 class WorldEngine:
@@ -166,6 +181,90 @@ class WorldEngine:
         return to_scene in source.connections
 
     # ------------------------------------------------------------------
+    # Current objective (所务) + quest log
+    #
+    # 所务迁移 (spec §10): the visible 所务 list is now a projection of the
+    # tension state machine's output (world_state.tensions[*].status), not a
+    # fixed GOALS iteration. current_goal = first active (non-resolved)
+    # tension; visible_quests = active→"active", resolved→"completed" (until
+    # expiry), dormant→hidden; next_quest = first dormant tension. The
+    # tension→Goal label mapping uses GOAL_BY_ID (phase-0 tension ids == goal
+    # ids, so labels/guidance are unchanged — behavior compatible).
+    # ------------------------------------------------------------------
+
+    def current_goal(self, player: Player, world_state: WorldState,
+                     bible: WorldBible) -> Goal | None:
+        """The player's current objective: the first active (trigger-met,
+        not-yet-resolved) tension, mapped to its Goal. None when no tension
+        is active (the arc is complete or not yet begun past dormant)."""
+        for spec in bible.tensions:
+            rt = world_state.tensions.get(spec.id)
+            if rt is not None and rt.status == "active":
+                return GOAL_BY_ID[spec.id]
+        return None
+
+    def _quest_record(self, player: Player, goal_id: str) -> QuestState | None:
+        """Return the persisted record for a goal, if any."""
+        for q in player.quests or []:
+            if q.id == goal_id:
+                return q
+        return None
+
+    def visible_quests(self, player: Player, world_state: WorldState,
+                      bible: WorldBible) -> list[dict]:
+        """The visible 所务 list, derived from tension statuses. Each entry is
+        {id, label, status}. Active tensions show as 'active'; resolved ones
+        show as 'completed' until QUEST_EXPIRY_TICKS after their recorded
+        completed_tick; dormant tensions (trigger not yet met) are hidden."""
+        visible: list[dict] = []
+        for spec in bible.tensions:
+            rt = world_state.tensions.get(spec.id)
+            if rt is None or rt.status == "dormant":
+                continue
+            goal = GOAL_BY_ID[spec.id]
+            if rt.status == "resolved":
+                rec = self._quest_record(player, spec.id)
+                completed_tick = rec.completed_tick if rec else player.tick
+                if player.tick - completed_tick < QUEST_EXPIRY_TICKS:
+                    visible.append({"id": spec.id, "label": goal.label, "status": "completed"})
+            else:
+                visible.append({"id": spec.id, "label": goal.label, "status": "active"})
+        return visible
+
+    def next_quest(self, player: Player, world_state: WorldState,
+                   bible: WorldBible) -> Goal | None:
+        """The first dormant (not-yet-triggered) tension (preview '将解锁…'),
+        or None when every tension is active or resolved."""
+        for spec in bible.tensions:
+            rt = world_state.tensions.get(spec.id)
+            if rt is None or rt.status == "dormant":
+                return GOAL_BY_ID[spec.id]
+        return None
+
+    def update_quests(self, player: Player, world_state: WorldState,
+                      bible: WorldBible) -> Player:
+        """Called once per action after the world tick. Records completed_tick
+        for newly-resolved tensions (so the visible list can expire them) and
+        prunes expired records. Returns a new Player. The visible list itself
+        is derived from tension statuses; this only maintains the lifecycle
+        records — it does not change what is 'true'."""
+        now = player.tick
+        records: dict[str, QuestState] = {q.id: q for q in player.quests or []}
+        for spec in bible.tensions:
+            rt = world_state.tensions.get(spec.id)
+            if rt is not None and rt.status == "resolved" and spec.id not in records:
+                records[spec.id] = QuestState(
+                    id=spec.id, status="completed",
+                    unlocked_tick=now, completed_tick=now,
+                )
+        kept = [
+            q for q in records.values()
+            if not (q.status == "completed"
+                    and (now - (q.completed_tick if q.completed_tick is not None else now)) >= QUEST_EXPIRY_TICKS)
+        ]
+        return player.model_copy(update={"quests": list(kept)})
+
+    # ------------------------------------------------------------------
     # Tick progression
     # ------------------------------------------------------------------
 
@@ -203,25 +302,283 @@ class WorldEngine:
     ) -> tuple[str, str]:
         """Try to resolve *destination_text* into a valid move.
 
+        Accepts a scene id, the full scene name, or natural-language text
+        containing a scene alias (e.g. "去内门灵泉旁修炼" → "inner_gate").
+
         Returns (status, scene_id_or_message):
           - ("ok", scene_id)        on success
           - ("error", msg)          on failure
         """
-        # Try exact scene_id match first
-        target_id: str | None = None
-        if destination_text in SCENE_MAP:
-            target_id = destination_text
-        else:
-            # Fallback: match by scene name (case-insensitive)
-            for sid, scene in SCENE_MAP.items():
-                if scene.name == destination_text:
-                    target_id = sid
-                    break
+        target_id = resolve_scene_id(destination_text)
 
         if target_id is None:
-            return ("error", f"未知地点: {destination_text}")
+            # In-world fallback — never expose a system-style "未知地点: X" message.
+            return ("error", "你寻不到这般去处，只得在原地驻足片刻。")
+
+        # A landmark/alias that lives in the player's current scene is a local
+        # move (already here), not a scene transition — allow it as a no-op.
+        if target_id == player.current_scene:
+            return ("ok", target_id)
 
         if not self.validate_move(player.current_scene, target_id):
-            return ("error", f"无法从 {player.current_scene} 前往 {target_id}")
+            # Use Chinese scene names in the error — never expose raw ids to the player.
+            from_scene = SCENE_MAP.get(player.current_scene)
+            from_name = from_scene.name if from_scene else player.current_scene
+            to_name = SCENE_MAP[target_id].name
+            return ("error", f"从{from_name}没有直达{to_name}的路，你只得暂且作罢。")
 
         return ("ok", target_id)
+
+
+# ----------------------------------------------------------------------
+# Condition evaluator — interprets the dict predicates on
+# TensionTrigger.conditions / ResolutionPath.condition against the player
+# and world state. Pure, deterministic, no LLM. AND across keys: every key
+# must hold. Unknown predicate keys fail safe (False).
+# ----------------------------------------------------------------------
+
+def evaluate_condition(condition: dict, player: Player, world_state: WorldState) -> bool:
+    """Return True iff every predicate in *condition* holds for (player, world_state).
+
+    Supported keys (AND-combined; empty dict → True):
+      - always: bool             — truthy → True
+      - visited: scene_id         — scene_id in player.visited_scenes
+      - seen_event: event_id       — event_id in player.seen_events
+      - level: 境界 str            — player.level == value
+      - min_spirit: int            — player.spirit_power >= value
+      - min_tick: int              — player.tick >= value
+      - tension_resolved: tid       — tid in world_state.resolved_tensions
+    """
+    if not condition:
+        return True
+    visited = set(player.visited_scenes or [])
+    seen = set(player.seen_events or [])
+    for key, val in condition.items():
+        if key == "always":
+            if not val:
+                return False
+        elif key == "visited":
+            if val not in visited:
+                return False
+        elif key == "seen_event":
+            if val not in seen:
+                return False
+        elif key == "level":
+            if player.level != val:
+                return False
+        elif key == "min_spirit":
+            if player.spirit_power < val:
+                return False
+        elif key == "min_tick":
+            if player.tick < val:
+                return False
+        elif key == "tension_resolved":
+            if not any(rt.tension_id == val for rt in world_state.resolved_tensions):
+                return False
+        else:
+            return False  # unknown predicate — fail safe
+    return True
+
+
+# ----------------------------------------------------------------------
+# Emergent world tick (M1 scaffold) — module-level pure functions, no LLM.
+# ----------------------------------------------------------------------
+
+def npc_step(world_state: WorldState, bible: WorldBible, tick: int) -> WorldState:
+    """Rule-driven NPC step: set each NPC's scene_id from its presence
+    schedule at the given tick. No LLM. Pure function — returns a new
+    WorldState, leaves the input untouched.
+
+    M1 behavior is minimal: NPCs follow their NPC_PRESENCES schedule (the
+    same logic as WorldEngine.get_npcs_in_scene). Richer routine actions
+    (mood shifts, goal_progress bumps, interact_npc) arrive in later
+    milestones.
+    """
+    new_npc_state = dict(world_state.npc_state)
+    for npc_model in bible.npc_models:
+        presence = NPC_PRESENCES.get(npc_model.npc_id)
+        scene = presence.default_scene if presence else "outer_gate"
+        if presence:
+            for schedule in presence.schedule:
+                lo, hi = schedule.tick_range
+                if lo <= tick <= hi:
+                    scene = schedule.scene_id
+                    break
+        prev = new_npc_state.get(npc_model.npc_id)
+        new_npc_state[npc_model.npc_id] = NPCRuntimeState(
+            npc_id=npc_model.npc_id,
+            scene_id=scene,
+            mood=prev.mood if prev else "",
+            goal_progress=dict(prev.goal_progress) if prev else {},
+            schedule_tick=tick,
+            last_autonomous_action=prev.last_autonomous_action if prev else None,
+        )
+    return world_state.model_copy(update={"npc_state": new_npc_state})
+
+
+def tension_tick(world_state: WorldState, bible: WorldBible, player: Player) -> WorldState:
+    """Tension state machine (M2). Rule-driven, no LLM. Pure — returns a new
+    WorldState, leaves the input untouched.
+
+    For each TensionSpec in bible priority order:
+      - dormant + trigger holds  → active (sets activated_tick)
+      - active + a resolution_path condition holds → resolved (sets
+        resolved_tick/resolved_path, appends a ResolvedTension)
+      - resolved → stable (skipped, no duplicate history entry)
+    Conditions are evaluated against the *input* world_state, so a tension
+    resolving this tick does not propagate to later tensions until next tick
+    (deterministic, order-independent within a tick).
+
+    world_pressure is recomputed absolutely as the sum of every active (not
+    resolved) tension's pressure_weight. tick is left untouched here — the
+    pipeline sets it.
+    """
+    if world_state.sealed:
+        return world_state
+
+    new_tensions = dict(world_state.tensions)
+    new_resolved = list(world_state.resolved_tensions)
+
+    for spec in bible.tensions:
+        rt = new_tensions.get(spec.id)
+        if rt is not None and rt.status == "resolved":
+            continue  # stable — already resolved
+        if rt is None:
+            rt = TensionRuntime()
+        if rt.status == "dormant" and evaluate_condition(spec.trigger.conditions, player, world_state):
+            rt = rt.model_copy(update={"status": "active", "activated_tick": player.tick})
+        if rt.status == "active":
+            for path in spec.resolution_paths:
+                if evaluate_condition(path.condition, player, world_state):
+                    rt = rt.model_copy(update={
+                        "status": "resolved",
+                        "resolved_tick": player.tick,
+                        "resolved_path": path.id,
+                    })
+                    new_resolved.append(ResolvedTension(
+                        tension_id=spec.id,
+                        resolved_tick=player.tick,
+                        path_id=path.id,
+                        summary=path.label,
+                    ))
+                    break
+        new_tensions[spec.id] = rt
+
+    pressure = 0
+    for spec in bible.tensions:
+        rt = new_tensions.get(spec.id)
+        if rt is not None and rt.status == "active":
+            pressure += spec.pressure_weight
+
+    return world_state.model_copy(update={
+        "tensions": new_tensions,
+        "resolved_tensions": new_resolved,
+        "world_pressure": pressure,
+    })
+
+
+def apply_world_delta(world_state: WorldState, world_delta: dict) -> WorldState:
+    """Apply a validated world_delta to world_state. Pure — returns new WorldState.
+
+    Merges tension progress/pressure, NPC moods/goal_progress, and faction
+    trust/dominance from the DM's proposal into the world state. Values in
+    world_delta are additive (they add to, not replace, existing values).
+    The delta is presumed already validated — this function does no clamping.
+    """
+    if not world_delta:
+        return world_state
+
+    new_tensions = dict(world_state.tensions)
+    new_npc = dict(world_state.npc_state)
+    new_factions = dict(world_state.faction_state)
+
+    # Merge tension deltas
+    for tid, td in world_delta.get("tension", {}).items():
+        rt = new_tensions.get(tid)
+        if rt is None:
+            continue
+        updates: dict = {}
+        if "pressure" in td:
+            updates["pressure"] = rt.pressure + td["pressure"]
+        if "progress" in td:
+            new_prog = dict(rt.progress)
+            for pid, val in td["progress"].items():
+                new_prog[pid] = new_prog.get(pid, 0) + val
+            updates["progress"] = new_prog
+        if updates:
+            new_tensions[tid] = rt.model_copy(update=updates)
+
+    # Merge NPC deltas
+    for nid, nd in world_delta.get("npc", {}).items():
+        prev = new_npc.get(nid)
+        if prev is None:
+            continue
+        npc_updates: dict = {}
+        if "mood" in nd:
+            npc_updates["mood"] = nd["mood"]
+        if "goal_progress" in nd:
+            new_gp = dict(prev.goal_progress)
+            for gid, val in nd["goal_progress"].items():
+                new_gp[gid] = new_gp.get(gid, 0) + val
+            npc_updates["goal_progress"] = new_gp
+        if npc_updates:
+            new_npc[nid] = prev.model_copy(update=npc_updates)
+
+    # Merge faction deltas
+    for fname, fd in world_delta.get("faction", {}).items():
+        prev = new_factions.get(fname)
+        if prev is None:
+            prev = FactionRuntime(faction_id=fname)
+        faction_updates: dict = {}
+        if "trust" in fd:
+            faction_updates["trust"] = prev.trust + fd["trust"]
+        if "dominance" in fd:
+            faction_updates["dominance"] = prev.dominance + fd["dominance"]
+        if faction_updates:
+            new_factions[fname] = prev.model_copy(update=faction_updates)
+
+    return world_state.model_copy(update={
+        "tensions": new_tensions,
+        "npc_state": new_npc,
+        "faction_state": new_factions,
+    })
+
+
+# ---------------------------------------------------------------------------
+# M5: Milestone regeneration
+# ---------------------------------------------------------------------------
+
+REGEN_THRESHOLD = 15  # world_pressure must reach this to trigger milestone regen
+
+
+def check_regen(world_state: WorldState, bible: WorldBible) -> bool:
+    """Return True if regen conditions are met:
+    - world_pressure >= REGEN_THRESHOLD
+    - No active tensions are currently resolving (have progress)
+    - world is not sealed
+    """
+    if world_state.sealed:
+        return False
+    if world_state.world_pressure < REGEN_THRESHOLD:
+        return False
+    # Check no active tension has progress (is in the middle of resolving)
+    for tid, rt in world_state.tensions.items():
+        if rt.status == "active" and rt.progress:
+            return False
+    return True
+
+
+def merge_bible(world_state: WorldState, new_bible: WorldBible) -> WorldState:
+    """Merge a new WorldBible into world_state after milestone regen.
+
+    Preserves resolved_tensions history, resets world_pressure to 0.
+    Tensions are replaced entirely with the new bible's tensions (dormant).
+    """
+    new_tensions: dict[str, TensionRuntime] = {}
+    for spec in new_bible.tensions:
+        new_tensions[spec.id] = TensionRuntime(status="dormant")
+
+    return world_state.model_copy(update={
+        "tensions": new_tensions,
+        "world_pressure": 0,
+    })

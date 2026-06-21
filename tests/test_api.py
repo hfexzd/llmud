@@ -2,11 +2,16 @@
 import json
 import sqlite3
 import pytest
+from fastapi import FastAPI
 from httpx import AsyncClient, ASGITransport
 
 from api.app import create_app
+from api.routes import create_router
 from dm.client import MockLLMClient
 from db.connection import init_db
+from db.repository import PlayerRepository, NPCRepository, WorldRepository
+from engine.models import Player, WorldState, TensionRuntime, PHASE_0_BIBLE, DEFAULT_ENCOUNTER
+from engine.world import WorldEngine
 
 
 @pytest.fixture
@@ -160,6 +165,50 @@ async def test_game_action_fight(mock_llm_cultivate, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_game_action_combat_accumulates_and_kills(tmp_path):
+    """Consecutive attacks must wear the beast down. Regression: enemy HP used
+    to reset to full every turn, so the beast was unkillable."""
+    import random; random.seed(42)  # deterministic crits
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    # spirit 11 -> atk 11 -> 8 dmg/round; enemy 30 HP -> dies on the 4th hit.
+    PlayerRepository(conn).save(Player(
+        current_scene="bamboo_forest", spirit_power=11, hp=100,
+    ))
+    conn.close()
+
+    mock = MockLLMClient(response=json.dumps({
+        "intent": "fight", "action_valid": True, "invalid_reason": "",
+        "story": "你挥剑斩向妖兽！",
+        "state_delta": {}, "breakthrough": None, "combat": None, "npc_update": None,
+    }, ensure_ascii=False))
+    app = create_app(llm_client=mock, db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        d1 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
+        hp1 = d1["combat"]["enemy_remaining_hp"]
+        assert d1["combat"]["result"] in ("ongoing", "win")
+
+        # With affinity + crit, damage varies. Hit until beast dies.
+        d_last = d1
+        for _ in range(8):
+            if d_last["combat"]["result"] == "win" and d_last["combat"]["enemy_remaining_hp"] == 0:
+                break
+            d_last = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
+        assert d_last["combat"]["result"] == "win"
+        assert d_last["combat"]["enemy_remaining_hp"] == 0
+
+        # After the kill, a fresh beast spawns on the next attack.
+        d_next = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
+        assert d_next["combat"]["result"] in ("ongoing", "win")
+        assert d_next["combat"]["enemy_remaining_hp"] > 0  # fresh beast has HP
+
+
+@pytest.mark.asyncio
 async def test_game_action_persistence(mock_llm_cultivate, tmp_path):
     """Second action should see the state changes from the first action."""
     app = _make_app(mock_llm_cultivate, tmp_path)
@@ -205,10 +254,12 @@ async def test_get_scenes_endpoint(mock_llm_cultivate, tmp_path):
         assert response.status_code == 200
         data = response.json()
         assert "scenes" in data
-        assert len(data["scenes"]) == 5
+        assert len(data["scenes"]) == 7
         scene_ids = [s["id"] for s in data["scenes"]]
         assert "outer_gate" in scene_ids
         assert "inner_gate" in scene_ids
+        assert "spirit_valley" in scene_ids
+        assert "misty_lake" in scene_ids
 
 
 @pytest.mark.asyncio
@@ -223,3 +274,712 @@ async def test_game_action_includes_world_event(mock_llm_cultivate, tmp_path):
         assert "scene" in data
         # World event may or may not be present depending on conditions
         # but the field should exist in the response structure
+
+
+@pytest.mark.asyncio
+async def test_game_action_intervention_options_render(tmp_path):
+    """An NPC-to-NPC interaction surfaces as an intervention with description + options.
+
+    Regression: the backend previously sent `intervene_options`/`narrative_hint`
+    while the frontend read `options`/`description`, so no buttons rendered.
+    """
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    # Place the player at market with tick 12 so linwaner (schedule 10-20 -> market)
+    # and chenhao (default market) are both present -> waner_chenhao_chat fires.
+    PlayerRepository(conn).save(Player(
+        current_scene="market", tick=12,
+        seen_events=["market_rumor", "strange_traveler"],
+    ))
+    conn.close()
+
+    mock = MockLLMClient(response=json.dumps({
+        "intent": "other", "action_valid": True, "invalid_reason": "",
+        "story": "你在集市中闲逛，人声鼎沸。",
+        "state_delta": {}, "breakthrough": None, "combat": None, "npc_update": None,
+    }, ensure_ascii=False))
+    app = create_app(llm_client=mock, db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/game/action", json={"user_input": "四处看看"})
+        assert response.status_code == 200
+        data = json.loads(response.text)
+        assert "intervention" in data, f"expected intervention, got keys: {list(data.keys())}"
+        iv = data["intervention"]
+        # Frontend reads `description` and `options` — both must be present and non-empty.
+        assert "description" in iv and iv["description"]
+        assert iv["options"] == ["上前搭话", "继续偷听", "默默离开"]
+
+
+@pytest.mark.asyncio
+async def test_game_action_anaphora_move_resolves_via_llm(tmp_path):
+    """承接邀请的省略移动：玩家在内门，婉儿刚说「去竹林走走」，玩家回「好啊，去走走」。
+
+    The regex fast-path flags this as a move with no resolvable destination.
+    The LLM classify fallback reads the recent conversation and infers 竹林
+    (reachable from inner_gate); the engine then moves the player there. The
+    LLM cannot teleport — reachability is still validated by the engine.
+    """
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    PlayerRepository(conn).save(Player(
+        current_scene="inner_gate", tick=4,
+        recent_stories=["林婉儿轻声道：「你可愿陪我去竹林走走？」"],
+    ))
+    conn.close()
+
+    class FallbackClient:
+        """Classify JSON for the classifier call; a DM story otherwise."""
+        def __init__(self):
+            self.calls = []
+
+        async def generate(self, system_prompt, user_message):
+            self.calls.append(system_prompt)
+            if "意图分类器" in system_prompt:
+                return json.dumps({"intent": "move", "destination": "竹林"},
+                                  ensure_ascii=False)
+            return json.dumps({
+                "intent": "move", "action_valid": True, "invalid_reason": "",
+                "story": "你与林婉儿并肩步入竹林深处，竹叶沙沙作响。",
+                "state_delta": {"location": "bamboo_forest"},
+                "breakthrough": None, "combat": None, "npc_update": None,
+            }, ensure_ascii=False)
+
+    client_llm = FallbackClient()
+    app = create_app(llm_client=client_llm, db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/game/action", json={"user_input": "好啊，去走走"})
+        assert response.status_code == 200
+        data = json.loads(response.text)
+        assert data["intent"] == "move"
+        assert data["player"]["current_scene"] == "bamboo_forest"
+
+
+@pytest.mark.asyncio
+async def test_game_action_anaphora_move_blocked_when_unreachable(tmp_path):
+    """The LLM may suggest a destination, but the engine still enforces
+    reachability. If the inferred place isn't connected, the move is rejected
+    in-world (no English ids, no system-style error)."""
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    # outer_gate connects only to inner_gate and market — not bamboo_forest.
+    PlayerRepository(conn).save(Player(
+        current_scene="outer_gate", tick=4,
+        recent_stories=["林婉儿轻声道：「你可愿陪我去竹林走走？」"],
+    ))
+    conn.close()
+
+    class FallbackClient:
+        async def generate(self, system_prompt, user_message):
+            if "意图分类器" in system_prompt:
+                return json.dumps({"intent": "move", "destination": "竹林"},
+                                  ensure_ascii=False)
+            return json.dumps({
+                "intent": "move", "action_valid": True, "invalid_reason": "",
+                "story": "你迈步欲行。",
+                "state_delta": {}, "breakthrough": None, "combat": None,
+                "npc_update": None,
+            }, ensure_ascii=False)
+
+    app = create_app(llm_client=FallbackClient(), db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/game/action", json={"user_input": "好啊，去走走"})
+        assert response.status_code == 200
+        data = json.loads(response.text)
+        # Move rejected in-world; player stays put. Story carries the Chinese
+        # error, never a raw id.
+        assert data["player"]["current_scene"] == "outer_gate"
+        assert "寻不到这般去处" in data["story"] or "没有直达" in data["story"]
+
+
+@pytest.mark.asyncio
+async def test_get_player_status_includes_goal(tmp_path):
+    """The status bar must expose the current 所务 so the player always has a direction."""
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    # Visited 竹林 + seen 灵草, but still 练气期一层 → goal is the breakthrough.
+    PlayerRepository(conn).save(Player(
+        current_scene="bamboo_forest", tick=4,
+        visited_scenes=["inner_gate", "bamboo_forest"],
+        seen_events=["spirit_herb"],
+    ))
+    conn.close()
+
+    app = create_app(llm_client=MockLLMClient(response="{}"), db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.get("/player/status")
+    assert r.status_code == 200
+    data = json.loads(r.text)
+    assert "goal" in data
+    assert data["goal"]["label"] == "参悟机缘，突破练气期二层"
+
+
+@pytest.mark.asyncio
+async def test_game_action_records_visit_and_advances_goal(tmp_path):
+    """Moving to 竹林 records the visit and advances the objective arc in the
+    response — the engine tracks progress deterministically, not the LLM."""
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    # At 内门, has seen 灵草 already; once they reach 竹林 the arc skips
+    # venture_bamboo and probe_anomaly and lands on the breakthrough goal.
+    PlayerRepository(conn).save(Player(
+        current_scene="inner_gate", tick=4,
+        visited_scenes=["inner_gate"],
+        seen_events=["spirit_herb"],
+    ))
+    conn.close()
+
+    mock = MockLLMClient(response=json.dumps({
+        "intent": "move", "action_valid": True, "invalid_reason": "",
+        "story": "你随师姐踏入竹林深处。",
+        "state_delta": {}, "breakthrough": None, "combat": None, "npc_update": None,
+    }, ensure_ascii=False))
+    app = create_app(llm_client=mock, db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.post("/game/action", json={"user_input": "去竹林"})
+    assert r.status_code == 200
+    data = json.loads(r.text)
+    assert data["player"]["current_scene"] == "bamboo_forest"
+    # Visited recorded → venture_bamboo satisfied; 灵草 seen → probe satisfied;
+    # still 练气期一层 → breakthrough is now the current 所务.
+    assert data["goal"]["label"] == "参悟机缘，突破练气期二层"
+
+    # And it persists — a status readback still shows the recorded visit.
+    conn2 = sqlite3.connect(db_path)
+    conn2.row_factory = sqlite3.Row
+    row = conn2.execute("SELECT visited_scenes FROM players WHERE id='p1'").fetchone()
+    assert "bamboo_forest" in json.loads(row["visited_scenes"])
+
+
+@pytest.mark.asyncio
+async def test_get_player_status_enriched_for_panels(tmp_path):
+    """Status returns everything the 角色/地点 panels need: scene description +
+    landmarks, an npcs card array, the visible quests, next_quest, and
+    next_threshold."""
+    import sqlite3
+    from db.connection import init_db
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    PlayerRepository(conn).save(Player(
+        current_scene="bamboo_forest", tick=4, spirit_power=12,
+        visited_scenes=["outer_gate", "inner_gate", "bamboo_forest"],
+        seen_events=["spirit_herb"],
+    ))
+    conn.close()
+
+    app = create_app(llm_client=MockLLMClient(response="{}"), db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.get("/player/status")
+    assert r.status_code == 200
+    data = json.loads(r.text)
+
+    # Scene description + landmarks
+    assert "description" in data["scene"] and data["scene"]["description"]
+    assert "landmarks" in data["scene"]
+
+    # npcs card array (all NPCs, with present flag)
+    assert "npcs" in data
+    npc_by_id = {n["id"]: n for n in data["npcs"]}
+    assert set(npc_by_id) == {"linwaner", "chenhao", "old_yang", "medicine_elder", "lake_hermit"}
+    assert "favorability" in npc_by_id["linwaner"]
+    assert "present" in npc_by_id["linwaner"]
+    # bamboo_forest has no NPCs at tick 4 -> none present
+    assert all(n["present"] is False for n in data["npcs"])
+
+    # quests: venture_bamboo completed, probe_anomaly completed, cultivate active
+    quests = {q["id"]: q["status"] for q in data["quests"]}
+    assert quests["venture_bamboo"] == "completed"
+    assert quests["probe_anomaly"] == "completed"
+    assert quests["cultivate_breakthrough"] == "active"
+
+    # next_quest is the first not-yet-unlocked goal
+    assert data["next_quest"]["label"] == "深入妖兽山脉，试炼身手"
+
+    # next_threshold for 练气期一层 is 30
+    assert data["next_threshold"] == 30
+
+
+@pytest.mark.asyncio
+async def test_game_action_response_includes_panel_fields(tmp_path):
+    """Action response refreshes panel data: scene description/landmarks,
+    npcs cards, visible quests, next_quest."""
+    import sqlite3
+    from db.connection import init_db
+    from db.repository import PlayerRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    PlayerRepository(conn).save(Player(
+        current_scene="inner_gate", tick=4, spirit_power=12,
+        visited_scenes=["outer_gate", "inner_gate"],
+    ))
+    conn.close()
+
+    mock = MockLLMClient(response=json.dumps({
+        "intent": "cultivate", "action_valid": True, "invalid_reason": "",
+        "story": "你盘膝而坐，灵气如溪流汇入丹田。",
+        "state_delta": {"spirit_power": 2}, "breakthrough": None,
+        "combat": None, "npc_update": None,
+    }, ensure_ascii=False))
+    app = create_app(llm_client=mock, db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.post("/game/action", json={"user_input": "修炼"})
+    assert r.status_code == 200
+    data = json.loads(r.text)
+    assert "description" in data["scene"] and data["scene"]["landmarks"] is not None
+    assert "npcs" in data and any(n["id"] == "linwaner" for n in data["npcs"])
+    assert "quests" in data and isinstance(data["quests"], list)
+    assert "next_quest" in data
+
+
+@pytest.mark.asyncio
+async def test_game_action_named_npc_talk_targets_named_npc(tmp_path):
+    """'对陈浩说…' at a scene with two NPCs targets chenhao (second in
+    get_npcs_in_scene order), not the first-found NPC (linwaner). Regression:
+    TALK used to always take npcs_in_scene[0].
+
+    Scenario chosen so the named NPC is NOT first in get_npcs_in_scene order:
+    at market, tick 15, the presence-iteration order is ['linwaner',
+    'chenhao'] (NPC_PRESENCES insertion order). linwaner is scheduled to
+    market during ticks 10-20; chenhao's default_scene is market (always
+    present). Without the fix, npcs_in_scene[0] == 'linwaner' and the
+    favorability update would wrongly apply to linwaner. Naming 陈浩 must
+    override that order and target chenhao.
+    """
+    import sqlite3
+    from db.connection import init_db
+    from db.repository import PlayerRepository, NPCRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    # tick 15 -> linwaner is at market (schedule 10-20); chenhao always market.
+    PlayerRepository(conn).save(Player(current_scene="market", tick=15))
+    conn.close()
+
+    captured = {}
+
+    class CaptureClient:
+        async def generate(self, system_prompt, user_message):
+            captured["user"] = user_message
+            return json.dumps({
+                "intent": "talk", "action_valid": True, "invalid_reason": "",
+                "story": "陈浩咧嘴一笑。",
+                "state_delta": {}, "breakthrough": None, "combat": None,
+                "npc_update": {"favorability_change": 3, "new_key_fact": "玩家叫张铁柱",
+                               "summary_delta": "玩家向陈浩致意"},
+            }, ensure_ascii=False)
+
+    app = create_app(llm_client=CaptureClient(), db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.post("/game/action", json={"user_input": "对陈浩说：近来可好"})
+    assert r.status_code == 200
+    data = json.loads(r.text)
+    # The favorability update was applied to chenhao, not linwaner.
+    assert data["npc"]["favorability"] == 33  # chenhao base 30 + 3
+    # linwaner favorability unchanged (still 50)
+    conn2 = sqlite3.connect(db_path)
+    conn2.row_factory = sqlite3.Row
+    waner = dict(conn2.execute("SELECT favorability FROM npc_profiles WHERE id='linwaner'").fetchone())
+    assert waner["favorability"] == 50
+    conn2.close()
+
+
+@pytest.mark.asyncio
+async def test_npc_repo_lists_all_profiles(tmp_path):
+    """get_all_profiles returns every seeded NPC for the 人物 panel."""
+    from db.connection import init_db
+    from db.repository import NPCRepository
+    from api.app import seed_database
+    from db.repository import PlayerRepository
+
+    conn = sqlite3.connect(str(tmp_path / "t.db"))
+    conn.row_factory = sqlite3.Row
+    init_db(conn)
+    seed_database(PlayerRepository(conn), NPCRepository(conn))
+    profiles = NPCRepository(conn).get_all_profiles()
+    ids = {p["id"] for p in profiles}
+    assert ids == {"linwaner", "chenhao", "old_yang", "medicine_elder", "lake_hermit"}
+    conn.close()
+
+
+@pytest.mark.asyncio
+async def test_game_action_persists_quest_completed_tick(tmp_path):
+    """update_quests must run BEFORE persistence so completed_tick is saved —
+    otherwise cross-request quest expiry breaks (regression for the
+    persistence-order bug)."""
+    import sqlite3
+    from db.connection import init_db
+    from db.repository import PlayerRepository, NPCRepository
+    from engine.models import Player
+
+    db_path = str(tmp_path / "test.db")
+    conn = sqlite3.connect(db_path)
+    init_db(conn)
+    # Player already at bamboo_forest so venture_bamboo is satisfied this action.
+    PlayerRepository(conn).save(Player(
+        current_scene="bamboo_forest", tick=4, spirit_power=12,
+        visited_scenes=["outer_gate", "bamboo_forest"],
+    ))
+    conn.close()
+
+    mock = MockLLMClient(response=json.dumps({
+        "intent": "cultivate", "action_valid": True, "invalid_reason": "",
+        "story": "你盘膝而坐。",
+        "state_delta": {"spirit_power": 2}, "breakthrough": None,
+        "combat": None, "npc_update": None,
+    }, ensure_ascii=False))
+    app = create_app(llm_client=mock, db_path=db_path)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.post("/game/action", json={"user_input": "修炼"})
+    assert r.status_code == 200
+
+    # Reload player directly from the DB and confirm the venture_bamboo
+    # completed record (with completed_tick) was actually persisted.
+    conn2 = sqlite3.connect(db_path)
+    conn2.row_factory = sqlite3.Row
+    player = PlayerRepository(conn2).get("p1")
+    conn2.close()
+    recs = {q.id: q for q in player.quests}
+    assert "venture_bamboo" in recs, "venture_bamboo completed record was not persisted"
+    assert recs["venture_bamboo"].status == "completed"
+    assert recs["venture_bamboo"].completed_tick is not None
+
+
+class TestValidatorIntegration:
+    """M3: validator wired into game_action — validate -> retry -> apply."""
+
+    @pytest.mark.asyncio
+    async def test_world_delta_surfaced_in_response(self, db_conn, mock_llm_client):
+        """A valid world_delta from the DM is passed through to the response."""
+        mock_llm_client.generate_stream = None
+        mock_llm_client.generate.return_value = (
+            '{"intent":"explore","story":"你踏入竹林……",'
+            '"world_delta":{"tension":{"probe_anomaly":{"pressure":1,"progress":{"witness_herb":10}}}},'
+            '"action_valid":true}'
+        )
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        player_repo.save(Player(
+            id="p1", current_scene="bamboo_forest", tick=3,
+            visited_scenes=["outer_gate", "inner_gate", "bamboo_forest"],
+        ))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "探索竹林"})
+            assert response.status_code == 200
+            data = response.json()
+            assert "world_delta" in data
+            # Valid tension gets through
+            wd = data["world_delta"]
+            assert wd is not None
+
+    @pytest.mark.asyncio
+    async def test_invalid_world_delta_clamped(self, db_conn, mock_llm_client):
+        """A world_delta referencing unknown entities is clamped out."""
+        mock_llm_client.generate_stream = None
+        mock_llm_client.generate.return_value = (
+            '{"intent":"explore","story":"你发现一处神秘所在……",'
+            '"world_delta":{"tension":{"demon_invasion":{"pressure":5}}},'
+            '"action_valid":true}'
+        )
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        player_repo.save(Player(id="p1", current_scene="bamboo_forest", tick=3))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "探索"})
+            assert response.status_code == 200
+            data = response.json()
+            # Invalid world_delta should be clamped to None (empty after removal)
+            wd = data.get("world_delta")
+            # Either absent or empty
+            assert wd is None or wd == {}
+
+    @pytest.mark.asyncio
+    async def test_world_state_updated_after_valid_world_delta(self, db_conn, mock_llm_client):
+        """After a valid world_delta is applied, world_state reflects the changes."""
+        mock_llm_client.generate_stream = None
+        mock_llm_client.generate.return_value = (
+            '{"intent":"explore","story":"竹林中灵气涌动……",'
+            '"world_delta":{"tension":{"probe_anomaly":{"pressure":1,"progress":{"witness_herb":15}}}},'
+            '"action_valid":true}'
+        )
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        player_repo.save(Player(
+            id="p1", current_scene="bamboo_forest", tick=3,
+            visited_scenes=["outer_gate", "inner_gate", "bamboo_forest"],
+        ))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "探索竹林"})
+            assert response.status_code == 200
+
+        # Verify world_state was persisted with the applied delta
+        ws = world_repo.get("default")
+        assert ws is not None
+        rt = ws.tensions.get("probe_anomaly")
+        assert rt is not None
+        # Progress should reflect the DM's proposal
+        assert rt.progress.get("witness_herb", 0) == 15
+        assert rt.pressure == 1
+
+    @pytest.mark.asyncio
+    async def test_retry_on_canon_violation(self, db_conn, mock_llm_client):
+        """When the first DM response has a canon violation, the route retries once."""
+        mock_llm_client.generate_stream = None
+        # First call: invalid (unknown tension) -> should trigger retry
+        # Second call: valid
+        mock_llm_client.generate.side_effect = [
+            '{"intent":"explore","story":"你发现断崖洞窟……","world_delta":{"tension":{"fake_tension":{"pressure":5}}},"action_valid":true}',
+            '{"intent":"explore","story":"你继续在竹林探索……","world_delta":{"tension":{"probe_anomaly":{"pressure":1}}},"action_valid":true}',
+        ]
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        player_repo.save(Player(
+            id="p1", current_scene="bamboo_forest", tick=3,
+            visited_scenes=["outer_gate", "inner_gate", "bamboo_forest"],
+        ))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "探索"})
+            assert response.status_code == 200
+
+        # Should have called generate twice (original + retry)
+        assert mock_llm_client.generate.call_count == 2
+
+
+class TestEndingIntegration:
+    """M4: ending detection and finale flow."""
+
+    @pytest.mark.asyncio
+    async def test_wanderer_fires_as_fallback(self, db_conn, mock_llm_client):
+        """A normal action on a fresh world triggers the wanderer ending (fallback)."""
+        mock_llm_client.generate_stream = None
+        mock_llm_client.generate.return_value = (
+            '{"intent":"cultivate","story":"你盘膝修炼，灵气涌动。","action_valid":true}'
+        )
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        player_repo.save(Player(id="p1", current_scene="outer_gate", tick=25))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "修炼"})
+            assert response.status_code == 200
+            data = response.json()
+            assert "ending" in data
+            # wanderer is the fallback ending -- should fire after min_tick=20
+            assert data["ending"]["id"] == "wanderer"
+
+    @pytest.mark.asyncio
+    async def test_sealed_world_skips_llm(self, db_conn, mock_llm_client):
+        """A sealed world returns an ending response without calling the LLM."""
+        mock_llm_client.generate_stream = None
+        mock_llm_client.generate.return_value = (
+            '{"intent":"cultivate","story":"无用","action_valid":true}'
+        )
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        player_repo.save(Player(id="p1", current_scene="outer_gate", tick=3))
+
+        # Manually seal the world
+        world_repo.save(WorldState(sealed=True, ending="wanderer", tick=3))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "修炼"})
+            assert response.status_code == 200
+            data = response.json()
+            assert data["ending"]["id"] == "wanderer"
+            # LLM is called once for the finale narration (spec §9)
+            assert mock_llm_client.generate.call_count == 1
+            # The finale story should be present
+            assert len(data.get("story", "")) > 0
+
+
+class TestWorldgenIntegration:
+    """M5: milestone regen integration."""
+
+    @pytest.mark.asyncio
+    async def test_worldgen_pipeline_does_not_crash(self, db_conn, mock_llm_client):
+        """The worldgen wiring in the pipeline does not crash on normal flow."""
+        mock_llm_client.generate_stream = None
+        mock_llm_client.generate.return_value = (
+            '{"intent":"cultivate","story":"你静心修炼。","action_valid":true}'
+        )
+
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        player_repo.save(Player(id="p1", current_scene="outer_gate", tick=3))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "修炼"})
+            assert response.status_code == 200
+            data = response.json()
+            # Normal response without ending (tick=3 < 20)
+            assert "story" in data
+            assert "intent" in data
+
+
+class TestOfflineIntegration:
+    """M6: offline catch-up integration."""
+
+    @pytest.mark.asyncio
+    async def test_offline_catchup_advances_state(self, db_conn, mock_llm_client):
+        """Loading an offline player advances world state and player tick."""
+        from datetime import datetime, timedelta, timezone
+
+        mock_llm_client.generate_stream = None
+        mock_llm_client.generate.return_value = (
+            '{"intent":"cultivate","story":"你回到修炼中。","action_valid":true}'
+        )
+
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        # Player was last seen 2 hours ago
+        last_seen = datetime.now(timezone.utc) - timedelta(hours=2)
+        player_repo.save(Player(
+            id="p1", current_scene="outer_gate", tick=10,
+            last_seen=last_seen,
+        ))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "修炼"})
+            assert response.status_code == 200
+            data = response.json()
+            # Player tick should have advanced beyond 10
+            assert data["player"]["tick"] > 10
+
+
+class TestItemSystem:
+    """Item usage system."""
+
+    @pytest.mark.asyncio
+    async def test_use_item_consumes_and_affects_stats(self, db_conn, mock_llm_client):
+        """Using an item from inventory consumes it and applies its effect."""
+        mock_llm_client.generate_stream = None
+        mock_llm_client.generate.return_value = (
+            '{"intent":"other","story":"你服用了一株灵草。","action_valid":true}'
+        )
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        # Give player an item
+        player_repo.save(Player(
+            id="p1", current_scene="outer_gate", tick=3,
+            inventory=["灵草"],
+            spirit_power=10,
+        ))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "使用灵草"})
+            assert response.status_code == 200
+            data = response.json()
+            # Should have consumed the item
+            assert "item_use" in data

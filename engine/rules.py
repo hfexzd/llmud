@@ -1,7 +1,7 @@
 import random
 from engine.models import (
     Player, Encounter, CombatResult, BreakthroughResult, LevelTier, LEVEL_TABLE,
-    SCENE_MAP,
+    SCENE_MAP, PHASE_0_BIBLE,
 )
 
 
@@ -17,14 +17,37 @@ def get_multiplier(player: Player) -> float:
     return get_current_tier(player).multiplier
 
 
+# Equipment bonuses by keyword in item name
+_WEAPON_BONUS: dict[str, int] = {"剑": 5, "刀": 4, "掌": 3, "拳": 2, "杖": 3}
+_ARMOR_BONUS: dict[str, int] = {"袍": 3, "甲": 5, "衣": 2, "铠": 6, "盾": 4}
+
+
+def _equip_bonus(item_name: str | None, table: dict[str, int]) -> int:
+    if not item_name:
+        return 0
+    for keyword, bonus in table.items():
+        if keyword in item_name:
+            return bonus
+    return 0
+
+
+_AFFINITY_BONUS = {"火": {"atk": 2, "def": 0}, "水": {"atk": 0, "def": 2},
+                    "木": {"atk": 1, "def": 1}, "金": {"atk": 2, "def": 1},
+                    "土": {"atk": 0, "def": 3}}
+
+
 def compute_attack(player: Player) -> int:
-    """attack = spirit_power × level_multiplier"""
-    return int(player.spirit_power * get_multiplier(player))
+    """attack = spirit_power × level_multiplier + weapon bonus + affinity bonus"""
+    base = int(player.spirit_power * get_multiplier(player))
+    aff = _AFFINITY_BONUS.get(player.affinity, {"atk": 1, "def": 1})
+    return base + _equip_bonus(player.weapon, _WEAPON_BONUS) + aff["atk"]
 
 
 def compute_defense(player: Player) -> int:
-    """defense = floor(spirit_power / 2) + 5"""
-    return player.spirit_power // 2 + 5
+    """defense = floor(spirit_power / 2) + 5 + armor bonus + affinity bonus"""
+    base = player.spirit_power // 2 + 5
+    aff = _AFFINITY_BONUS.get(player.affinity, {"atk": 1, "def": 1})
+    return base + _equip_bonus(player.armor, _ARMOR_BONUS) + aff["def"]
 
 
 def cultivate(player: Player) -> Player:
@@ -34,13 +57,24 @@ def cultivate(player: Player) -> Player:
     return updated
 
 
-def resolve_combat(player: Player, enemy: Encounter, flee: bool = False) -> tuple[CombatResult, Player, Encounter]:
+def resolve_combat(player: Player, enemy: Encounter, flee: bool = False, crit_chance: float = 0.1) -> tuple[CombatResult, Player, Encounter]:
     """
-    Deterministic combat resolution. Engine is the sole source of truth for numbers.
-    Returns (CombatResult, updated_player, updated_enemy).
+    Deterministic combat resolution for a single round. Engine is the sole
+    source of truth for numbers. Returns (CombatResult, updated_player, updated_enemy).
+
+    The caller is responsible for persisting updated_enemy.hp across rounds
+    (via the player's active_enemy state) — this function is stateless and
+    only resolves one round against the HP it is given.
+
+    Result is one of:
+      - "win"     enemy HP dropped to 0 (killed)
+      - "lose"    player HP dropped to 0 (defeated)
+      - "ongoing" both still standing — fight continues next round
+      - "flee"    player chose to flee (flee=True)
     """
     p_atk = compute_attack(player)
     p_def = compute_defense(player)
+    is_crit = not flee and crit_chance > 0 and random.random() < crit_chance
 
     if flee:
         result = CombatResult(
@@ -49,13 +83,16 @@ def resolve_combat(player: Player, enemy: Encounter, flee: bool = False) -> tupl
         )
         return result, player, enemy
 
-    # Player attacks enemy
-    dmg_to_enemy = max(1, p_atk - enemy.defense)
+    # Player attacks enemy (with 10% crit chance)
+    dmg_base = max(1, p_atk - enemy.defense)
+    dmg_to_enemy = dmg_base * 2 if is_crit else dmg_base
     enemy_hp_after = enemy.hp - dmg_to_enemy
 
     # Enemy retaliates only if still alive
+    is_dodge = False
     if enemy_hp_after > 0:
-        dmg_to_player = max(1, enemy.attack - p_def)
+        is_dodge = not flee and random.random() < 0.05 and p_def > enemy.attack
+        dmg_to_player = 0 if is_dodge else max(1, enemy.attack - p_def)
     else:
         dmg_to_player = 0
 
@@ -67,8 +104,8 @@ def resolve_combat(player: Player, enemy: Encounter, flee: bool = False) -> tupl
     elif player_hp_after <= 0:
         result_str = "lose"
     else:
-        # Both alive — combat continues (slice: treat as one round, "win" if enemy <50% HP)
-        result_str = "win" if enemy_hp_after <= enemy.max_hp // 2 else "flee"
+        # Both alive — neither side is finished; the fight resumes next round.
+        result_str = "ongoing"
 
     # Clamp HP
     enemy_remaining = max(0, enemy_hp_after)
@@ -80,6 +117,8 @@ def resolve_combat(player: Player, enemy: Encounter, flee: bool = False) -> tupl
         result=result_str,
         enemy_remaining_hp=enemy_remaining,
         player_remaining_hp=player_remaining,
+        crit=is_crit,
+        dodge=is_dodge,
     )
 
     updated_player = player.model_copy(update={"hp": player_remaining})
@@ -124,3 +163,66 @@ def move(player: Player, destination: str) -> Player:
     if destination not in current.connections:
         return player
     return player.model_copy(update={"current_scene": destination})
+
+
+_RARE_CONFIRM_ITEMS = {"洗髓丹", "蛇胆", "湖心珠"}
+
+
+def use_item(player: Player, item_name: str, confirmed: bool = False) -> tuple[Player, str]:
+    """Use a consumable item from the player's inventory.
+
+    Looks up the item in PHASE_0_BIBLE items. If found and the player has it,
+    consumes one and applies the effect. Returns (updated_player, message).
+    Rare items require confirmed=True (caller should prompt first).
+    """
+    if not player.inventory:
+        return player, "你身上没有携带任何物品。"
+
+    # Find the item by name (case-insensitive partial match)
+    item = None
+    matched = [i for i in player.inventory if item_name in i]
+    if not matched:
+        return player, f"你没有{item_name}。"
+    item_key = matched[0]
+
+    # Rare items need confirmation
+    if item_key in _RARE_CONFIRM_ITEMS and not confirmed:
+        return player, f"⚠️ {item_key}是稀有物品，再次输入「确认使用{item_key}」以确认。"
+
+    # Look up the item spec
+    item_spec = None
+    for spec in PHASE_0_BIBLE.items:
+        if spec.name in item_key:
+            item_spec = spec
+            break
+
+    new_inv = list(player.inventory)
+    new_inv.remove(item_key)
+    new_p = player.model_copy(update={"inventory": new_inv})
+
+    # Apply effect based on item spec
+    effect_msg = ""
+    if item_spec and item_spec.effect:
+        if "增益灵力" in item_spec.effect or "灵力" in item_spec.effect:
+            gain = 10 if item_spec.rarity == "灵" else 3
+            new_p = new_p.model_copy(update={"spirit_power": new_p.spirit_power + gain})
+            effect_msg = f"灵力+{gain}"
+        if "恢复气血" in item_spec.effect or "气血" in item_spec.effect:
+            heal = 25 if item_spec.rarity == "灵" else 10
+            new_hp = min(new_p.max_hp, new_p.hp + heal)
+            new_p = new_p.model_copy(update={"hp": new_hp})
+            effect_msg += f"，气血+{heal}"
+        if "气血上限" in item_spec.effect:
+            new_p = new_p.model_copy(update={"max_hp": new_p.max_hp + 10, "hp": new_p.hp + 10})
+            effect_msg = "气血上限+10"
+        if "永久提升灵力" in item_spec.effect:
+            gain = 15
+            new_p = new_p.model_copy(update={"spirit_power": new_p.spirit_power + gain})
+            effect_msg = f"灵力上限永久+{gain}（洗筋伐髓）"
+        if "解除" in item_spec.effect:
+            effect_msg = "毒素已清除"
+    else:
+        effect_msg = "但似乎没有什么效果。"
+
+    msg = f"使用了{item_key}。{effect_msg}。" if effect_msg else f"使用了{item_key}。"
+    return new_p, msg

@@ -5,14 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>修仙 MUD</title>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f3f3f3; }
-        #status-bar { background: linear-gradient(135deg, #2d1b4e, #4a2d6e); color: #fff; padding: 8px 12px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px 12px; position: fixed; top: 0; width: 100%; box-sizing: border-box; z-index: 10; align-items: center; }
+        html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f3f3f3; overflow: hidden; }
+        body { display: flex; flex-direction: column; }
+        #status-bar { background: linear-gradient(135deg, #2d1b4e, #4a2d6e); color: #fff; padding: 8px 12px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px 12px; flex: none; box-sizing: border-box; z-index: 10; align-items: center; }
         .stat { white-space: nowrap; }
         .stat-label { color: #b8a0d4; }
         .stat-value { font-weight: bold; }
         #favorability-bar { display: none; width: 100%; background: rgba(255,255,255,0.15); border-radius: 8px; height: 4px; margin-top: 2px; }
         #favorability-fill { height: 100%; background: #ff6b9d; border-radius: 8px; transition: width 0.3s; }
-        #chat-container { padding: 100px 10px 70px 10px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; height: calc(100% - 170px); }
+        #scene-panel { flex: none; background: #1b1430; color: #e8e0f5; padding: 10px 12px; border-bottom: 1px solid #4a2d6e; max-height: 40vh; overflow-y: auto; }
+        #chat-container { flex: 1; min-height: 0; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
         .msg { display: flex; margin-bottom: 6px; }
         .msg.user { justify-content: flex-end; }
         .bubble { max-width: 75%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; word-wrap: break-word; }
@@ -25,6 +27,7 @@
         .battle-result.win { background: #2d5a27; color: #95ec69; }
         .battle-result.lose { background: #5a2727; color: #ff6b6b; }
         .battle-result.flee { background: #5a4a27; color: #ffd700; }
+        .battle-result.ongoing { background: #2d4a5a; color: #9dd5ff; }
         .world-event { background: linear-gradient(135deg, #1a2a1a, #2a3a2a); border-left: 4px solid #7bc67e; border-radius: 8px; padding: 10px 14px; margin: 6px 0; font-style: italic; color: #b8e6b8; font-size: 13px; }
         .intervention-card { background: linear-gradient(135deg, #2d1b4e, #4a2d6e); border: 1px solid #7b5ea7; border-radius: 12px; padding: 12px; margin: 6px 0; color: #fff; }
         .intervention-card .intervention-desc { font-size: 13px; color: #d4b8e8; margin-bottom: 8px; }
@@ -34,96 +37,798 @@
         .scene-tag.npc { background: rgba(255,107,157,0.25); color: #ff9dbf; }
         .scene-tag.conn { background: rgba(107,200,255,0.25); color: #9dd5ff; }
         .breakthrough-msg { background: linear-gradient(135deg, #4a2d6e, #6b3fa0); color: #ffd700; border-radius: 12px; padding: 12px; margin: 6px 0; text-align: center; font-weight: bold; font-size: 15px; }
-        #input-bar { position: fixed; bottom: 0; width: 100%; height: 56px; background: #f7f7f7; border-top: 1px solid #e0e0e0; display: flex; align-items: center; padding: 0 10px; box-sizing: border-box; }
+        #input-bar { flex: none; height: 56px; background: #f7f7f7; border-top: 1px solid #e0e0e0; display: flex; align-items: center; padding: 0 10px; box-sizing: border-box; }
         #user-input { flex: 1; height: 36px; border: 1px solid #ddd; border-radius: 18px; padding: 0 14px; font-size: 14px; outline: none; background: #fff; }
         #send-btn { width: 56px; height: 36px; background: linear-gradient(135deg, #6b3fa0, #4a2d6e); color: white; border: none; border-radius: 18px; margin-left: 8px; font-size: 13px; cursor: pointer; }
+        .chip { background: rgba(255,255,255,0.12); color: #e8d6ff; border: 1px solid rgba(255,255,255,0.2); border-radius: 16px; padding: 4px 12px; font-size: 12px; cursor: pointer; user-select: none; }
+        .chip.on { background: linear-gradient(135deg, #6b3fa0, #8b5fc0); color: #fff; border-color: #ab7fe0; }
+        #drawer-overlay { display: none; position: fixed; inset: 0; top: 0; background: rgba(0,0,0,0.4); z-index: 20; }
+        #drawer { display: none; position: fixed; left: 0; right: 0; bottom: 0; max-height: 80vh; overflow-y: auto; background: #1b1430; color: #e8e0f5; border-top: 2px solid #6b3fa0; border-radius: 16px 16px 0 0; padding: 14px; z-index: 21; box-shadow: 0 -6px 24px rgba(0,0,0,0.5); }
+        #drawer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        #drawer-title { font-size: 15px; font-weight: bold; color: #fff; }
+        #drawer-close { background: rgba(255,255,255,0.1); color: #fff; border: none; border-radius: 50%; width: 26px; height: 26px; cursor: pointer; font-size: 14px; }
+        .panel-sec { margin-bottom: 14px; }
+        .panel-label { font-size: 11px; color: #b8a0d4; text-transform: uppercase; letter-spacing: 1px; margin: 8px 0 6px; }
+        .qrow { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.05); margin-bottom: 6px; font-size: 13px; }
+        .qbox { width: 14px; height: 14px; border: 1.5px solid #8a7aa8; border-radius: 3px; flex: none; margin-top: 2px; }
+        .qrow.done .qbox { background: #5a8a6a; border-color: #5a8a6a; }
+        .qrow.done .qtxt { text-decoration: line-through; color: #8a7aa8; }
+        .qrow.now { background: rgba(107,63,160,0.35); border: 1px solid #8b5fc0; }
+        .qrow.now .qbox { border-color: #c9a0ff; }
+        .qtxt { line-height: 1.5; }
+        .qtag { font-size: 10px; color: #b8a0d4; margin-left: auto; flex: none; }
+        .obj-tag, .move-tag { display: inline-block; border-radius: 8px; padding: 4px 10px; margin: 3px 4px 3px 0; font-size: 12px; cursor: pointer; }
+        .obj-tag { background: rgba(107,179,224,0.18); color: #9dd5ff; border: 1px solid rgba(107,179,224,0.4); }
+        .move-tag { background: rgba(224,176,111,0.18); color: #e0b06f; border: 1px solid rgba(224,176,111,0.4); }
+        .who-tag { display: inline-block; background: rgba(255,107,157,0.18); color: #ff9dbf; border: 1px solid rgba(255,107,157,0.4); border-radius: 8px; padding: 4px 10px; margin: 3px 4px 3px 0; font-size: 12px; cursor: pointer; }
+        .map-node { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); margin-bottom: 6px; font-size: 13px; }
+        .map-node.here { border-color: #9dd5ff; background: rgba(107,179,224,0.18); }
+        .map-node.reach { border-color: #5a8a6a; cursor: pointer; }
+        .map-node.dim { opacity: 0.4; }
+        .map-node .tag { margin-left: auto; font-size: 11px; color: #b8a0d4; }
+        .npc-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 9px; margin-bottom: 8px; }
+        .npc-card.absent { opacity: 0.45; }
+        .npc-head { display: flex; justify-content: space-between; align-items: center; }
+        .npc-head b { color: #ffd9a0; font-size: 13px; }
+        .npc-fav { font-size: 11px; color: #b8a0d4; }
+        .npc-desc { font-size: 11px; color: #b8a0d4; margin: 4px 0; }
+        .npc-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+        .npc-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #e8e0f5; border-radius: 8px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
+        .npc-btn.go { background: rgba(90,138,106,0.4); border-color: #5a8a6a; }
+        .npc-btn.dim { opacity: 0.4; cursor: default; }
+        .stat-line { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
+        .stat-line b { color: #ffd9a0; }
+        .bar { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin: 3px 0 2px; }
+        .bar i { display: block; height: 100%; }
+        .bar.sp i { background: #9dd5ff; } .bar.hp i { background: #6fb3a0; }
+        .bar-pct { font-size: 10px; color: #b8a0d4; text-align: right; }
+        .link-obj { color: #9dd5ff; text-decoration: underline; cursor: pointer; }
+        .scene-desc { font-size: 13px; line-height: 1.7; margin-bottom: 8px; }
+        .ending-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+          background: radial-gradient(ellipse at center, #1a0a2e 0%, #0a0a1a 100%);
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          z-index: 1000; animation: fadeIn 2s ease; }
+        .ending-card { background: linear-gradient(135deg, #2d1b4e, #1a1a3e);
+          border: 2px solid #ffd700; border-radius: 16px; padding: 32px; max-width: 600px;
+          width: 90%; text-align: center; box-shadow: 0 0 60px rgba(255,215,0,0.2); }
+        .ending-card h1 { color: #ffd700; font-size: 28px; margin-bottom: 8px; }
+        .ending-card .subtitle { color: #b8a0d4; font-size: 14px; margin-bottom: 20px; }
+        .ending-story { color: #e0d0f0; font-size: 16px; line-height: 1.8;
+          text-align: justify; max-height: 300px; overflow-y: auto; padding: 0 8px; }
+        .ending-btn { background: linear-gradient(135deg, #ffd700, #ff8c00); color: #1a0a2e;
+          border: none; border-radius: 24px; padding: 12px 32px; margin-top: 24px;
+          font-size: 16px; font-weight: bold; cursor: pointer; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #4a2d6e; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b3fa0; }
     </style>
 </head>
 <body>
 
     <div id="status-bar">
         <span class="stat"><span class="stat-label">地点</span> <span class="stat-value" id="p-loc">加载中</span></span>
+        <span class="stat"><span class="stat-label">所务</span> <span class="stat-value" id="p-goal">—</span></span>
         <span class="stat"><span class="stat-label">境界</span> <span class="stat-value" id="p-level">练气期一层</span></span>
         <span class="stat"><span class="stat-label">灵力</span> <span class="stat-value" id="p-spirit">10</span></span>
         <span class="stat"><span class="stat-label">气血</span> <span class="stat-value" id="p-hp">100/100</span></span>
         <span class="stat"><span class="stat-label">攻</span> <span class="stat-value" id="p-atk">10</span></span>
         <span class="stat"><span class="stat-label">防</span> <span class="stat-value" id="p-def">10</span></span>
+        <span class="stat"><span class="stat-label">灵石</span> <span class="stat-value" id="p-stones" style="color:#ffd700">100</span></span>
+        <span class="stat"><span class="stat-label">回合</span> <span class="stat-value" id="p-tick-display">0</span></span>
+        <span class="stat" style="font-size:10px;color:#4a2d6e" id="p-playtime-display"></span>
+        <span class="stat" style="font-size:10px;color:#8a7aa8" id="p-visited"></span>
+        <span class="stat"><span class="stat-label">所务</span> <span class="stat-value" id="p-quest-progress" style="color:#7bc67e">0/4</span></span>
+        <span class="stat" id="p-last-action" style="display:none;font-size:10px;color:#b8a0d4;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        <span class="stat" id="p-weapon-display" style="display:none"><span class="stat-label">武器</span> <span class="stat-value" id="p-weapon" style="color:#9dd5ff"></span></span>
+        <span class="stat" id="p-armor-display" style="display:none"><span class="stat-label">防具</span> <span class="stat-value" id="p-armor" style="color:#9dd5ff"></span></span>
         <span class="stat" id="npc-rel" style="display:none"><span class="stat-label">师姐</span> <span class="stat-value" id="p-npc-stage">陌生</span> <span id="p-npc-fav" style="color:#ff6b9d">50</span></span>
         <div id="favorability-bar"><div id="favorability-fill" style="width:50%"></div></div>
-        <div id="scene-info" style="display:none; width:100%; margin-top:2px;">
-            <div id="scene-npcs" style="margin-top:2px;"></div>
-            <div id="scene-connections" style="margin-top:2px;"></div>
+        <span class="chip" id="chip-role" onclick="openDrawer('role')">角色</span>
+        <span class="chip" id="chip-map" onclick="openDrawer('map')">地图</span>
+        <span class="stat" style="margin-left:auto;">
+            <select id="offline-directive" style="background:rgba(255,255,255,0.1);color:#fff;border:1px solid #6b3fa0;border-radius:8px;padding:2px 8px;font-size:11px;outline:none;">
+                <option value="闭关">闭关</option>
+                <option value="历练">历练</option>
+                <option value="静养">静养</option>
+            </select>
+        </span>
+    </div>
+    <div id="loading-screen" style="position:fixed;inset:0;background:radial-gradient(ellipse at center,#1b1430,#0a0a1a);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:12px">
+        <div style="color:#6b3fa0;font-size:28px;font-weight:bold;letter-spacing:4px">修 仙  MUD</div>
+        <div style="color:#4a2d6e;font-size:12px;letter-spacing:2px">— 灵 境 之 旅 —</div>
+        <div style="color:#b8a0d4;font-size:13px;margin-top:8px">正在加载...</div>
+    </div>
+    <div id="scene-panel"></div>
+    <div id="drawer-overlay" onclick="closeDrawer()"></div>
+    <button id="clear-chat" style="position:fixed;bottom:120px;right:16px;background:rgba(255,255,255,0.08);color:#8a7aa8;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:4px 10px;font-size:11px;cursor:pointer;z-index:40" onclick="document.getElementById('chat-container').innerHTML='';introShown=false;updateStatus()" title="清除对话">🗑</button>
+    <div id="drawer">
+        <div id="drawer-header">
+            <span id="drawer-title"></span>
+            <button id="drawer-close" onclick="closeDrawer()">×</button>
         </div>
+        <div id="drawer-body"></div>
     </div>
 
     <div id="chat-container">
-        <div class="msg system"><div class="bubble">【系统】你睁开眼，发现自己正躺在柴房的硬板床上。四周弥漫着霉味，窗外传来师兄们练剑的呼喊声。你想做什么？（试试：修炼、和师姐说话、攻击妖兽、去后山）</div></div>
+        <!-- Opening message is rendered dynamically by maybeShowIntro() from the player's current scene. -->
     </div>
+    <button id="scroll-bottom" style="display:none;position:fixed;bottom:70px;right:16px;background:#6b3fa0;color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;z-index:50;box-shadow:0 2px 10px rgba(0,0,0,0.3)" onclick="document.getElementById('chat-container').scrollTop=document.getElementById('chat-container').scrollHeight;this.style.display='none'">↓</button>
 
+    <div id="action-chips" style="flex:none;background:#1b1430;padding:6px 10px;display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;border-top:1px solid #4a2d6e;"></div>
     <div id="input-bar">
         <input type="text" id="user-input" placeholder="输入你的行动..." autocomplete="off">
         <button id="send-btn" onclick="sendAction()">发送</button>
     </div>
+    <div style="flex:none;font-size:10px;color:#4a2d6e;background:#f7f7f7;text-align:center;padding:1px 0;border-top:1px solid #e0e0e0">⌨ c=修炼 f=攻击 m=地图 i=物品 h=帮助 r=重复 ↑↓=历史 Tab=补全 Esc=清空</div>
+    <div style="flex:none;font-size:10px;color:#4a2d6e;background:#f7f7f7;text-align:center;padding:2px 0;border-top:1px solid #e0e0e0"><span id="status-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#7bc67e;margin-right:4px"></span>修仙MUD v211 · <span id="sound-toggle" style="cursor:pointer" onclick="window.__soundOn=!window.__soundOn;this.textContent=window.__soundOn?'🔊音效':'🔇静音'">🔊音效</span> · <span style="cursor:pointer" onclick="document.querySelector('.bubble').style.fontSize=parseInt(getComputedStyle(document.querySelector('.bubble')).fontSize)==14?'18px':'14px';this.textContent=document.querySelector('.bubble').style.fontSize=='18px'?'🔍小':'🔍大'">🔍大</span></div>
 
     <script>
         const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
             ? 'http://127.0.0.1:8001' : '';
 
-        const NPC_NAMES = {linwaner: '林婉儿', chenhao: '陈浩', old_yang: '杨老'};
+        const NPC_NAMES = {linwaner: '林婉儿', chenhao: '陈浩', old_yang: '杨老', medicine_elder: '药老', lake_hermit: '湖隐'};
         const SCENE_NAMES = {outer_gate: '外门', inner_gate: '内门', bamboo_forest: '竹林', market: '集市', mountain_range: '山脉'};
+
+        let worldScenes = [];  // [{id,name,connections,atmosphere}] from /game/scenes
+        async function loadWorldScenes() {
+            try {
+                const res = await fetch(`${API_URL}/game/scenes`);
+                const data = await res.json();
+                worldScenes = data.scenes || [];
+            } catch (e) { console.error('scenes load failed', e); }
+        }
+
+        // Display-only maps for NPC richness (no English ids leak to the player).
+        const NPC_ROLE = {linwaner: '师姐', chenhao: '师兄', old_yang: '守门人', medicine_elder: '药修', lake_hermit: '隐士'};
+        const NPC_HINT = {linwaner: '知心师姐，似有心事', chenhao: '豪爽师兄，常在集市', old_yang: '守门老人，深藏不露', medicine_elder: '隐居药修，精通药理', lake_hermit: '湖畔隐士，不问世事'};
+        // 时辰 table — mirror of engine.models.SHICHEN_LABELS (keep in sync).
+        const SHICHEN = ['子时·夜半','丑时·鸡鸣','寅时·平旦','卯时·日出','辰时·晨光初照','巳时·隅中','午时·日中','未时·日昳','申时·晡时','酉时·日入','戌时·黄昏','亥时·人定'];
+        function shichenLabel(tick) { return SHICHEN[(tick || 0) % 12]; }
+
+        // Cached panel data, refreshed by updateStatus() and after each action.
+        let panelData = {scene:null, npcs:[], quests:[], nextQuest:null, player:null};
+
+        // Panel clicks PREFILL the input (focus optional) — never auto-send, so
+        // every action still flows through classify→engine→world→dm.
+        function prefill(text, focus) {
+            const el = document.getElementById('user-input');
+            el.value = text;
+            if (focus !== false) el.focus();
+        }
+
+        let currentDrawer = null;
+        function openDrawer(which) {
+            currentDrawer = which;
+            document.getElementById('drawer-overlay').style.display = 'block';
+            document.getElementById('drawer').style.display = 'block';
+            ['chip-role','chip-map'].forEach(id => document.getElementById(id).classList.remove('on'));
+            document.getElementById('chip-' + which).classList.add('on');
+            const titles = {role:'角色 · 所务与人物', map:'地图'};
+            document.getElementById('drawer-title').textContent = titles[which];
+            renderDrawer(which);
+        }
+        function closeDrawer() {
+            currentDrawer = null;
+            document.getElementById('drawer-overlay').style.display = 'none';
+            document.getElementById('drawer').style.display = 'none';
+            ['chip-role','chip-map'].forEach(id => document.getElementById(id).classList.remove('on'));
+        }
+        function renderDrawer(which) {
+            const body = document.getElementById('drawer-body');
+            if (which === 'role') body.innerHTML = renderRolePanel();
+            else if (which === 'map') body.innerHTML = renderMapPanel();
+        }
+        // The current scene panel is always visible — it's the base for
+        // interaction. Reuses renderPlacePanel() so the persistent panel and
+        // the (now-removed) 地点 drawer stay in sync. Tags use data-prefill
+        // so the global delegated handler fills the input without auto-sending.
+        // Scene atmosphere background colors
+        const ATMOSPHERE_COLORS = {
+            '清幽': '#1a1a2e', '庄严': '#1a1a3e', '神秘': '#1a2a1a',
+            '繁忙': '#2a1a1a', '危险': '#2a1a1a', '幽静': '#1a2a2a', '缥缈': '#1a1a3e'
+        };
+        const ATMOSPHERE_SOUNDS = {
+            '清幽': 220, '庄严': 165, '神秘': 196, '繁忙': 330, '危险': 147, '幽静': 262, '缥缈': 175
+        };
+
+        function renderScenePanel() {
+            const panel = document.getElementById('scene-panel');
+            if (!panel) return;
+            panel.innerHTML = renderPlacePanel();
+            renderActionChips();
+            // Set panel background based on scene atmosphere
+            const scene = panelData.scene || {};
+            const bgColor = ATMOSPHERE_COLORS[scene.atmosphere] || '#1b1430';
+            panel.style.background = `linear-gradient(135deg, ${bgColor}, #1b1430)`;
+            // Subtle atmosphere tone when scene changes
+            const atmFreq = ATMOSPHERE_SOUNDS[scene.atmosphere];
+            if (atmFreq && window.__soundOn) {
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+                    osc.connect(gain); gain.connect(ctx.destination);
+                    osc.frequency.value = atmFreq; osc.type = 'sine';
+                    gain.gain.value = 0.03;
+                    osc.start(); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+                    osc.stop(ctx.currentTime + 1.5);
+                } catch(e) {}
+            }
+        }
+        // Contextual action chips — scene-specific quick actions
+        function renderActionChips() {
+            const bar = document.getElementById('action-chips');
+            if (!bar) return;
+            const scene = panelData.scene || {};
+            const player = panelData.player || {};
+            const npcs = panelData.npcs || [];
+            const inv = player.inventory || [];
+            const chips = [];
+
+            // Scene-based actions
+            const sceneActions = scene.available_actions || [];
+            if (sceneActions.includes('cultivate')) { chips.push('修炼'); chips.push('连续修炼'); }
+            if (scene.id === 'bamboo_forest') { chips.push('观鸟'); chips.push('赏花'); chips.push('拾叶'); chips.push('采蘑菇'); chips.push('做笛'); chips.push('编花环'); }
+            if (scene.id === 'outer_gate') { chips.push('练功'); chips.push('射箭'); chips.push('锻炼'); chips.push('画石'); chips.push('制陶'); }
+            if (sceneActions.includes('explore')) chips.push('探索');
+            if (sceneActions.includes('fight')) {
+                const estAtk = Math.floor((p.spirit_power||0) * (p.level === '练气期一层'?1:p.level==='练气期二层'?1.2:p.level==='练气期三层'?1.5:p.level==='筑基期一层'?2:1));
+                const wepB = p.weapon&&{'剑':5,'刀':4,'掌':3,'拳':2,'杖':3}[Object.keys({'剑':5,'刀':4,'掌':3,'拳':2,'杖':3}).find(k=>p.weapon.includes(k))]||0;
+                const enemyNames = {'bamboo_forest':'vs赤眼妖狼','mountain_range':'vs赤眼妖狼','spirit_valley':'vs毒鳞蟒','misty_lake':'vs玄水龟'};
+                chips.push(`战斗${enemyNames[scene.id]||''} (攻${estAtk+wepB})`);
+            }
+            // Quick rest when HP is low
+            const hpPctLow = (p.hp||100) / (p.max_hp||100);
+            if (hpPctLow < 0.5) chips.push('休息');
+
+            // Movement — show all connections as quick-travel chips
+            const conns = scene.connections || [];
+            const sceneNames = {'outer_gate':'外门','inner_gate':'内门','bamboo_forest':'竹林','market':'集市','mountain_range':'山脉','spirit_valley':'山谷','misty_lake':'湖边'};
+            conns.forEach(cid => chips.push(`去${sceneNames[cid]||cid}`));
+
+            // Present NPCs — suggest talk
+            const present = npcs.filter(n => n.present);
+            const npcDisplayNames = {'linwaner':'林婉儿','chenhao':'陈浩','old_yang':'杨老','medicine_elder':'药老','lake_hermit':'湖隐'};
+            if (present.length > 0) chips.push(`和${npcDisplayNames[present[0].id]||present[0].id}搭话`);
+
+            // Shop at market
+            if (scene.id === 'market') {
+                chips.push('购买聚气丹', '购买凝露草');
+                if ((p.spirit_stones || 0) >= 3) chips.push('喝酒');
+            }
+            if (scene.id === 'mountain_range') { chips.push('生火'); chips.push('看云'); chips.push('堆石'); chips.push('寻石'); chips.push('设陷阱'); }
+            // Crafting at spirit_valley
+            if (scene.id === 'spirit_valley') {
+                chips.push('向药老请教');
+                chips.push('炼制聚气丹');
+                chips.push('采药');
+                chips.push('晒药');
+                chips.push('做风铃');
+                chips.push('沐浴');
+            }
+            // Meditation at inner_gate
+            if (scene.id === 'inner_gate') { chips.push('冥想'); chips.push('品茶'); chips.push('下棋'); chips.push('写字'); chips.push('折纸'); }
+            // Fishing at misty_lake
+            if (scene.id === 'misty_lake') { chips.push('钓鱼'); chips.push('撒网'); chips.push('观星'); chips.push('打水漂'); chips.push('看日落'); }
+
+            // Items — suggest healing items when low HP, otherwise first item
+            const hpPct3 = (p.hp||100) / (p.max_hp||100);
+            if (hpPct3 < 0.5) {
+                const heals = inv.filter(i => ['凝露草','灵鱼','灵芝','聚气丹'].includes(i));
+                if (heals.length > 0) chips.push(`使用${heals[0]}`);
+            } else if (inv.length > 0) chips.push(`使用${inv[0]}`);
+
+            // Equipped items indicator
+            const wepName = player.weapon || null;
+            const armName = player.armor || null;
+
+            bar.innerHTML = chips.map(c =>
+                `<span class="chip" data-prefill="${escapeAttr(c)}">${escapeHtml(c)}</span>`
+            ).join('') + (wepName ? `<span class="chip" style="opacity:0.6;font-size:10px">🗡${escapeHtml(wepName)}</span>` : '')
+                + (armName ? `<span class="chip" style="opacity:0.6;font-size:10px">🛡${escapeHtml(armName)}</span>` : '');
+        }
+            const p = panelData.player || {};
+            const quests = panelData.quests || [];
+            const npcs = panelData.npcs || [];
+            const scene = panelData.scene || {};
+            const presentIds = new Set((scene.npcs_present) || []);
+            const nextT = p.next_threshold;
+            const spPct = nextT ? Math.min(100, Math.round((p.spirit_power||0)/nextT*100)) : 100;
+            const hpPct = p.max_hp ? Math.round((p.hp||0)/p.max_hp*100) : 100;
+
+            let html = '<div class="panel-sec"><div class="panel-label">所务 · 随缘而启</div>';
+            quests.forEach(q => {
+                const cls = q.status === 'completed' ? 'qrow done' : 'qrow now';
+                const tag = q.status === 'completed' ? '✅ 已完' : '⏳ 进行';
+                html += `<div class="${cls}"><div class="qbox">${q.status === 'completed' ? '✓' : ''}</div><div class="qtxt">${escapeHtml(q.label)}</div><div class="qtag">${tag}</div></div>`;
+            });
+            if (panelData.nextQuest) {
+                html += `<div style="font-size:11px;color:#8a7aa8;padding:2px 4px">（将解锁：${escapeHtml(panelData.nextQuest.label)}…）</div>`;
+            }
+            html += '</div>';
+
+            const levelColors = {'练气期三层':'#9dd5ff','筑基期一层':'#ffd700','筑基期二层':'#ff8c00','筑基期三层':'#ff6b6b','金丹期一层':'#ff1493'};
+            const nameColor = levelColors[p.level] || '#fff';
+            html += `<div class="panel-sec"><div class="panel-label" style="color:${nameColor}">${escapeHtml(p.name||'')} · ${escapeHtml(p.affinity||'')}灵根</div>`;
+            html += `<div class="stat-line"><span>境界</span><b>${escapeHtml(p.level||'')}</b></div>`;
+            html += `<div class="panel-label">灵力</div><div class="bar sp"><i style="width:${spPct}%"></i></div>`;
+            html += `<div class="bar-pct">${p.spirit_power??0}${nextT? ' / '+nextT+' 至下境':''}</div>`;
+            html += `<div class="panel-label">气血</div><div class="bar hp"><i style="width:${hpPct}%"></i></div>`;
+            html += `<div class="bar-pct">${p.hp??0} / ${p.max_hp??0}</div>`;
+            const totalMin = p.tick || 0;
+            const hours = Math.floor(totalMin / 60);
+            const mins = totalMin % 60;
+            html += `<div class="stat-line"><span>时辰</span><b>${shichenLabel(p.tick)}</b><span style="margin-left:auto;font-size:11px;color:#8a7aa8">${hours?hours+'小时':''}${mins}分</span></div>`;
+            html += `<div class="stat-line"><span>灵石</span><b style="color:#ffd700">${p.spirit_stones??0}</b><span style="margin-left:auto;font-size:11px;color:#8a7aa8">💀${p.kills??0} 🏠${p.visited_count||(p.visited_scenes||[]).length||0}/7</span></div>`;
+            const wepBonus = {'剑':5,'刀':4,'掌':3,'拳':2,'杖':3};
+            const armBonus = {'袍':3,'甲':5,'衣':2,'铠':6,'盾':4};
+            const wepB = p.weapon ? Object.entries(wepBonus).find(([k])=>p.weapon.includes(k)) : null;
+            const armB = p.armor ? Object.entries(armBonus).find(([k])=>p.armor.includes(k)) : null;
+            if (p.weapon) html += `<div class="stat-line"><span>武器</span><b style="color:#9dd5ff">${escapeHtml(p.weapon)} ${wepB?'(攻+'+wepB[1]+')':''} <span class="obj-tag" style="font-size:10px;padding:1px 6px;background:rgba(255,107,107,0.2);border-color:#ff6b6b;color:#ff6b6b;cursor:pointer" data-prefill="卸下${escapeAttr(p.weapon)}">卸下</span></b></div>`;
+            if (p.armor) html += `<div class="stat-line"><span>防具</span><b style="color:#9dd5ff">${escapeHtml(p.armor)} ${armB?'(防+'+armB[1]+')':''} <span class="obj-tag" style="font-size:10px;padding:1px 6px;background:rgba(255,107,107,0.2);border-color:#ff6b6b;color:#ff6b6b;cursor:pointer" data-prefill="卸下${escapeAttr(p.armor)}">卸下</span></b></div>`;
+            // Attack/defense breakdown
+            const baseAtk = Math.floor((p.spirit_power||0) * (p.level === '练气期一层'?1:p.level==='练气期二层'?1.2:p.level==='练气期三层'?1.5:p.level==='筑基期一层'?2:1));
+            const baseDef = Math.floor((p.spirit_power||0) / 2) + 5;
+            const wepAtk = wepB ? wepB[1] : 0;
+            const armDef = armB ? armB[1] : 0;
+            html += `<div class="stat-line" style="font-size:11px;color:#8a7aa8"><span>⚔ ${baseAtk}${wepAtk?'+'+wepAtk+'='+(baseAtk+wepAtk):''}</span><span>🛡 ${baseDef}${armDef?'+'+armDef+'='+(baseDef+armDef):''}</span></div>`;
+            html += `<div class="panel-label">行囊</div><div>`;
+            const rarityColors = {'灵':'#ffd700','凡':'#b8a0d4'};
+            const equippable = ['剑','刀','掌','拳','杖','袍','甲','衣','铠','盾'];
+            const itemCount = {}; (p.inventory||[]).forEach(i => { itemCount[i] = (itemCount[i]||0)+1; });
+            const rarityStars = {'灵':'⭐⭐','凡':'⭐'};
+            const itemRarity = {'灵芝':'灵','蛇胆':'灵','湖心珠':'灵','洗髓丹':'灵','灵草':'凡','凝露草':'凡','聚气丹':'凡','解毒丹':'凡','灵鱼':'凡','青锋剑':'凡','布甲':'凡'};
+            const itemCategory = {'灵芝':'灵材','蛇胆':'灵材','洗髓丹':'丹药','灵草':'灵材','凝露草':'灵材','聚气丹':'丹药','解毒丹':'丹药','灵鱼':'灵材','湖心珠':'法器','青锋剑':'法器','布甲':'防具'};
+            const itemEffects = {'灵草':'灵力+3','凝露草':'灵力+3','聚气丹':'灵力+3','灵芝':'灵力+10+治愈','蛇胆':'气血上限+10','解毒丹':'解毒','灵鱼':'气血+10','湖心珠':'灵力恢复','青锋剑':'攻击+5','布甲':'防御+3','洗髓丹':'灵根+15'};
+            const itemPrices = {'凝露草':5,'聚气丹':12,'解毒丹':7,'青锋剑':25,'布甲':20,'灵草':8,'灵芝':20,'蛇胆':15,'灵鱼':5,'湖心珠':30,'洗髓丹':40};
+            const itemSources = {'灵草':'竹林','凝露草':'外门','聚气丹':'集市','灵芝':'灵药谷','蛇胆':'灵药谷·毒鳞蟒','解毒丹':'灵药谷·炼制','灵鱼':'雾隐湖','湖心珠':'雾隐湖·玄水龟','青锋剑':'集市·购买','布甲':'集市·购买','洗髓丹':'集齐所务奖励'};
+            // Sort: equipment first, then by rarity (灵 before 凡)
+            const sortedItems = Object.entries(itemCount).sort(([a], [b]) => {
+                const aEquip = equippable.some(k => a.includes(k)) ? 0 : 1;
+                const bEquip = equippable.some(k => b.includes(k)) ? 0 : 1;
+                if (aEquip !== bEquip) return aEquip - bEquip;
+                const rA = itemRarity[a] === '灵' ? 0 : 1;
+                const rB = itemRarity[b] === '灵' ? 0 : 1;
+                return rA - rB;
+            });
+            sortedItems.forEach(([it, cnt]) => {
+                const color = rarityColors[itemRarity[it]] || '#b8a0d4';
+                const canEquip = equippable.some(k => it.includes(k));
+                const price = itemPrices[it] ? ` 出售价:${itemPrices[it]}灵石` : '';
+                const source = itemSources[it] ? ` 来源:${itemSources[it]}` : '';
+                const cat = itemCategory[it] || '';
+                const catTag = cat ? `<small style="opacity:0.6;font-size:9px">[${cat}]</small>` : '';
+                const isWep = it.includes('剑')||it.includes('刀')||it.includes('掌');
+                const isArm = it.includes('甲')||it.includes('袍')||it.includes('衣');
+                const curEq = isWep && p.weapon ? p.weapon : isArm && p.armor ? p.armor : null;
+                const itBonusVal = {'青锋剑':5,'布甲':3}[it]||0;
+                const curEqBonus = curEq ? ({'青锋剑':5,'布甲':3}[curEq]||0) : 0;
+                const arrow = curEq && itBonusVal ? (itBonusVal > curEqBonus ? '↑' : itBonusVal < curEqBonus ? '↓' : '→') : '';
+                const compare = curEq ? ` (当前:${curEq}${arrow})` : '';
+                html += `<span class="obj-tag" style="border-color:${color};color:${color}" title="[${itemRarity[it]||'?'}] ${itemEffects[it]||'?'}${source}${price}${compare}${cnt>1?' ×'+cnt:''}" data-prefill="查看${escapeAttr(it)}">${catTag}${escapeHtml(it)}${rarityStars[itemRarity[it]]||''}${cnt>1?'<small style=\"opacity:0.7\">×'+cnt+'</small>':''}</span>`;
+                html += `<span class="obj-tag" style="background:rgba(107,200,255,0.18);color:#9dd5ff;border-color:rgba(107,200,255,0.4)" data-prefill="使用${escapeAttr(it)}">使用</span>`;
+                if (canEquip) html += `<span class="obj-tag" style="background:rgba(255,215,0,0.18);color:#ffd700;border-color:rgba(255,215,0,0.4)" data-prefill="装备${escapeAttr(it)}">装备</span>`;
+                html += `<span class="obj-tag" style="background:rgba(255,107,107,0.15);color:#ff6b6b;border-color:rgba(255,107,107,0.3)" data-prefill="丢弃${escapeAttr(it)}">丢弃</span>`;
+                if ((panelData.scene||{}).id === 'market') html += `<span class="obj-tag" style="background:rgba(255,215,0,0.12);color:#ffd700;border-color:rgba(255,215,0,0.3)" data-prefill="出售${escapeAttr(it)}">出售${cnt>1?'(×'+cnt+')':''}</span>`;
+            });
+            if (!(p.inventory||[]).length) html += '<span style="color:#8a7aa8;font-size:12px">空空如也</span>';
+            // Auto-equip best gear button
+            const hasWep = (p.inventory||[]).some(i => i.includes('剑')||i.includes('刀'));
+            const hasArm = (p.inventory||[]).some(i => i.includes('甲')||i.includes('袍'));
+            if (hasWep || hasArm) html += `<span class="obj-tag" style="background:rgba(255,215,0,0.12);color:#ffd700;border-color:rgba(255,215,0,0.3)" data-prefill="装备${hasWep?'青锋剑':''}${hasArm?'布甲':''}">自动装备</span>`;
+            html += `</div><div style="margin-top:8px"><span class="obj-tag" data-prefill="修炼">打坐修炼</span></div>`;
+            html += '</div>';
+
+            // 在场人物
+            const present = npcs.filter(n => n.present);
+            const absent = npcs.filter(n => !n.present);
+            html += '<div class="panel-sec"><div class="panel-label">在场人物</div>';
+            if (present.length) present.forEach(n => html += npcCard(n, false));
+            else html += '<div style="color:#8a7aa8;font-size:12px">四下无人</div>';
+            if (absent.length) {
+                html += '<div class="panel-label">不在场</div>';
+                absent.forEach(n => html += npcCard(n, true));
+            }
+            html += '</div>';
+            return html;
+        }
+
+        function npcCard(n, absent) {
+            const name = NPC_NAMES[n.id] || n.id;
+            const role = NPC_ROLE[n.id] || '';
+            const hint = NPC_HINT[n.id] || '';
+            const cls = 'npc-card' + (absent ? ' absent' : '');
+            let acts = '';
+            if (!absent) {
+                acts = `<div class="npc-acts">`
+                    + `<span class="npc-btn go" data-prefill="和${escapeAttr(name)}搭话">搭话</span>`
+                    + `<span class="npc-btn go" data-prefill="对${escapeAttr(name)}说：" data-focus="1">自由聊天</span>`
+                    + `<span class="npc-btn dim">切磋</span>`
+                    + `</div>`;
+            }
+            const loc = absent ? `常驻 ${SCENE_NAMES[n.default_scene]||n.default_scene}` : hint;
+            const fav = n.favorability ?? 50;
+            const nextStage = fav < 21 ? '相识(21)' : fav < 51 ? '熟悉(51)' : fav < 81 ? '知己(81)' : null;
+            return `<div class="${cls}">`
+                + `<div class="npc-head"><b>${escapeHtml(name)} · ${escapeHtml(role)}</b><span class="npc-fav">${escapeHtml(n.relationship_stage||'陌生')} · ${fav}</span></div>`
+                + `<div class="npc-desc">${escapeHtml(loc)}${nextStage?'  →'+nextStage:''}</div>`
+                + acts + `</div>`;
+        }
+        function renderPlacePanel() {
+            const scene = panelData.scene || {};
+            const desc = scene.description || '';
+            const landmarks = scene.landmarks || [];
+            const conns = scene.connections || [];
+            // Turn landmark occurrences in the description into clickable links.
+            let descHtml = escapeHtml(desc);
+            landmarks.forEach(lm => {
+                if (lm && descHtml.includes(escapeHtml(lm))) {
+                    descHtml = descHtml.split(escapeHtml(lm)).join(
+                        `<span class="link-obj" data-prefill="查看${escapeAttr(lm)}">${escapeHtml(lm)}</span>`);
+                }
+            });
+            const p = panelData.player || {};
+            const tick = p.tick || 0;
+            const shichenIdx = tick % 12;
+            const timeIcons = ['🌙','🌙','🌙','🌅','☀️','☀️','☀️','☀️','☀️','🌅','🌆','🌙'];
+            const weatherIcons = ['☀️','⛅','☁️','🌦️','🌧️','⛈️'];
+            const weatherIdx = (tick * 7 + 3) % 6;  // deterministic pseudo-random
+            const seasons = ['🌸春','🌸春','🌸春','🌻夏','🌻夏','🌻夏','🍂秋','🍂秋','🍂秋','❄️冬','❄️冬','❄️冬'];
+            const seasonIcon = seasons[(tick * 3) % 12];
+            let html = `<div class="panel-sec"><div class="panel-label">${seasonIcon} ${timeIcons[shichenIdx]} ${weatherIcons[weatherIdx]} ${escapeHtml(scene.name||'')} · ${escapeHtml(scene.atmosphere||'')}</div>`;
+            const activeQuest = (panelData.quests||[]).find(q => q.status === 'active');
+            const invCount = (p.inventory||[]).length;
+            const invColor = invCount >= 10 ? '#ff6b6b' : invCount >= 8 ? '#ffd700' : '#8a7aa8';
+            const dangerScenes = {'bamboo_forest':' ⚔','mountain_range':' ⚔','spirit_valley':' 💀','misty_lake':' 💀'};
+            const dangerIcon = dangerScenes[scene.id] || '';
+            html += `<div style="font-size:11px;color:#8a7aa8;margin-bottom:4px">💰${p.spirit_stones||0}灵石 | 🎒<span style="color:${invColor}">${invCount}/10</span>${dangerIcon}`;
+            if (activeQuest) html += ` | <span style="color:#9dd5ff">▶ ${escapeHtml(activeQuest.label)}</span>`;
+            html += `</div>`;
+            html += `<div class="scene-desc">${descHtml}</div></div>`;
+
+            // 在场人物 — present NPCs as interactable "搭话" tags, listed
+            // right after the scene description so people are the first
+            // interaction affordance in the persistent scene panel.
+            const presentNpcs = (panelData.npcs || []).filter(n => n.present);
+            html += '<div class="panel-sec"><div class="panel-label">在场人物</div>';
+            if (presentNpcs.length) {
+                presentNpcs.forEach(n => {
+                    const name = NPC_NAMES[n.id] || n.id;
+                    const role = NPC_ROLE[n.id] || '';
+                    const fav = n.favorability ?? 50;
+                    const moodIcon = fav >= 80 ? '❤️' : fav >= 60 ? '😊' : fav >= 30 ? '😐' : '😒';
+                    const favColors = {80:'#ff6b9d',60:'#7bc67e',30:'#b8a0d4'};
+                    const favColor = fav >= 80 ? favColors[80] : fav >= 60 ? favColors[60] : favColors[30];
+                    const label = role ? `${escapeHtml(name)} · ${escapeHtml(role)}` : escapeHtml(name);
+                    const hint = NPC_HINT[n.id] || '';
+                    const npcDefaultScenes = {'linwaner':'内门','chenhao':'集市','old_yang':'外门','medicine_elder':'灵药谷','lake_hermit':'雾隐湖'};
+                    const defScene = npcDefaultScenes[n.id];
+                    const locInfo = defScene && n.default_scene && n.default_scene !== (panelData.scene||{}).id ? `(常在${defScene})` : '';
+                    const activities = {'hopeful':'正在眺望远方','eager':'来回踱步','watchful':'静静注视来路','curious':'低头研究着什么','serene':'闭目养神','burdened':'眉头微蹙','grateful':'微笑着点头'};
+                    const activity = activities[fav >= 80 ? 'grateful' : fav >= 60 ? 'hopeful' : fav >= 30 ? 'curious' : 'watchful'] || '';
+                    html += `<div style="margin-bottom:4px"><span class="who-tag" data-prefill="和${escapeAttr(name)}搭话" title="好感度:${fav}${locInfo}" style="border-color:${favColor}">${moodIcon} ${label} · 搭话</span>`;
+                    if (hint || activity) html += `<div style="font-size:11px;color:#8a7aa8;margin:2px 0 0 4px">${escapeHtml(hint||activity)}${locInfo}</div>`;
+                    html += `</div>`;
+                });
+            } else {
+                html += '<span style="color:#8a7aa8;font-size:12px">四下无人</span>';
+
+            // Crafting recipes at valley
+            if (scene.id === 'spirit_valley') {
+                html += '<div class="panel-label" style="margin-top:8px">可炼制</div>';
+                ['聚气丹','解毒丹','洗髓丹'].forEach(r => {
+                    html += `<span class="obj-tag" data-prefill="炼制${escapeAttr(r)}" style="border-color:#7bc67e;color:#7bc67e">${escapeHtml(r)}</span>`;
+                });
+            }
+
+            // Scene resources / shop
+            if (scene.shop && scene.shop.length > 0) {
+                html += '<div class="panel-label" style="margin-top:8px">可购买</div>';
+                scene.shop.forEach(s => {
+                    html += `<span class="obj-tag" data-prefill="购买${escapeAttr(s.name)}" style="border-color:#ffd700;color:#ffd700">${escapeHtml(s.name)} (${s.price}灵石)</span>`;
+                });
+            }
+            }
+            html += '</div>';
+
+            html += '<div class="panel-sec"><div class="panel-label">可交互物件</div>';
+            landmarks.forEach(lm => {
+                html += `<span class="obj-tag" data-prefill="查看${escapeAttr(lm)}">${escapeHtml(lm)} · 查看</span>`;
+            });
+            if (!landmarks.length) html += '<span style="color:#8a7aa8;font-size:12px">无可交互物件</span>';
+            html += '</div>';
+
+            html += '<div class="panel-sec"><div class="panel-label">可前往</div>';
+            conns.forEach(cid => {
+                html += `<span class="move-tag" data-prefill="去${escapeAttr(SCENE_NAMES[cid]||cid)}">→ ${escapeHtml(SCENE_NAMES[cid]||cid)}</span>`;
+            });
+            if (!conns.length) html += '<span style="color:#8a7aa8;font-size:12px">无路可去</span>';
+            html += '</div>';
+
+            if (lastWorldEvent && lastWorldEvent.name) {
+                html += `<div class="panel-sec"><div class="panel-label">当前异象</div>`
+                     + `<div class="scene-desc" style="color:#9dd5ff">◈ ${escapeHtml(lastWorldEvent.name)}</div></div>`;
+            }
+            return html;
+        }
+        function renderMapPanel() {
+            const current = (panelData.scene && panelData.scene.id) || (panelData.player && panelData.player.current_scene);
+            // Reachable = scenes directly connected to the current scene.
+            // Prefer panelData.scene.connections (always present) over
+            // worldScenes so the map still works if /game/scenes hasn't
+            // loaded yet.
+            const conns = (panelData.scene && panelData.scene.connections) || [];
+            const reachable = new Set(conns);
+
+            // Fixed 2D layout reflecting scene adjacency:
+            //        集市
+            //         |
+            //   外门 — 内门 — 竹林 — 山脉
+            const NODES = [
+                {id: 'market',         x: 50,  y: 36,  icon: '集', name: '修士集市'},
+                {id: 'outer_gate',     x: 50,  y: 110, icon: '门', name: '青云门外门'},
+                {id: 'inner_gate',     x: 150, y: 110, icon: '阁', name: '青云门内门'},
+                {id: 'bamboo_forest',  x: 250, y: 110, icon: '竹', name: '幽竹林'},
+                {id: 'mountain_range', x: 350, y: 110, icon: '山', name: '妖兽山脉'},
+                {id: 'spirit_valley',  x: 200, y: 36,  icon: '谷', name: '灵药谷'},
+                {id: 'misty_lake',     x: 400, y: 36,  icon: '湖', name: '雾隐湖'},
+            ];
+            const byId = {};
+            NODES.forEach(n => byId[n.id] = n);
+            // Undirected edges (drawn once each).
+            const EDGES = [
+                ['market', 'outer_gate'],
+                ['outer_gate', 'inner_gate'],
+                ['inner_gate', 'bamboo_forest'],
+                ['bamboo_forest', 'mountain_range'],
+                ['bamboo_forest', 'spirit_valley'],
+                ['mountain_range', 'misty_lake'],
+            ];
+
+            const W = 400, H = 168;
+            let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;max-height:42vh;margin:4px 0">`;
+
+            // Edges first so nodes sit on top.
+            EDGES.forEach(([a, b]) => {
+                const A = byId[a], B = byId[b];
+                if (!A || !B) return;
+                svg += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="#6b3fa0" stroke-width="2" opacity="0.55"/>`;
+            });
+
+            // Nodes. Draw the current scene last so it sits on top of edges.
+            const ordered = NODES.slice().sort((a, b) => (a.id === current ? 1 : 0) - (b.id === current ? 1 : 0));
+            ordered.forEach(n => {
+                const here = n.id === current;
+                const reach = reachable.has(n.id);
+                let stroke = '#7b5ea7', fill = 'rgba(255,255,255,0.05)', opacity = 1, cursor = '', labelColor = '#b8a0d4', tag = '';
+                const dataAttr = (reach && !here) ? `data-prefill="去${escapeAttr(SCENE_NAMES[n.id] || n.id)}"` : '';
+                if (here) {
+                    stroke = '#9dd5ff'; fill = 'rgba(107,179,224,0.28)'; labelColor = '#9dd5ff'; tag = '你在此';
+                } else if (reach) {
+                    stroke = '#5a8a6a'; fill = 'rgba(90,138,106,0.20)'; labelColor = '#b8e6b8'; cursor = 'pointer'; tag = '前往';
+                } else {
+                    opacity = 0.4; tag = '远';
+                }
+                svg += `<g ${dataAttr} style="cursor:${cursor}" opacity="${opacity}">`;
+                if (here) {
+                    // subtle outer ring to mark the current location
+                    svg += `<circle cx="${n.x}" cy="${n.y}" r="29" fill="none" stroke="#9dd5ff" stroke-width="1" opacity="0.5"/>`;
+                }
+                svg += `<circle cx="${n.x}" cy="${n.y}" r="23" fill="${fill}" stroke="${stroke}" stroke-width="${here?3:2}"/>`;
+                svg += `<text x="${n.x}" y="${n.y+1}" text-anchor="middle" dominant-baseline="central" font-size="20" fill="#e8e0f5" style="pointer-events:none">${escapeHtml(n.icon)}</text>`;
+                svg += `<text x="${n.x}" y="${n.y-32}" text-anchor="middle" font-size="9" fill="${labelColor}" style="pointer-events:none">${escapeHtml(tag)}</text>`;
+                svg += `<text x="${n.x}" y="${n.y+40}" text-anchor="middle" font-size="10.5" fill="${here?'#9dd5ff':reach?'#b8e6b8':'#b8a0d4'}" style="pointer-events:none">${escapeHtml(n.name)}</text>`;
+                svg += `</g>`;
+            });
+            svg += `</svg>`;
+
+            let html = `<div class="panel-sec"><div class="panel-label">场景图谱（蓝=你在此 · 绿=可前往，点绿点即前往 · 暗=需经他处）</div>`;
+            html += svg;
+            // Current scene's landmarks, below the graph.
+            if (panelData.scene && panelData.scene.landmarks && panelData.scene.landmarks.length) {
+                html += `<div class="panel-label" style="margin-top:6px">所在场景地标</div><div style="font-size:12px;color:#b8a0d4">${panelData.scene.landmarks.map(escapeHtml).join(' · ')}</div>`;
+            }
+            html += '</div>';
+            return html;
+        }
+
+        // The opening line is shown once, on first status load, and must match
+        // the player's actual scene — never a hardcoded outer_gate string.
+        let introShown = false;
+        // Last shown 所务 label, so we only surface a "所务更新" line when it changes.
+        let lastGoalLabel = null;
+        let lastSceneId = null;
+        // Cycle input placeholder
+        const placeholders = ['输入你的行动...','修炼 探索 去...','攻击 搭话 帮助','使用物品 装备'];
+        let phIdx = 0;
+        setInterval(() => { const el = document.getElementById('user-input'); if (el && !el.value) { phIdx = (phIdx+1) % placeholders.length; el.placeholder = placeholders[phIdx]; } }, 4000);
+        let lastWorldEvent = null;
 
         async function updateStatus() {
             try {
                 const res = await fetch(`${API_URL}/player/status`);
                 const data = await res.json();
-                document.getElementById('p-loc').textContent = (data.scene && data.scene.name) || SCENE_NAMES[data.current_scene] || data.current_scene || '未知';
+                // Cache panel fields before status-bar updates so the drawer has
+                // fresh data even if it's open during a status refresh.
+                panelData = {
+                    scene: data.scene, npcs: data.npcs || [],
+                    quests: data.quests || [],
+                    nextQuest: data.next_quest || null,
+                    player: data,  // level/spirit/hp/max_hp/affinity/inventory/tick/next_threshold
+                };
+                const locEl = document.getElementById('p-loc');
+                locEl.textContent = (data.scene && data.scene.name) || SCENE_NAMES[data.current_scene] || data.current_scene || '未知';
+                const connNames = (data.scene && data.scene.connections) || [];
+                locEl.title = connNames.length ? '可前往：' + connNames.map(c => SCENE_NAMES[c]||c).join('、') : '';
+                document.getElementById('p-goal').textContent = (data.goal && data.goal.label) || '—';
+                if (data.goal && data.goal.label) lastGoalLabel = data.goal.label;
                 document.getElementById('p-level').textContent = data.level || '练气期一层';
                 document.getElementById('p-spirit').textContent = data.spirit_power ?? 0;
-                document.getElementById('p-hp').textContent = `${data.hp ?? 100}/${data.max_hp ?? 100}`;
+                const hpEl = document.getElementById('p-hp');
+            const hpPct2 = (data.hp ?? 100) / (data.max_hp ?? 100);
+            hpEl.textContent = `${data.hp ?? 100}/${data.max_hp ?? 100}`;
+            hpEl.style.color = hpPct2 < 0.3 ? '#ff6b6b' : hpPct2 < 0.6 ? '#ffd700' : '#fff';
                 document.getElementById('p-atk').textContent = data.attack ?? 0;
                 document.getElementById('p-def').textContent = data.defense ?? 0;
+                const wepB = data.weapon && Object.entries({'剑':5,'刀':4,'掌':3,'拳':2,'杖':3}).find(([k])=>data.weapon.includes(k));
+                const armB = data.armor && Object.entries({'袍':3,'甲':5,'衣':2,'铠':6,'盾':4}).find(([k])=>data.armor.includes(k));
+                document.getElementById('p-atk').title = wepB ? `基础:${data.attack-(wepB?wepB[1]:0)} + 武器${wepB?wepB[1]:0}` : '无武器加成';
+                document.getElementById('p-def').title = armB ? `基础:${data.defense-(armB?armB[1]:0)} + 防具${armB?armB[1]:0}` : '无防具加成';
+            const stones = data.spirit_stones ?? 0;
+            const stoneEl = document.getElementById('p-stones');
+            stoneEl.textContent = stones;
+            stoneEl.style.color = stones < 20 ? '#ff6b6b' : stones < 50 ? '#ffd700' : '#ffd700';
+            document.getElementById('p-tick-display').textContent = data.tick ?? 0;
+            // Update visited scenes count
+            const vEl = document.getElementById('p-visited');
+            if (vEl) vEl.textContent = `🏠${data.visited_count||0}/${SCENE_ALIASES ? Object.keys(SCENE_ALIASES).length : 7}`;
+            const t = data.tick || 0;
+            document.getElementById('p-playtime-display').textContent = t > 0 ? `${Math.floor(t/60)}h${t%60}m` : '';
+            const qs = data.quests || [];
+            const done = qs.filter(q => q.status === 'completed').length;
+            document.getElementById('p-quest-progress').textContent = `${done}/${qs.length}`;
+            const wep = data.weapon;
+            const arm = data.armor;
+            document.getElementById('p-weapon-display').style.display = wep ? 'inline' : 'none';
+            document.getElementById('p-armor-display').style.display = arm ? 'inline' : 'none';
+            const wepBonus = {'剑':5,'刀':4,'掌':3,'拳':2,'杖':3};
+            const armBonus = {'袍':3,'甲':5,'衣':2,'铠':6,'盾':4};
+            if (wep) {
+                document.getElementById('p-weapon').textContent = wep;
+                const wB = Object.entries(wepBonus).find(([k])=>wep.includes(k));
+                document.getElementById('p-weapon-display').title = wB ? `攻击+${wB[1]}` : '';
+            }
+            if (arm) {
+                document.getElementById('p-armor').textContent = arm;
+                const aB = Object.entries(armBonus).find(([k])=>arm.includes(k));
+                document.getElementById('p-armor-display').title = aB ? `防御+${aB[1]}` : '';
+            }
 
-                // Scene info: NPCs present and connections
-                const scene = data.scene;
-                const sceneInfoEl = document.getElementById('scene-info');
-                const npcsEl = document.getElementById('scene-npcs');
-                const connsEl = document.getElementById('scene-connections');
-                if (scene) {
-                    sceneInfoEl.style.display = 'block';
-                    if (scene.npcs_present && scene.npcs_present.length > 0) {
-                        npcsEl.innerHTML = '<span class="stat-label">在场</span> ' +
-                            scene.npcs_present.map(id => `<span class="scene-tag npc">${NPC_NAMES[id] || id}</span>`).join('');
-                    } else {
-                        npcsEl.innerHTML = '';
-                    }
-                    if (scene.connections && scene.connections.length > 0) {
-                        connsEl.innerHTML = '<span class="stat-label">通道</span> ' +
-                            scene.connections.map(id => `<span class="scene-tag conn">${SCENE_NAMES[id] || id}</span>`).join('');
-                    } else {
-                        connsEl.innerHTML = '';
-                    }
-                } else {
-                    sceneInfoEl.style.display = 'none';
-                }
+                // 在场人物 / 通道 live in the 地点 & 角色 panels — not duplicated
+                // in the top status bar (keeps the bar one compact row).
+                renderScenePanel();
+                // Hide loading screen
+                const ls = document.getElementById('loading-screen');
+                if (ls) { ls.style.opacity = '0'; ls.style.transition = 'opacity 0.5s'; setTimeout(() => ls.remove(), 600); }
+                maybeShowIntro(data);
+                renderActionChips();
+                document.getElementById('status-dot').style.background = '#7bc67e';
             } catch(e) {
+                document.getElementById('status-dot').style.background = '#ff6b6b';
                 console.error('Status update failed:', e);
             }
         }
 
+        // Auto-refresh status every 30 seconds
+        setInterval(updateStatus, 30000);
+
+        function maybeShowIntro(data) {
+            if (introShown) return;
+            introShown = true;
+            const scene = data.scene;
+            const sceneName = (scene && scene.name) || SCENE_NAMES[data.current_scene] || data.current_scene || '青云门外门';
+            const npcs = (scene && scene.npcs_present) || [];
+            const conns = (scene && scene.connections) || [];
+            // Hints reflect who is actually here and where the player can go.
+            const hints = [];
+            if (npcs.length) hints.push('和' + (NPC_NAMES[npcs[0]] || npcs[0]) + '说话');
+            conns.slice(0, 2).forEach(c => hints.push('去' + (SCENE_NAMES[c] || c)));
+            hints.push('修炼');
+            const hintStr = `你想做什么？（试试：${hints.join('、')}）`;
+            // Evocative cold-open only for a brand-new game at the outer gate;
+            // otherwise a scene-aware line so the intro never contradicts reality.
+            const prefix = (data.tick === 0 && data.current_scene === 'outer_gate')
+                ? '【系统】你睁开眼，发现自己正躺在柴房的硬板床上。四周弥漫着霉味，窗外传来师兄们练剑的呼喊声。'
+                : `【系统】你此刻身处${sceneName}，四下打量一番。`;
+            const el = document.createElement('div');
+            el.className = 'msg system';
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.textContent = prefix + hintStr;
+            el.appendChild(bubble);
+            const container = document.getElementById('chat-container');
+            // Show help tip on first load
+            const tipEl = document.createElement('div');
+            tipEl.className = 'msg system';
+            const tipBubble = document.createElement('div');
+            tipBubble.className = 'bubble';
+            tipBubble.style.fontSize = '12px';
+            tipBubble.style.color = '#b8a0d4';
+            tipBubble.textContent = '💡 输入"帮助"查看指令，或点击chip。快捷键: r=重复 Tab=补全 ↑↓=历史';
+            tipEl.appendChild(tipBubble);
+            container.appendChild(tipEl);
+            container.appendChild(el);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function playCombatSound(result, combo) {
+            if (!window.__soundOn) return;
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain); gain.connect(ctx.destination);
+                gain.gain.value = 0.08;
+                if (result === 'win') {
+                    if (combo >= 3) {
+                        osc.frequency.value = 523; osc.type = 'sine';
+                        setTimeout(() => { osc.frequency.value = 659; }, 80);
+                        setTimeout(() => { osc.frequency.value = 784; }, 160);
+                        setTimeout(() => { osc.frequency.value = 1047; }, 240);
+                        gain.gain.value = 0.12;
+                    } else {
+                        osc.frequency.value = 660; osc.type = 'sine';
+                        setTimeout(() => { osc.frequency.value = 880; }, 100);
+                    }
+                } else if (result === 'lose') { osc.frequency.value = 330; osc.type = 'sawtooth'; }
+                else { osc.frequency.value = 440; osc.type = 'triangle'; }
+                osc.start(); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+                osc.stop(ctx.currentTime + 0.4);
+            } catch(e) {}
+        }
+
         function addBattleCard(container, combat) {
+            playCombatSound(combat.result, combat.combo || 0);
+            if (combat.crit) {
+                const el = document.getElementById('chat-container');
+                el.style.transition = 'transform 0.05s';
+                el.style.transform = 'translate(3px, -2px)';
+                setTimeout(() => el.style.transform = 'translate(-2px, 1px)', 50);
+                setTimeout(() => el.style.transform = 'translate(1px, -1px)', 100);
+                setTimeout(() => el.style.transform = '', 150);
+            }
             const card = document.createElement('div');
             card.className = 'battle-card';
-            const resultClass = combat.result === 'win' ? 'win' : combat.result === 'lose' ? 'lose' : 'flee';
-            const resultText = combat.result === 'win' ? '胜' : combat.result === 'lose' ? '败' : '撤退';
+            const resultClass = combat.result === 'win' ? 'win'
+                : combat.result === 'lose' ? 'lose'
+                : combat.result === 'ongoing' ? 'ongoing' : 'flee';
+            const resultText = combat.result === 'win' ? '胜！'
+                : combat.result === 'lose' ? '败……'
+                : combat.result === 'ongoing' ? '交战中' : '撤退';
+            // Estimate max HP (30 for e1, 40 for e2, 50 for e3)
+            const estMaxHp = Math.max(combat.enemy_remaining_hp, combat.dmg_to_enemy + (combat.enemy_remaining_hp > 0 ? combat.enemy_remaining_hp : 0), 30);
+            const enemyHpPct = Math.max(0, Math.min(100, (combat.enemy_remaining_hp / estMaxHp) * 100));
+            const playerHpPct = Math.max(0, Math.min(100, (combat.player_remaining_hp / 100) * 100));
             card.innerHTML = `
-                <h3>⚔ ${combat.enemy}</h3>
-                <div class="battle-row"><span>造成伤害</span><span>${combat.dmg_to_enemy}</span></div>
-                <div class="battle-row"><span>受到伤害</span><span>${combat.dmg_to_player}</span></div>
-                <div class="battle-row"><span>敌方剩余</span><span>${combat.enemy_remaining_hp} HP</span></div>
-                <div class="battle-row"><span>我方剩余</span><span>${combat.player_remaining_hp} HP</span></div>
+                <h3 style="color:${combat.enemy==='赤眼妖狼'?'#7bc67e':combat.enemy==='毒鳞蟒'?'#ffd700':'#ff6b6b'}">${['毒鳞蟒','玄水龟'].includes(combat.enemy)?'💀':'⚔'} ${combat.enemy}</h3>
+                <div class="battle-row" style="color:#ff6b6b"><span>你造成</span><span style="font-size:18px;font-weight:bold">${combat.dmg_to_enemy}${combat.crit ? ' 💥暴击!' : ''}${combat.combo>1?' 🔥'+combat.combo+'连击':''}</span></div>
+                <div style="font-size:11px;color:#8a7aa8;margin:2px 0">敌方 ${combat.enemy_remaining_hp}/${estMaxHp} (${Math.round(enemyHpPct)}%)${combat.dmg_to_enemy>0?' ~'+Math.ceil(combat.enemy_remaining_hp/combat.dmg_to_enemy)+'击':''}</div>
+                <div class="bar" style="height:4px;background:rgba(255,107,107,0.2)"><i style="display:block;height:100%;background:${enemyHpPct>50?'#ff6b6b':enemyHpPct>25?'#ffd700':'#ff4444'};width:${enemyHpPct}%;border-radius:2px"></i></div>
+                <div class="battle-row" style="color:#6fb3a0;margin-top:6px"><span>你承受</span><span style="font-size:18px;font-weight:bold">${combat.dmg_to_player}${combat.dodge ? ' ✨闪避!' : ''}</span></div>
+                <div style="font-size:11px;color:#8a7aa8;margin:2px 0">我方 ${combat.player_remaining_hp}/100</div>
+                <div class="bar" style="height:4px;background:rgba(111,179,160,0.2)"><i style="display:block;height:100%;background:${playerHpPct>50?'#6fb3a0':playerHpPct>25?'#ffd700':'#ff6b6b'};width:${playerHpPct}%;border-radius:2px"></i></div>
+                <div style="font-size:10px;color:#8a7aa8;text-align:center;margin-top:2px">${enemyHpPct > playerHpPct + 10 ? '🔴 敌方占优' : playerHpPct > enemyHpPct + 10 ? '🟢 我方占优' : '⚪ 势均力敌'}</div>
                 <div class="battle-result ${resultClass}">${resultText}</div>
             `;
             container.appendChild(card);
+            // Low HP warning
+            if (combat.result !== 'win' && combat.player_remaining_hp < 30 && combat.player_remaining_hp > 0) {
+                const warn = document.createElement('div');
+                warn.style.cssText = 'font-size:11px;color:#ff6b6b;text-align:center;padding:4px;margin-top:2px';
+                warn.textContent = combat.player_remaining_hp < 15 ? '🚨 危险！气血即将耗尽，快使用丹药或撤退！' : '⚠️ 气血不足，建议休息或使用丹药。';
+                container.appendChild(warn);
+            }
         }
 
         function addBreakthroughMsg(container, bt) {
@@ -165,6 +870,43 @@
             container.appendChild(card);
         }
 
+        // Toast notification system
+        // Sound toggle (default on)
+        window.__soundOn = true;
+
+        // Simple notification beep using Web Audio API
+        function playBeep(freq, duration) {
+            if (!window.__soundOn) return;
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = freq;
+                gain.gain.value = 0.1;
+                osc.start();
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+                osc.stop(ctx.currentTime + duration);
+            } catch(e) { /* audio not available */ }
+        }
+
+        function showToast(text, type) {
+            const existing = document.querySelector('.toast-notification');
+            if (existing) existing.remove();
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification';
+            const colors = {'breakthrough':'#ffd700','item':'#7bc67e','favor':'#ff6b9d','quest':'#9dd5ff','default':'#b8a0d4'};
+            const color = colors[type] || colors.default;
+            const beeps = {'breakthrough':[880,0.3],'item':[660,0.15],'favor':[550,0.2],'default':[440,0.1]};
+            const [freq, dur] = beeps[type] || beeps.default;
+            playBeep(freq, dur);
+            toast.style.cssText = `position:fixed;top:12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#2d1b4e,#1a1a3e);border:1px solid ${color};color:${color};border-radius:12px;padding:10px 20px;font-size:14px;z-index:999;animation:fadeIn 0.3s ease;box-shadow:0 4px 20px rgba(0,0,0,0.5);max-width:90%;text-align:center;`;
+            toast.textContent = text;
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 3000);
+        }
+
         function updateFavorability(npc) {
             if (!npc) return;
             document.getElementById('npc-rel').style.display = 'inline';
@@ -174,10 +916,80 @@
             document.getElementById('favorability-fill').style.width = `${npc.favorability ?? 50}%`;
         }
 
+        function showEndingCard(ending, storyText) {
+            if (!ending) return;
+            const overlay = document.createElement('div');
+            overlay.className = 'ending-overlay';
+            overlay.innerHTML = `
+                <div class="ending-card">
+                    <h1>${ending.name || ''}</h1>
+                    <div class="subtitle">旅程落幕</div>
+                    <div class="ending-story">${storyText || ''}</div>
+                    <button class="ending-btn" onclick="location.reload()">重新开始</button>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function escapeAttr(s) {
+            // For text embedded in an HTML attribute (e.g. inside onclick="...").
+            // escapeHtml covers &<> for text content; attributes also need quotes
+            // escaped so a value can't break out of the attribute or the JS string.
+            return escapeHtml(s == null ? '' : String(s)).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+        }
+
+        // Incrementally decode the `story` string value from the streaming
+        // response JSON (which is sent as {"story":"<streamed>", ...rest}).
+        // Mirrors dm/contract.extract_story_so_far so the client can render
+        // the narrative live, before the full object arrives. A trailing
+        // incomplete escape is withheld so we never show a half-decoded char.
+        function extractStorySoFar(text) {
+            const key = '"story"';
+            const idx = text.indexOf(key);
+            if (idx === -1) return '';
+            let i = idx + key.length;
+            const n = text.length;
+            while (i < n && ' \t\n\r'.includes(text[i])) i++;
+            if (i >= n || text[i] !== ':') return '';
+            i++;
+            while (i < n && ' \t\n\r'.includes(text[i])) i++;
+            if (i >= n || text[i] !== '"') return '';
+            i++; // past opening quote
+            let out = '';
+            while (i < n) {
+                const c = text[i];
+                if (c === '\\') {
+                    if (i + 1 >= n) break; // incomplete escape — withhold
+                    const nxt = text[i + 1];
+                    if (nxt === '"') { out += '"'; i += 2; }
+                    else if (nxt === '\\') { out += '\\'; i += 2; }
+                    else if (nxt === '/') { out += '/'; i += 2; }
+                    else if (nxt === 'n') { out += '\n'; i += 2; }
+                    else if (nxt === 't') { out += '\t'; i += 2; }
+                    else if (nxt === 'r') { out += '\r'; i += 2; }
+                    else if (nxt === 'b') { out += '\b'; i += 2; }
+                    else if (nxt === 'f') { out += '\f'; i += 2; }
+                    else if (nxt === 'u') {
+                        if (i + 6 > n) break; // incomplete \uXXXX — withhold
+                        const hex = text.substring(i + 2, i + 6);
+                        if (!/^[0-9a-fA-F]{4}$/.test(hex)) { i += 2; continue; }
+                        out += String.fromCharCode(parseInt(hex, 16));
+                        i += 6;
+                    } else { out += nxt; i += 2; }
+                } else if (c === '"') {
+                    break; // closing quote — story complete
+                } else {
+                    out += c;
+                    i++;
+                }
+            }
+            return out;
         }
 
         async function sendAction() {
@@ -185,6 +997,7 @@
             const text = inputEl.value.trim();
             if (!text) return;
             inputEl.value = '';
+            inputEl.focus();
 
             const container = document.getElementById('chat-container');
 
@@ -199,7 +1012,8 @@
             aiMsgEl.className = 'msg system';
             const aiBubbleEl = document.createElement('div');
             aiBubbleEl.className = 'bubble';
-            aiBubbleEl.innerText = '正在思考...';
+            aiBubbleEl.innerHTML = '正在思考<span class="typing-dots"><span>.</span><span>.</span><span>.</span></span>';
+            (function(){if(!document.getElementById('typing-style')){var s=document.createElement('style');s.id='typing-style';s.textContent='.typing-dots span{animation:blink 1.4s infinite both}.typing-dots span:nth-child(2){animation-delay:0.2s}.typing-dots span:nth-child(3){animation-delay:0.4s}@keyframes blink{0%{opacity:0}50%{opacity:1}100%{opacity:0}}';document.head.appendChild(s);}})();
             aiMsgEl.appendChild(aiBubbleEl);
             container.appendChild(aiMsgEl);
             container.scrollTop = container.scrollHeight;
@@ -208,7 +1022,7 @@
                 const response = await fetch(`${API_URL}/game/action`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_input: text })
+                    body: JSON.stringify({ user_input: text, offline_directive: (document.getElementById('offline-directive')?.value || '闭关') })
                 });
 
                 const reader = response.body.getReader();
@@ -219,7 +1033,11 @@
                     const { value, done } = await reader.read();
                     if (done) break;
                     fullText += decoder.decode(value, { stream: true });
-                    aiBubbleEl.innerText = fullText;
+                    // The backend streams {"story":"<text>", ...}. Show the
+                    // narrative live as it arrives; keep the placeholder until
+                    // the story field starts.
+                    const liveStory = extractStorySoFar(fullText);
+                    aiBubbleEl.innerText = liveStory || '正在思考...';
                     container.scrollTop = container.scrollHeight;
                 }
 
@@ -231,19 +1049,42 @@
                     // Show story text (fallback if empty)
                     aiBubbleEl.innerText = result.story || '（你的行动似乎没有引起什么变化……）';
 
+                    // Show last action in status bar
+                    const lastAct = document.getElementById('p-last-action');
+                    if (lastAct) {
+                        lastAct.style.display = 'inline';
+                        lastAct.textContent = `「${text.slice(0, 12)}${text.length>12?'…':''}」`;
+                        setTimeout(() => { lastAct.style.display = 'none'; }, 8000);
+                    }
+
                     // Show battle card if combat
                     if (result.combat) {
+                        if (result.combat.dmg_to_enemy > 0 || result.combat.dmg_to_player > 0) {
+                            const engage = document.createElement('div');
+                            engage.className = 'msg system';
+                            const eb = document.createElement('div');
+                            eb.className = 'bubble';
+                            eb.style.cssText = 'font-size:12px;color:#ff6b6b;text-align:center;background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.3)';
+                            eb.textContent = `⚔ 遭遇了${result.combat.enemy}！`;
+                            engage.appendChild(eb);
+                            container.appendChild(engage);
+                        }
                         addBattleCard(container, result.combat);
                     }
 
                     // Show breakthrough if present
                     if (result.breakthrough) {
                         addBreakthroughMsg(container, result.breakthrough);
+                        showToast(`✨ 突破！${result.breakthrough.to}`, 'breakthrough');
                     }
 
                     // Show world event if present
                     if (result.world_event) {
                         addWorldEvent(container, result.world_event);
+                        lastWorldEvent = result.world_event;
+                        if (result.world_event.name) {
+                            showToast(`🌍 ${result.world_event.name}`, 'quest');
+                        }
                     }
 
                     // Show intervention options if present
@@ -251,16 +1092,138 @@
                         addIntervention(container, result.intervention);
                     }
 
+                    // Show offline catch-up card if present
+                    if (result.offline_summary) {
+                        const card = document.createElement('div');
+                        card.className = 'world-event';
+                        card.textContent = result.offline_summary;
+                        container.insertBefore(card, container.firstChild);
+                    }
+
+                    // Show scene entry NPC description
+                    if (result.scene && result.scene.npcs_present && result.scene.npcs_present.length > 0 && result.player && result.player.current_scene) {
+                        const npcMap = {'linwaner':'林婉儿','chenhao':'陈浩','old_yang':'杨老','medicine_elder':'药老','lake_hermit':'湖隐'};
+                        const names = result.scene.npcs_present.map(id => npcMap[id]||id).join('、');
+                        const entryCard = document.createElement('div');
+                        entryCard.className = 'world-event';
+                        entryCard.style.borderLeftColor = '#b8a0d4';
+                        entryCard.textContent = `在此处的有：${names}。`;
+                        container.appendChild(entryCard);
+                    }
+
+                    // Quest completion celebration
+                    if (result.quests && result.quests.length > 0 && result.quests.every(q => q.status === 'completed') && result.player && result.player.tick > 1) {
+                        playBeep(1047, 0.15); setTimeout(() => playBeep(1319, 0.2), 150);
+                        const cel = document.createElement('div');
+                        cel.className = 'world-event';
+                        cel.style.borderColor = '#ffd700';
+                        cel.style.background = 'linear-gradient(135deg,#2d2a1a,#3a2a1a)';
+                        cel.style.color = '#ffd700';
+                        cel.textContent = '✨ 所有所务已完成！继续探索世界，或在20回合后触发结局。';
+                        container.appendChild(cel);
+                    }
+
+                    // Show help message
+                    if (result.help) {
+                        const card = document.createElement('div');
+                        card.className = 'battle-card';
+                        card.style.borderColor = '#ffd700';
+                        card.innerHTML = '<h3 style="color:#ffd700">📖 帮助</h3><pre style="color:#e0d0f0;font-size:12px;line-height:1.8;white-space:pre-wrap;margin:0">'+escapeHtml(result.help)+'</pre>';
+                        container.appendChild(card);
+                    }
+
+                    // Refresh status bar after equipment changes
+                    if (result.item_use && (result.item_use.includes('装备') || result.item_use.includes('卸下'))) {
+                        updateStatus();
+                    }
+
+                    // Show item messages (use or inspect)
+                    const itemMsg = result.item_use || result.item_inspect;
+                    if (itemMsg) {
+                        const card = document.createElement('div');
+                        card.className = 'world-event';
+                        card.textContent = itemMsg;
+                        container.appendChild(card);
+                        if (result.item_use && result.item_use.includes('好感度')) {
+                            showToast(result.item_use.split('[')[0], 'favor');
+                        }
+                    }
+
+                    // Show scene transition message with atmosphere
+                    const newScene = result.scene && result.scene.id;
+                    if (newScene && lastSceneId && newScene !== lastSceneId) {
+                        const atmosphereLines = {
+                            '清幽': '四周静谧，灵气如丝如缕。',
+                            '庄严': '殿宇巍峨，威严肃穆。',
+                            '神秘': '薄雾轻笼，暗藏着什么秘密。',
+                            '繁忙': '人声鼎沸，热闹非凡。',
+                            '危险': '空气中弥漫着肃杀之气……',
+                            '幽静': '鸟鸣山更幽，心静自然凉。',
+                            '缥缈': '水天一色，如在画中游。',
+                        };
+                        const atmLine = atmosphereLines[result.scene.atmosphere] || '';
+                        const sceneHints = {'outer_gate':'有练功场可练习','inner_gate':'师姐常在此处','bamboo_forest':'有妖兽出没','market':'可买卖物品','mountain_range':'危险区域','spirit_valley':'药老在此隐居','misty_lake':'湖边隐士常住'};
+                        const hint = sceneHints[result.scene.id] ? ` (${sceneHints[result.scene.id]})` : '';
+                        const travMsg = document.createElement('div');
+                        travMsg.className = 'msg system';
+                        const tb = document.createElement('div');
+                        tb.className = 'bubble';
+                        tb.style.fontSize = '12px';
+                        tb.style.color = '#9dd5ff';
+                        tb.style.animation = 'fadeIn 0.5s ease';
+                        tb.textContent = `🚶 你来到了${result.scene.name}。${atmLine}${hint}`;
+                        travMsg.appendChild(tb);
+                        container.insertBefore(travMsg, container.firstChild.nextSibling);
+                    }
+                    if (newScene) lastSceneId = newScene;
+
+                    // Show ending card if world is sealed
+                    if (result.ending) {
+                        showEndingCard(result.ending, result.story);
+                    }
+
+                    // Surface a 所务 (objective) update line when the goal advances.
+                    if (result.goal && result.goal.label && result.goal.label !== lastGoalLabel) {
+                        const goalEl = document.createElement('div');
+                        goalEl.className = 'msg system';
+                        const goalBubble = document.createElement('div');
+                        goalBubble.className = 'bubble';
+                        goalBubble.textContent = `【所务】${result.goal.label}`;
+                        goalEl.appendChild(goalBubble);
+                        container.appendChild(goalEl);
+                        lastGoalLabel = result.goal.label;
+                    }
+
                     // Update favorability if NPC data present
                     if (result.npc) {
                         updateFavorability(result.npc);
                     }
+
+                    // Refresh panel cache from the action response so an open
+                    // drawer updates live without waiting for status re-fetch.
+                    // Action response nests player stats under result.player
+                    // (name/current_scene/tick/level/spirit_power/hp/max_hp/
+                    // attack/defense) but omits affinity/inventory/next_threshold,
+                    // so those fall back to the cached panelData.player values.
+                    panelData = {
+                        scene: result.scene || panelData.scene,
+                        npcs: result.npcs || panelData.npcs,
+                        quests: result.quests || panelData.quests,
+                        nextQuest: result.next_quest || null,
+                        player: Object.assign({}, panelData.player, result.player || {}, {
+                            // keep next_threshold from last status; action resp lacks it
+                            next_threshold: panelData.player && panelData.player.next_threshold,
+                        }),
+                    };
+                    if (currentDrawer) renderDrawer(currentDrawer);
+                    renderScenePanel();
 
                     // Update status bar
                     await updateStatus();
 
                 } catch(e) {
                     // Fallback: show raw text
+                    aiBubbleEl.innerText = fullText || '（传信飞鸽迷路了……）';
                     console.log('JSON parse failed, showing raw text', e);
                 }
 
@@ -269,12 +1232,107 @@
             }
         }
 
-        // Handle Enter key
+        // Show/hide scroll-to-bottom button on chat scroll
+        document.getElementById('chat-container').addEventListener('scroll', function() {
+            const btn = document.getElementById('scroll-bottom');
+            const el = this;
+            btn.style.display = el.scrollHeight - el.scrollTop - el.clientHeight > 100 ? 'block' : 'none';
+        });
+
+        // Tab completion for common commands
+        const TAB_COMMANDS = ['修炼', '探索', '战斗', '帮助', '打坐', '攻击', '查看', '使用', '装备', '卸下', '购买', '出售', '炼制', '丢弃', '休息', '疗伤', '去内门', '去外门', '去集市', '去竹林', '去山脉', '去山谷', '去湖边', '和婉儿搭话', '和师兄搭话', '和杨老搭话'];
+        let tabIdx = -1;
+
+        // Input history for Up arrow recall
+        let inputHistory = [];
+        let historyIdx = -1;
         document.getElementById('user-input').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') sendAction();
+            const input = this;
+            if (e.key === 'Enter') {
+                const val = input.value.trim();
+                if (val && (!inputHistory.length || inputHistory[inputHistory.length-1] !== val)) {
+                    inputHistory.push(val);
+                }
+                historyIdx = inputHistory.length;
+                sendAction();
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                const partial = input.value.trim().toLowerCase();
+                const matches = TAB_COMMANDS.filter(c => c.includes(partial) || partial.includes(c));
+                if (matches.length > 0) {
+                    tabIdx = (tabIdx + 1) % matches.length;
+                    input.value = matches[tabIdx];
+                }
+            } else {
+                tabIdx = -1;  // reset tab completion on any other key
+                if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (historyIdx > 0) {
+                    historyIdx--;
+                    input.value = inputHistory[historyIdx];
+                }
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (historyIdx < inputHistory.length - 1) {
+                    historyIdx++;
+                    input.value = inputHistory[historyIdx];
+                } else {
+                    historyIdx = inputHistory.length;
+                    input.value = '';
+                }
+            } else if (e.key === 'm' && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.target === input) {
+                e.preventDefault(); openDrawer('map');
+            } else if (e.key === 'i' && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.target === input) {
+                e.preventDefault();
+                const inv = (panelData.player && panelData.player.inventory) || [];
+                if (inv.length > 0) input.value = '查看' + inv[0];
+                else input.value = '查看';
+                sendAction();
+            } else if (e.key === 'h' && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.target === input) {
+                e.preventDefault();
+                input.value = '帮助';
+                sendAction();
+            } else if (e.key === 'c' && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.target === input) {
+                e.preventDefault();
+                input.value = '修炼';
+                sendAction();
+            } else if (e.key === 'f' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                e.preventDefault();
+                input.value = '攻击';
+                sendAction();
+            } else if (e.key === 'r' && !e.ctrlKey && !e.metaKey && inputHistory.length > 0) {
+                input.value = inputHistory[inputHistory.length - 1];
+                historyIdx = inputHistory.length;
+                sendAction();
+            } else if (e.key === 'Escape') {
+                input.value = '';
+                input.blur();
+            }
+        });
+
+        // Delegated handler for panel prefill clicks. Panel HTML uses
+        // data-prefill="..." (attribute-escaped via escapeAttr) instead of inline
+        // onclick, so a prefill value containing a quote can't break out of a
+        // nested JS string. data-focus="1" requests input focus.
+        document.addEventListener('click', function(e) {
+            const el = e.target.closest('[data-prefill]');
+            if (!el) return;
+            const val = el.getAttribute('data-prefill') || '';
+            prefill(val, el.getAttribute('data-focus') === '1');
+            // Double-click auto-sends the action
+            if (e.detail >= 2 && val) {
+                document.getElementById('user-input').value = val;
+                sendAction();
+                return;
+            }
+            // Close the drawer so the prefilled input is visible and ready to
+            // send — otherwise the drawer (z-index 21) covers the input bar
+            // and the click looks like it did nothing.
+            if (currentDrawer) closeDrawer();
         });
 
         // Initial status load
+        loadWorldScenes();
         updateStatus();
     </script>
 </body>
