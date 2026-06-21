@@ -755,6 +755,17 @@
                         container.insertBefore(card, container.firstChild);
                     }
 
+                    // Show scene entry NPC description
+                    if (result.scene && result.scene.npcs_present && result.scene.npcs_present.length > 0 && result.player && result.player.current_scene) {
+                        const npcMap = {'linwaner':'林婉儿','chenhao':'陈浩','old_yang':'杨老','medicine_elder':'药老','lake_hermit':'湖隐'};
+                        const names = result.scene.npcs_present.map(id => npcMap[id]||id).join('、');
+                        const entryCard = document.createElement('div');
+                        entryCard.className = 'world-event';
+                        entryCard.style.borderLeftColor = '#b8a0d4';
+                        entryCard.textContent = `在此处的有：${names}。`;
+                        container.appendChild(entryCard);
+                    }
+
                     // Show item messages (use or inspect)
                     const itemMsg = result.item_use || result.item_inspect;
                     if (itemMsg) {
