@@ -937,9 +937,37 @@
             btn.style.display = el.scrollHeight - el.scrollTop - el.clientHeight > 100 ? 'block' : 'none';
         });
 
-        // Handle Enter key
+        // Input history for Up arrow recall
+        let inputHistory = [];
+        let historyIdx = -1;
         document.getElementById('user-input').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') sendAction();
+            const input = this;
+            if (e.key === 'Enter') {
+                const val = input.value.trim();
+                if (val && (!inputHistory.length || inputHistory[inputHistory.length-1] !== val)) {
+                    inputHistory.push(val);
+                }
+                historyIdx = inputHistory.length;
+                sendAction();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (historyIdx > 0) {
+                    historyIdx--;
+                    input.value = inputHistory[historyIdx];
+                }
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (historyIdx < inputHistory.length - 1) {
+                    historyIdx++;
+                    input.value = inputHistory[historyIdx];
+                } else {
+                    historyIdx = inputHistory.length;
+                    input.value = '';
+                }
+            } else if (e.key === 'Escape') {
+                input.value = '';
+                input.blur();
+            }
         });
 
         // Delegated handler for panel prefill clicks. Panel HTML uses
