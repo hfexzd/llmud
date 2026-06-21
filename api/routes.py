@@ -506,6 +506,12 @@ def create_router(
             else:
                 _response_extras[0] = "你独自品茶，若有所思。"
 
+        # Paper folding at inner_gate
+        if "折纸" in filtered_input and player.current_scene == "inner_gate":
+            new_inv = list(player.inventory or []) + ["纸鹤"]
+            player = player.model_copy(update={"inventory": new_inv})
+            _response_extras[0] = "你折了一只纸鹤，栩栩如生。获得【纸鹤】。"
+
         # Scroll writing at inner_gate
         if "写字" in filtered_input and player.current_scene == "inner_gate":
             new_inv = list(player.inventory or []) + ["书法"]
