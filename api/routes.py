@@ -346,6 +346,30 @@ def create_router(
                         npc_repo.update_favorability(target.id, new_fav, new_stage)
                         gift_message = f"你将{item_name}送给了{target.name}。[好感度+{gift_value}]"
 
+        # Help system
+        help_message = None
+        if filtered_input in ("帮助", "help", "？", "?"):
+            help_message = (
+                "【基本指令】\n"
+                "• 修炼 — 提升灵力\n"
+                "• 探索 — 探索当前场景\n"
+                "• 战斗 — 与敌人战斗\n"
+                "• 去[地名] — 移动到其他场景\n"
+                "• 和[人名]搭话 — 与NPC交谈\n\n"
+                "【物品】\n"
+                "• 使用[物品] — 使用消耗品\n"
+                "• 查看[物品] — 查看物品详情\n"
+                "• 装备[物品] — 装备武器/防具\n"
+                "• 卸下[物品] — 卸下装备\n"
+                "• 给[人名][物品] — 赠送礼物\n\n"
+                "【交易/炼制】\n"
+                "• 购买[物品] — 在集市购买\n"
+                "• 出售[物品] — 出售物品\n"
+                "• 炼制[丹药] — 在灵药谷炼丹\n\n"
+                "【其他】\n"
+                "• 帮助 — 显示此帮助"
+            )
+
         # Item inspection: if input contains "查看" + item name, show description
         item_inspect_message = None
         if "查看" in filtered_input and not item_use_message:
@@ -937,6 +961,10 @@ def create_router(
             # Surface craft message
             if craft_message:
                 rest["item_use"] = craft_message
+
+            # Surface help message
+            if help_message:
+                rest["help"] = help_message
 
             # Add intervention info to response
             if intervention:

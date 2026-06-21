@@ -818,6 +818,15 @@
                         container.appendChild(entryCard);
                     }
 
+                    // Show help message
+                    if (result.help) {
+                        const card = document.createElement('div');
+                        card.className = 'battle-card';
+                        card.style.borderColor = '#ffd700';
+                        card.innerHTML = '<h3 style="color:#ffd700">📖 帮助</h3><pre style="color:#e0d0f0;font-size:12px;line-height:1.8;white-space:pre-wrap;margin:0">'+escapeHtml(result.help)+'</pre>';
+                        container.appendChild(card);
+                    }
+
                     // Show item messages (use or inspect)
                     const itemMsg = result.item_use || result.item_inspect;
                     if (itemMsg) {
