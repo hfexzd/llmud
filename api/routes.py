@@ -10,7 +10,7 @@ from dm.client import LLMClient
 from dm.contract import parse_dm_response, extract_story_so_far
 from dm.prompt import build_dm_prompt
 from engine.classify import classify_intent, classify_intent_llm, resolve_npc_target
-from engine.models import Intent, Player, Encounter, DEFAULT_ENCOUNTER, NPCInteraction, EventTrigger, WorldEvent, SCENE_MAP, next_spirit_threshold, DMResponse, WorldState, PHASE_0_BIBLE, SHOP_ITEMS, shop_list
+from engine.models import Intent, Player, Encounter, DEFAULT_ENCOUNTER, NPCInteraction, EventTrigger, WorldEvent, SCENE_MAP, next_spirit_threshold, DMResponse, WorldState, PHASE_0_BIBLE, SHOP_ITEMS, shop_list, CRAFT_RECIPES, craft_possible
 from engine.rules import cultivate, resolve_combat, check_breakthrough, compute_attack, compute_defense, move
 from engine.world import WorldEngine, npc_step, tension_tick, apply_world_delta
 from db.repository import PlayerRepository, NPCRepository, WorldRepository
@@ -399,6 +399,22 @@ def create_router(
                     slot_name = "武器" if slot == "weapon" else "防具"
                     equip_message = f"卸下了{current}（{slot_name}栏已空）"
                     break
+
+        # Alchemy: craft items at spirit_valley
+        craft_message = None
+        if "炼制" in filtered_input and player.current_scene == "spirit_valley":
+            craftable = craft_possible("spirit_valley", player.inventory or [])
+            for recipe in craftable:
+                if recipe["name"] in filtered_input:
+                    new_inv = list(player.inventory)
+                    for ing in recipe["ingredients"]:
+                        new_inv.remove(ing)
+                    new_inv.append(recipe["result"])
+                    player = player.model_copy(update={"inventory": new_inv})
+                    craft_message = f"炼制了{recipe['result']}！"
+                    break
+            if not craft_message:
+                craft_message = "材料不足，无法炼制。"
 
         # Buy/sell at market
         shop_message = None
@@ -917,6 +933,10 @@ def create_router(
             # Surface shop message
             if shop_message:
                 rest["item_use"] = shop_message
+
+            # Surface craft message
+            if craft_message:
+                rest["item_use"] = craft_message
 
             # Add intervention info to response
             if intervention:

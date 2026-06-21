@@ -1118,6 +1118,43 @@ def shop_list(scene_id: str) -> list[dict]:
     return [s for s in SHOP_ITEMS if s["scene"] == scene_id]
 
 
+# Alchemy/crafting recipes (combined at spirit_valley with medicine_elder)
+CRAFT_RECIPES: list[dict] = [
+    {"name": "聚气丹", "ingredients": ["凝露草", "凝露草"], "result": "聚气丹", "scene": "spirit_valley"},
+    {"name": "解毒丹", "ingredients": ["灵草", "灵芝"], "result": "解毒丹", "scene": "spirit_valley"},
+    {"name": "洗髓丹", "ingredients": ["蛇胆", "灵芝"], "result": "洗髓丹", "scene": "spirit_valley",
+     "effect": "永久提升灵力上限", "rarity": "灵"},
+]
+
+# Add洗髓丹 to items if not already there (for the crafting result)
+if not any(i.id == "marrow_pill" for i in PHASE_0_BIBLE.items):
+    PHASE_0_BIBLE.items.append(ItemSpec(
+        id="marrow_pill", name="洗髓丹", kind="丹药", rarity="灵",
+        effect="永久提升灵力",
+        source=["灵药谷（炼制）"], axis="成长",
+        lore="以蛇胆与灵芝炼制的珍稀丹药，可洗筋伐髓、拓展经脉。",
+    ))
+
+
+def craft_possible(scene_id: str, inventory: list[str]) -> list[dict]:
+    """Return craftable recipes given current scene and inventory."""
+    results = []
+    for r in CRAFT_RECIPES:
+        if r["scene"] != scene_id:
+            continue
+        inv_copy = list(inventory)
+        can_craft = True
+        for ing in r["ingredients"]:
+            if ing in inv_copy:
+                inv_copy.remove(ing)
+            else:
+                can_craft = False
+                break
+        if can_craft:
+            results.append(r)
+    return results
+
+
 # --- Terminal Archetypes (M4 ending system) ---
 
 class TerminalArchetype(BaseModel):
