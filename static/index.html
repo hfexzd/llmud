@@ -206,11 +206,21 @@
         // interaction. Reuses renderPlacePanel() so the persistent panel and
         // the (now-removed) 地点 drawer stay in sync. Tags use data-prefill
         // so the global delegated handler fills the input without auto-sending.
+        // Scene atmosphere background colors
+        const ATMOSPHERE_COLORS = {
+            '清幽': '#1a1a2e', '庄严': '#1a1a3e', '神秘': '#1a2a1a',
+            '繁忙': '#2a1a1a', '危险': '#2a1a1a', '幽静': '#1a2a2a', '缥缈': '#1a1a3e'
+        };
+
         function renderScenePanel() {
             const panel = document.getElementById('scene-panel');
             if (!panel) return;
             panel.innerHTML = renderPlacePanel();
             renderActionChips();
+            // Set panel background based on scene atmosphere
+            const scene = panelData.scene || {};
+            const bgColor = ATMOSPHERE_COLORS[scene.atmosphere] || '#1b1430';
+            panel.style.background = `linear-gradient(135deg, ${bgColor}, #1b1430)`;
         }
         // Contextual action chips — scene-specific quick actions
         function renderActionChips() {
