@@ -428,7 +428,10 @@ def create_router(
                         else:
                             gift_message = f"你将{item_name}送给了{target.name}。[好感度+{gift_value}]"
                         new_fav = min(100, cur_fav + gift_value)
+                        old_stage = profile_row.get("relationship_stage", "陌生")
                         new_stage = compute_relationship_stage(new_fav)
+                        if new_stage != old_stage and _response_extras:
+                            _response_extras[0] = (_response_extras[0] or "") + f" 与{target.name}的关系提升为【{new_stage}】！"
                         npc_repo.update_favorability(target.id, new_fav, new_stage)
 
         # Bribery: give spirit stones to NPC
@@ -440,7 +443,10 @@ def create_router(
                 if profile_row:
                     cur_fav = profile_row.get("favorability", 50)
                     new_fav = min(100, cur_fav + 5)
+                    old_stage = profile_row.get("relationship_stage", "陌生")
                     new_stage = compute_relationship_stage(new_fav)
+                    if new_stage != old_stage and _response_extras:
+                        _response_extras[0] = (_response_extras[0] or "") + f" 与{bribe_target.name}的关系提升为【{new_stage}】！"
                     npc_repo.update_favorability(bribe_target.id, new_fav, new_stage)
                     player = player.model_copy(update={"spirit_stones": player.spirit_stones - 10})
                     _response_extras[0] = f"你给了{bribe_target.name}10灵石。[好感度+5]"
