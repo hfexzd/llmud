@@ -504,6 +504,19 @@ def create_router(
             player = player.model_copy(update={"auto_loot": not player.auto_loot})
             _response_extras[0] = f"自动拾取已{'开启' if player.auto_loot else '关闭'}。"
 
+        # Social interaction
+        if "挥手" in filtered_input or "打招呼" in filtered_input:
+            from engine.models import ALL_NPC_PROFILES as _SOCIAL_NPCS
+            social_target = next((p for p in _SOCIAL_NPCS if p.name in filtered_input), None)
+            if social_target:
+                profile_row = npc_repo.get_profile(social_target.id)
+                if profile_row:
+                    cur_fav = profile_row.get("favorability", 50)
+                    new_fav = min(100, cur_fav + 1)
+                    new_stage = compute_relationship_stage(new_fav)
+                    npc_repo.update_favorability(social_target.id, new_fav, new_stage)
+                    _response_extras[0] = f"你向{social_target.name}挥了挥手。（好感度+1）"
+
         # Fun commands
         if filtered_input == "抛硬币":
             import random as _coin
