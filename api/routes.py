@@ -426,6 +426,12 @@ def create_router(
             player = player.model_copy(update={"spirit_stones": player.spirit_stones - 3, "spirit_power": player.spirit_power + 1})
             _response_extras[0] = "你在酒馆小酌一杯，灵力略微提升（灵力+1，花费3灵石）。"
 
+        # Stargazing at misty_lake
+        if "观星" in filtered_input and player.current_scene == "misty_lake":
+            gain = 2
+            player = player.model_copy(update={"spirit_power": player.spirit_power + gain})
+            _response_extras[0] = f"你在湖边仰望星空，心旷神怡（灵力+{gain}）。"
+
         # Fishing at misty_lake
         if "钓鱼" in filtered_input and player.current_scene == "misty_lake":
             import random as _rand

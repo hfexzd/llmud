@@ -304,7 +304,7 @@
             // Meditation at inner_gate
             if (scene.id === 'inner_gate') chips.push('冥想');
             // Fishing at misty_lake
-            if (scene.id === 'misty_lake') chips.push('钓鱼');
+            if (scene.id === 'misty_lake') { chips.push('钓鱼'); chips.push('观星'); }
 
             // Items — suggest healing items when low HP, otherwise first item
             const hpPct3 = (p.hp||100) / (p.max_hp||100);
