@@ -372,6 +372,14 @@ def create_router(
             if heal > 0:
                 player = player.model_copy(update={"hp": player.hp + heal})
                 _response_extras[0] = f"你休息片刻，恢复了{heal}点气血。"
+                # Auto-use healing items if HP very low
+                if player.hp < player.max_hp * 0.3 and player.inventory:
+                    for healing_item in ["凝露草", "灵鱼"]:
+                        if healing_item in (player.inventory or []):
+                            from engine.rules import use_item
+                            player, msg = use_item(player, healing_item)
+                            _response_extras[0] += f" 自动使用了{healing_item}。"
+                            break
             else:
                 _response_extras[0] = "你精神饱满，无需休息。"
 
