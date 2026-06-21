@@ -276,7 +276,7 @@
             const actToggle2 = document.getElementById('action-toggle');
             const sceneLabel = `场景 · ${scene.name||''} · ${scene.atmosphere||''}`;
             if (panel2 && toggle2) {
-                toggle2.innerHTML = panel2.classList.contains('collapsed') ? '&#9654; ' + sceneLabel : '&#9660; ' + sceneLabel;
+                toggle2.innerHTML = panel2.classList.contains('collapsed') ? '&#9660; ' + sceneLabel : '&#9650; ' + sceneLabel;
             }
             if (chips2 && actToggle2) {
                 actToggle2.innerHTML = chips2.classList.contains('collapsed') ? '&#9654; 行动' : '&#9654; 行动';
@@ -287,7 +287,7 @@
             if (panel2 && !panel2.classList.contains('collapsed')) {
                 _sceneCollapseTimer = setTimeout(() => {
                     panel2.classList.add('collapsed');
-                    toggle2.innerHTML = '&#9654; ' + sceneLabel;
+                    toggle2.innerHTML = '&#9660; ' + sceneLabel;
                     _sceneCollapseTimer = null;
                 }, 5000);
             }
@@ -328,14 +328,14 @@
             const collapsed = panel.classList.toggle('collapsed');
             if (_sceneCollapseTimer) { clearTimeout(_sceneCollapseTimer); _sceneCollapseTimer = null; }
             if (!collapsed) {
-                toggle.innerHTML = '&#9660; ' + sceneLabel;
+                toggle.innerHTML = '&#9650; ' + sceneLabel;
                 _sceneCollapseTimer = setTimeout(() => {
                     panel.classList.add('collapsed');
-                    toggle.innerHTML = '&#9654; ' + sceneLabel;
+                    toggle.innerHTML = '&#9660; ' + sceneLabel;
                     _sceneCollapseTimer = null;
                 }, 5000);
             } else {
-                toggle.innerHTML = '&#9654; ' + sceneLabel;
+                toggle.innerHTML = '&#9660; ' + sceneLabel;
             }
         }
 
