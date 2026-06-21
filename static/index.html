@@ -1261,6 +1261,10 @@
                     historyIdx = inputHistory.length;
                     input.value = '';
                 }
+            } else if (e.key === 'f' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                e.preventDefault();
+                input.value = '攻击';
+                sendAction();
             } else if (e.key === 'r' && !e.ctrlKey && !e.metaKey && inputHistory.length > 0) {
                 input.value = inputHistory[inputHistory.length - 1];
                 historyIdx = inputHistory.length;
