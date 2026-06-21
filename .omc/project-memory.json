@@ -1,0 +1,450 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1782008917123,
+  "projectRoot": "D:\\projects\\llmud",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Python",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "requirements.txt"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": "pip",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "static",
+      "tests"
+    ],
+    "gitBranches": {
+      "defaultBranch": "feat/living-world",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "api": {
+      "path": "api",
+      "purpose": "API routes",
+      "fileCount": 4,
+      "lastAccessed": 1782008917066,
+      "keyFiles": [
+        "app.py",
+        "deps.py",
+        "routes.py",
+        "__init__.py"
+      ]
+    },
+    "db": {
+      "path": "db",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1782008917067,
+      "keyFiles": [
+        "connection.py",
+        "repository.py",
+        "__init__.py"
+      ]
+    },
+    "dm": {
+      "path": "dm",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1782008917067,
+      "keyFiles": [
+        "client.py",
+        "contract.py",
+        "prompt.py",
+        "__init__.py"
+      ]
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 0,
+      "lastAccessed": 1782008917067,
+      "keyFiles": []
+    },
+    "engine": {
+      "path": "engine",
+      "purpose": null,
+      "fileCount": 5,
+      "lastAccessed": 1782008917068,
+      "keyFiles": [
+        "classify.py",
+        "models.py",
+        "rules.py",
+        "world.py",
+        "__init__.py"
+      ]
+    },
+    "npc": {
+      "path": "npc",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1782008917068,
+      "keyFiles": [
+        "memory.py",
+        "models.py",
+        "__init__.py"
+      ]
+    },
+    "safety": {
+      "path": "safety",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1782008917068,
+      "keyFiles": [
+        "filter.py",
+        "__init__.py"
+      ]
+    },
+    "static": {
+      "path": "static",
+      "purpose": "Static files",
+      "fileCount": 1,
+      "lastAccessed": 1782008917068,
+      "keyFiles": [
+        "index.html"
+      ]
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 12,
+      "lastAccessed": 1782008917068,
+      "keyFiles": [
+        "conftest.py",
+        "test_api.py",
+        "test_classify.py",
+        "test_contract.py",
+        "test_filter.py"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "static\\index.html",
+      "accessCount": 171,
+      "lastAccessed": 1782028335654,
+      "type": "file"
+    },
+    {
+      "path": "api\\routes.py",
+      "accessCount": 152,
+      "lastAccessed": 1782028235840,
+      "type": "file"
+    },
+    {
+      "path": "engine\\models.py",
+      "accessCount": 113,
+      "lastAccessed": 1782028313875,
+      "type": "file"
+    },
+    {
+      "path": "engine\\world.py",
+      "accessCount": 47,
+      "lastAccessed": 1782023666581,
+      "type": "file"
+    },
+    {
+      "path": "tests\\test_api.py",
+      "accessCount": 46,
+      "lastAccessed": 1782024741528,
+      "type": "file"
+    },
+    {
+      "path": "dm\\prompt.py",
+      "accessCount": 24,
+      "lastAccessed": 1782027413463,
+      "type": "file"
+    },
+    {
+      "path": "tests\\test_world_state_scaffold.py",
+      "accessCount": 22,
+      "lastAccessed": 1782024525473,
+      "type": "file"
+    },
+    {
+      "path": "docs\\superpowers\\specs\\2026-06-21-emergent-world-design.md",
+      "accessCount": 20,
+      "lastAccessed": 1782023194535,
+      "type": "file"
+    },
+    {
+      "path": "db\\repository.py",
+      "accessCount": 20,
+      "lastAccessed": 1782025837222,
+      "type": "file"
+    },
+    {
+      "path": "tests\\test_world.py",
+      "accessCount": 16,
+      "lastAccessed": 1782024560789,
+      "type": "file"
+    },
+    {
+      "path": "engine\\validator.py",
+      "accessCount": 14,
+      "lastAccessed": 1782023960715,
+      "type": "file"
+    },
+    {
+      "path": "docs\\superpowers\\plans\\2026-06-21-world-state-scaffold.md",
+      "accessCount": 10,
+      "lastAccessed": 1782014681249,
+      "type": "file"
+    },
+    {
+      "path": "dm\\contract.py",
+      "accessCount": 9,
+      "lastAccessed": 1782023630239,
+      "type": "file"
+    },
+    {
+      "path": "tests\\test_world_models.py",
+      "accessCount": 9,
+      "lastAccessed": 1782024518970,
+      "type": "file"
+    },
+    {
+      "path": "dm\\client.py",
+      "accessCount": 8,
+      "lastAccessed": 1782021684678,
+      "type": "file"
+    },
+    {
+      "path": "db\\connection.py",
+      "accessCount": 8,
+      "lastAccessed": 1782022976537,
+      "type": "file"
+    },
+    {
+      "path": "api\\app.py",
+      "accessCount": 7,
+      "lastAccessed": 1782021550697,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 7,
+      "lastAccessed": 1782023352839,
+      "type": "directory"
+    },
+    {
+      "path": "tests\\conftest.py",
+      "accessCount": 6,
+      "lastAccessed": 1782021558623,
+      "type": "file"
+    },
+    {
+      "path": "tests\\test_tension_machine.py",
+      "accessCount": 5,
+      "lastAccessed": 1782020642844,
+      "type": "file"
+    },
+    {
+      "path": "docs\\superpowers\\plans\\2026-06-21-settlement-validator.md",
+      "accessCount": 4,
+      "lastAccessed": 1782021007789,
+      "type": "file"
+    },
+    {
+      "path": "tests\\test_prompt.py",
+      "accessCount": 4,
+      "lastAccessed": 1782022147042,
+      "type": "file"
+    },
+    {
+      "path": "main.py",
+      "accessCount": 3,
+      "lastAccessed": 1782025129014,
+      "type": "file"
+    },
+    {
+      "path": "docs\\superpowers\\specs\\2026-06-18-living-world-design.md",
+      "accessCount": 2,
+      "lastAccessed": 1782011669048,
+      "type": "file"
+    },
+    {
+      "path": "C:\\Users\\XU Zhendong\\.claude\\plugins\\cache\\claude-plugins-official\\superpowers\\6.0.2\\skills\\subagent-driven-development\\task-reviewer-prompt.md",
+      "accessCount": 2,
+      "lastAccessed": 1782015214674,
+      "type": "file"
+    },
+    {
+      "path": "C:\\Users\\XU Zhendong\\.claude\\plugins\\cache\\claude-plugins-official\\superpowers\\6.0.2\\skills\\subagent-driven-development\\implementer-prompt.md",
+      "accessCount": 2,
+      "lastAccessed": 1782015214716,
+      "type": "file"
+    },
+    {
+      "path": "C:\\Users\\XU Zhendong\\.claude\\projects\\D--projects-llmud\\memory\\emergent-world-milestone-state.md",
+      "accessCount": 2,
+      "lastAccessed": 1782020591229,
+      "type": "file"
+    },
+    {
+      "path": "C:\\Users\\XU Zhendong\\.claude\\projects\\D--projects-llmud\\memory\\llmud-m2-implementation-anchors.md",
+      "accessCount": 2,
+      "lastAccessed": 1782020591562,
+      "type": "file"
+    },
+    {
+      "path": "docs\\superpowers\\plans\\2026-06-21-tension-state-machine.md",
+      "accessCount": 2,
+      "lastAccessed": 1782020610655,
+      "type": "file"
+    },
+    {
+      "path": "tests\\test_contract.py",
+      "accessCount": 2,
+      "lastAccessed": 1782020905970,
+      "type": "file"
+    },
+    {
+      "path": "docs\\superpowers\\plans\\2026-06-18-living-world-plan.md",
+      "accessCount": 2,
+      "lastAccessed": 1782021862115,
+      "type": "file"
+    },
+    {
+      "path": "engine",
+      "accessCount": 2,
+      "lastAccessed": 1782024914464,
+      "type": "directory"
+    },
+    {
+      "path": "api\\deps.py",
+      "accessCount": 2,
+      "lastAccessed": 1782025117671,
+      "type": "file"
+    },
+    {
+      "path": "C:\\Users\\XUZHEN~1\\AppData\\Local\\Temp\\claude\\D--projects-llmud\\fd93423a-c96b-44f1-a14d-1bb676be28c9\\tasks\\bunkdqg3q.output",
+      "accessCount": 1,
+      "lastAccessed": 1782008982095,
+      "type": "file"
+    },
+    {
+      "path": "safety\\filter.py",
+      "accessCount": 1,
+      "lastAccessed": 1782009836026,
+      "type": "file"
+    },
+    {
+      "path": "dm\\__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1782009836081,
+      "type": "file"
+    },
+    {
+      "path": "C:\\Users\\XUZHEN~1\\AppData\\Local\\Temp\\claude\\D--projects-llmud\\fd93423a-c96b-44f1-a14d-1bb676be28c9\\tasks\\bkr0cfyz9.output",
+      "accessCount": 1,
+      "lastAccessed": 1782010110732,
+      "type": "file"
+    },
+    {
+      "path": "docs\\superpowers\\specs\\2026-06-17-llmud-tracer-slice-design.md",
+      "accessCount": 1,
+      "lastAccessed": 1782011668969,
+      "type": "file"
+    },
+    {
+      "path": "npc\\models.py",
+      "accessCount": 1,
+      "lastAccessed": 1782013436476,
+      "type": "file"
+    },
+    {
+      "path": "C:\\Users\\XU Zhendong\\.claude\\plugins\\cache\\claude-plugins-official\\superpowers\\6.0.2\\skills\\requesting-code-review\\code-reviewer.md",
+      "accessCount": 1,
+      "lastAccessed": 1782014641568,
+      "type": "file"
+    },
+    {
+      "path": "tests",
+      "accessCount": 1,
+      "lastAccessed": 1782014959726,
+      "type": "directory"
+    },
+    {
+      "path": "C:\\Users\\XU Zhendong\\.claude\\projects\\D--projects-llmud\\memory\\MEMORY.md",
+      "accessCount": 1,
+      "lastAccessed": 1782020527204,
+      "type": "file"
+    },
+    {
+      "path": ".superpowers\\sdd\\task-1-brief.md",
+      "accessCount": 1,
+      "lastAccessed": 1782020874991,
+      "type": "file"
+    },
+    {
+      "path": ".superpowers\\sdd\\task-1-report.md",
+      "accessCount": 1,
+      "lastAccessed": 1782020957066,
+      "type": "file"
+    },
+    {
+      "path": "tests\\test_validator.py",
+      "accessCount": 1,
+      "lastAccessed": 1782021114575,
+      "type": "file"
+    },
+    {
+      "path": ".superpowers\\sdd\\task-2-report.md",
+      "accessCount": 1,
+      "lastAccessed": 1782021331779,
+      "type": "file"
+    },
+    {
+      "path": ".superpowers\\sdd\\task-3-report.md",
+      "accessCount": 1,
+      "lastAccessed": 1782021444962,
+      "type": "file"
+    },
+    {
+      "path": ".superpowers\\sdd\\task-4-report.md",
+      "accessCount": 1,
+      "lastAccessed": 1782021833842,
+      "type": "file"
+    },
+    {
+      "path": "docs\\superpowers",
+      "accessCount": 1,
+      "lastAccessed": 1782021870606,
+      "type": "directory"
+    },
+    {
+      "path": "dm",
+      "accessCount": 1,
+      "lastAccessed": 1782021920399,
+      "type": "directory"
+    }
+  ],
+  "userDirectives": []
+}

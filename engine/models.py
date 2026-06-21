@@ -101,6 +101,7 @@ class CombatResult(BaseModel):
     result: str  # "win" | "lose" | "flee"
     enemy_remaining_hp: int
     player_remaining_hp: int
+    crit: bool = False
 
 
 class BreakthroughResult(BaseModel):

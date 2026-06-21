@@ -67,6 +67,7 @@ def resolve_combat(player: Player, enemy: Encounter, flee: bool = False) -> tupl
     """
     p_atk = compute_attack(player)
     p_def = compute_defense(player)
+    is_crit = not flee and random.random() < 0.1
 
     if flee:
         result = CombatResult(
@@ -75,8 +76,9 @@ def resolve_combat(player: Player, enemy: Encounter, flee: bool = False) -> tupl
         )
         return result, player, enemy
 
-    # Player attacks enemy
-    dmg_to_enemy = max(1, p_atk - enemy.defense)
+    # Player attacks enemy (with 10% crit chance)
+    dmg_base = max(1, p_atk - enemy.defense)
+    dmg_to_enemy = dmg_base * 2 if is_crit else dmg_base
     enemy_hp_after = enemy.hp - dmg_to_enemy
 
     # Enemy retaliates only if still alive
@@ -106,6 +108,7 @@ def resolve_combat(player: Player, enemy: Encounter, flee: bool = False) -> tupl
         result=result_str,
         enemy_remaining_hp=enemy_remaining,
         player_remaining_hp=player_remaining,
+        crit=is_crit,
     )
 
     updated_player = player.model_copy(update={"hp": player_remaining})
