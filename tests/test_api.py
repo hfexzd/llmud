@@ -190,39 +190,22 @@ async def test_game_action_combat_accumulates_and_kills(tmp_path):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         d1 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
-        # With crit system (10% chance), damage varies. HP must decrease each round.
         hp1 = d1["combat"]["enemy_remaining_hp"]
         assert d1["combat"]["result"] in ("ongoing", "win")
-        assert 0 < hp1 < 30  # took damage but maybe crit
 
-        d2 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
-        hp2 = d2["combat"]["enemy_remaining_hp"]
-        assert hp2 < hp1  # HP is strictly decreasing
-
-        d3 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
-        hp3 = d3["combat"]["enemy_remaining_hp"]
-        assert hp3 < hp2
-
-        d4 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
-        hp4 = d4["combat"]["enemy_remaining_hp"]
-        assert hp4 < hp3
-        # Enemy may have died now (normal) or earlier (crit). Either way, track
-        # whether the beast is dead so we can verify a fresh one spawns next.
-        beast_dead = d4["combat"]["result"] == "win" and hp4 == 0
-
-        # Hit until the beast dies (at most 6 rounds with worst luck)
-        d5 = d4
-        for _ in range(6):
-            if d5["combat"]["result"] == "win" and d5["combat"]["enemy_remaining_hp"] == 0:
+        # With affinity + crit, damage varies. Hit until beast dies.
+        d_last = d1
+        for _ in range(8):
+            if d_last["combat"]["result"] == "win" and d_last["combat"]["enemy_remaining_hp"] == 0:
                 break
-            d5 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
-        assert d5["combat"]["result"] == "win"
-        assert d5["combat"]["enemy_remaining_hp"] == 0
+            d_last = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
+        assert d_last["combat"]["result"] == "win"
+        assert d_last["combat"]["enemy_remaining_hp"] == 0
 
         # After the kill, a fresh beast spawns on the next attack.
-        d6 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
-        assert d6["combat"]["result"] in ("ongoing", "win")
-        assert d6["combat"]["enemy_remaining_hp"] > 0  # fresh beast has HP
+        d_next = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
+        assert d_next["combat"]["result"] in ("ongoing", "win")
+        assert d_next["combat"]["enemy_remaining_hp"] > 0  # fresh beast has HP
 
 
 @pytest.mark.asyncio

@@ -31,16 +31,23 @@ def _equip_bonus(item_name: str | None, table: dict[str, int]) -> int:
     return 0
 
 
+_AFFINITY_BONUS = {"火": {"atk": 2, "def": 0}, "水": {"atk": 0, "def": 2},
+                    "木": {"atk": 1, "def": 1}, "金": {"atk": 2, "def": 1},
+                    "土": {"atk": 0, "def": 3}}
+
+
 def compute_attack(player: Player) -> int:
-    """attack = spirit_power × level_multiplier + weapon bonus"""
+    """attack = spirit_power × level_multiplier + weapon bonus + affinity bonus"""
     base = int(player.spirit_power * get_multiplier(player))
-    return base + _equip_bonus(player.weapon, _WEAPON_BONUS)
+    aff = _AFFINITY_BONUS.get(player.affinity, {"atk": 1, "def": 1})
+    return base + _equip_bonus(player.weapon, _WEAPON_BONUS) + aff["atk"]
 
 
 def compute_defense(player: Player) -> int:
-    """defense = floor(spirit_power / 2) + 5 + armor bonus"""
+    """defense = floor(spirit_power / 2) + 5 + armor bonus + affinity bonus"""
     base = player.spirit_power // 2 + 5
-    return base + _equip_bonus(player.armor, _ARMOR_BONUS)
+    aff = _AFFINITY_BONUS.get(player.affinity, {"atk": 1, "def": 1})
+    return base + _equip_bonus(player.armor, _ARMOR_BONUS) + aff["def"]
 
 
 def cultivate(player: Player) -> Player:

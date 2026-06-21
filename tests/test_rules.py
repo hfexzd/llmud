@@ -12,7 +12,7 @@ def test_compute_attack_practitioner_layer_1():
         hp=100, max_hp=100, affinity="火", current_scene="青云门外门柴房",
         inventory=[]
     )
-    assert compute_attack(player) == 10
+    assert compute_attack(player) == 12  # 10 base + 2 fire affinity
 
 
 def test_compute_defense_practitioner_layer_1():
@@ -40,8 +40,8 @@ def test_resolve_combat_win():
                     hp=100, max_hp=100, affinity="火", current_scene="外门", inventory=[])
     enemy = Encounter(id="e1", name="赤眼妖狼", attack=8, defense=3, hp=30, max_hp=30)
     result, updated_player, updated_enemy = resolve_combat(player, enemy, crit_chance=0)
-    # attack=50*1.0=50, dmg_to_enemy=max(1,50-3)=47
-    assert result.dmg_to_enemy == 47
+    # attack=50*1.0+2(fire)=52, dmg_to_enemy=max(1,52-3)=49
+    assert result.dmg_to_enemy == 49
     assert result.result == "win"
     assert updated_enemy.hp == 0  # 30 - 47 clamped to 0
 
@@ -65,7 +65,7 @@ def test_resolve_combat_ongoing_when_both_alive():
     result, updated_player, updated_enemy = resolve_combat(player, enemy, crit_chance=0)
     assert result.result == "ongoing"
     # atk = 11*1.0 = 11; dmg = max(1, 11-3) = 8 -> 30-8 = 22
-    assert updated_enemy.hp == 22
+    assert updated_enemy.hp == 20  # 11*1+2(fire)=13 atk, -3 def = 10 dmg, 30-10=20
     # def = 11//2+5 = 10; retaliation = max(1, 8-10) = 1 -> 100-1 = 99
     assert updated_player.hp == 99
 
