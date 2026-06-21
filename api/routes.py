@@ -246,6 +246,13 @@ def create_router(
             if combat_result.result == "lose":
                 player = player.model_copy(update={"hp": 1})
 
+            # M7: record combat outcome for flow governor
+            from engine.flow import FlowGovernor
+            _flow_governor = getattr(game_action, "_flow_governor", FlowGovernor())
+            game_action._flow_governor = _flow_governor
+            outcome_map = {"win": "win", "lose": "struggle", "flee": "struggle", "ongoing": "fair"}
+            _flow_governor.record_outcome(outcome_map.get(combat_result.result, "fair"))
+
             # Persist the enemy's remaining HP so the next attack continues the
             # fight; clear it once the beast is slain.
             if combat_result.result == "win":
