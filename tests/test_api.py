@@ -168,6 +168,7 @@ async def test_game_action_fight(mock_llm_cultivate, tmp_path):
 async def test_game_action_combat_accumulates_and_kills(tmp_path):
     """Consecutive attacks must wear the beast down. Regression: enemy HP used
     to reset to full every turn, so the beast was unkillable."""
+    import random; random.seed(42)  # deterministic crits
     from db.repository import PlayerRepository
     from engine.models import Player
 
