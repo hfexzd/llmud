@@ -506,6 +506,11 @@ def create_router(
             player = player.model_copy(update={"inventory": new_inv})
             _response_extras[0] = "你在案前挥毫泼墨，写下了一幅书法。获得【书法】。"
 
+        # Cloud watching at mountain_range
+        if "看云" in filtered_input and player.current_scene == "mountain_range":
+            player = player.model_copy(update={"spirit_power": player.spirit_power + 1})
+            _response_extras[0] = "你仰望天空，看云卷云舒，心绪随之舒展。（灵力+1）"
+
         # Bonfire at mountain_range
         if "生火" in filtered_input and player.current_scene == "mountain_range":
             heal_fire = min(15, player.max_hp - player.hp)
