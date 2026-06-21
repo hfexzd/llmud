@@ -55,6 +55,62 @@ async def _stream_llm(llm_client, system_prompt: str, user_prompt: str):
         yield await llm_client.generate(system_prompt, user_prompt)
 
 
+
+def _generate_suggestions(story: str, scene, player) -> list[str]:
+    """Generate suggested next actions from story text + scene context.
+    Fallback when the DM doesn't provide suggested_actions."""
+    suggestions = []
+    s = story or ""
+    scene_name = scene.name if scene else ""
+
+    # NPC interaction suggestions
+    npc_patterns = [
+        ('林婉儿', ['与林婉儿商议对策', '向林婉儿询问详情', '和林婉儿搭话']),
+        ('陈浩', ['与陈浩切磋', '向陈浩打听消息', '和陈浩搭话']),
+        ('杨老', ['向杨老请教', '和杨老搭话']),
+        ('药老', ['向药老请教丹药', '和药老搭话']),
+        ('湖隐', ['向湖隐打听消息', '和湖隐搭话']),
+    ]
+    for npc_name, acts in npc_patterns:
+        if npc_name in s:
+            for act in acts:
+                if len(suggestions) < 3 and act not in suggestions:
+                    suggestions.append(act)
+
+    # Threat/danger → combat or caution
+    danger_words = ['妖兽', '毒鳞蟒', '玄水龟', '妖狼', '蛇蜕', '腥味', '妖气', '黑影', '嘶鸣', '暗影', '异动', '沙沙', '低沉']
+    if any(w in s for w in danger_words):
+        candidates = ['准备战斗', '观察妖兽动向', '小心探查周围']
+        for c in candidates:
+            if len(suggestions) < 4 and c not in suggestions:
+                suggestions.append(c)
+
+    # Mysterious objects → investigate
+    mystery_words = ['灵草', '异光', '青光', '蓝光', '微光', '发光', '异象', '灵气异', '灵泉', '祭坛', '玉简', '符']
+    if any(w in s for w in mystery_words):
+        candidates = ['细查灵草', '探查灵气来源', '观察周围环境']
+        for c in candidates:
+            if len(suggestions) < 4 and c not in suggestions:
+                suggestions.append(c)
+
+    # Scene-specific fallbacks
+    scene_fallbacks = {
+        'outer_gate': ['去内门', '修炼'],
+        'inner_gate': ['去竹林', '修炼', '去集市'],
+        'bamboo_forest': ['探索竹林深处', '修炼'],
+        'market': ['购买聚气丹', '去内门'],
+        'mountain_range': ['探索山脉', '准备战斗'],
+        'spirit_valley': ['向药老请教', '采药'],
+        'misty_lake': ['钓鱼', '观星'],
+    }
+    if len(suggestions) < 2:
+        fallbacks = scene_fallbacks.get(scene.id if scene else "", ['探索', '修炼'])
+        for f in fallbacks:
+            if len(suggestions) < 4 and f not in suggestions:
+                suggestions.append(f)
+
+    return suggestions[:4]
+
 def create_router(
     llm_client: LLMClient,
     player_repo: PlayerRepository,
@@ -1219,6 +1275,10 @@ def create_router(
                     # streaming — see the trade-off note above).
                     raw_response, _was_rewritten = post_filter_output(raw_response)
                     dm_response = parse_dm_response(raw_response)
+                    if dm_response.suggested_actions:
+                        print(f'[dm] suggested_actions: {dm_response.suggested_actions}')
+                    else:
+                        print('[dm] NO suggested_actions in response')
                     story = dm_response.story
                     if not story or not story.strip():
                         story = story_fallbacks.get(intent, f"{player.name}的行动似乎没有引起什么变化。")
@@ -1462,7 +1522,7 @@ def create_router(
                 "state_delta": dm_response.state_delta or {},
                 "world_delta": world_delta_for_response,
                 "npc_actions": npc_actions,
-                "suggested_actions": dm_response.suggested_actions or [],
+                "suggested_actions": (dm_response.suggested_actions or []) or _generate_suggestions(story, scene, player),
                 "player": {
                     "name": player.name,
                     "current_scene": player.current_scene,
