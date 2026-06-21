@@ -283,6 +283,31 @@ def create_router(
         elif intent == Intent.TALK:
             pass  # NPC interaction handled in DM phase
 
+        # NPC gift system: give item to NPC to increase favorability
+        gift_message = None
+        import re as _re
+        item_names = "|".join(i.name for i in PHASE_0_BIBLE.items)
+        gift_match = _re.match(r"(?:给|送|赠)(.+?)(" + item_names + r")", filtered_input)
+        if gift_match and player.inventory:
+            npc_name = gift_match.group(1)
+            from engine.models import ALL_NPC_PROFILES
+            target = next((p for p in ALL_NPC_PROFILES if p.name in npc_name or npc_name in p.name), None)
+            if target:
+                item_name = gift_match.group(2)
+                if item_name in player.inventory:
+                    new_inv = list(player.inventory)
+                    new_inv.remove(item_name)
+                    player = player.model_copy(update={"inventory": new_inv})
+                    profile_row = npc_repo.get_profile(target.id)
+                    if profile_row:
+                        cur_fav = profile_row.get("favorability", 50)
+                        rarity = next((s.rarity for s in PHASE_0_BIBLE.items if s.name == item_name), "凡")
+                        gift_value = 10 if rarity == "灵" else 5
+                        new_fav = min(100, cur_fav + gift_value)
+                        new_stage = compute_relationship_stage(new_fav)
+                        npc_repo.update_favorability(target.id, new_fav, new_stage)
+                        gift_message = f"你将{item_name}送给了{target.name}。[好感度+{gift_value}]"
+
         # Item inspection: if input contains "查看" + item name, show description
         item_inspect_message = None
         if "查看" in filtered_input and not item_use_message:
@@ -769,6 +794,10 @@ def create_router(
             # Surface item inspect message if an item was examined
             if item_inspect_message:
                 rest["item_inspect"] = item_inspect_message
+
+            # Surface gift message if an item was given to an NPC
+            if gift_message:
+                rest["item_use"] = gift_message
 
             # Add intervention info to response
             if intervention:
