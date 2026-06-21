@@ -585,6 +585,19 @@ def create_router(
             player = player.model_copy(update={"auto_loot": not player.auto_loot})
             _response_extras[0] = f"自动拾取已{'开启' if player.auto_loot else '关闭'}。"
 
+        # Compliment NPC
+        if "称赞" in filtered_input or "夸奖" in filtered_input:
+            from engine.models import ALL_NPC_PROFILES as _COMP_NPCS
+            comp_target = next((p for p in _COMP_NPCS if p.name in filtered_input), None)
+            if comp_target:
+                profile_row = npc_repo.get_profile(comp_target.id)
+                if profile_row:
+                    cur_fav = profile_row.get("favorability", 50)
+                    new_fav = min(100, cur_fav + 2)
+                    new_stage = compute_relationship_stage(new_fav)
+                    npc_repo.update_favorability(comp_target.id, new_fav, new_stage)
+                    _response_extras[0] = f"你称赞了{comp_target.name}，{['她','他'][0 if comp_target.id=='linwaner' else 1]}很开心。（好感度+2）"
+
         # Social interaction
         if "挥手" in filtered_input or "打招呼" in filtered_input:
             from engine.models import ALL_NPC_PROFILES as _SOCIAL_NPCS
