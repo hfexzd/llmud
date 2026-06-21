@@ -137,6 +137,7 @@
         <!-- Opening message is rendered dynamically by maybeShowIntro() from the player's current scene. -->
     </div>
 
+    <div id="action-chips" style="flex:none;background:#1b1430;padding:6px 10px;display:flex;gap:6px;overflow-x:auto;border-top:1px solid #4a2d6e;"></div>
     <div id="input-bar">
         <input type="text" id="user-input" placeholder="输入你的行动..." autocomplete="off">
         <button id="send-btn" onclick="sendAction()">发送</button>
@@ -206,9 +207,42 @@
             const panel = document.getElementById('scene-panel');
             if (!panel) return;
             panel.innerHTML = renderPlacePanel();
+            renderActionChips();
         }
-        // Panel renderers are added in Tasks 10-12; stubs so the shell works.
-        function renderRolePanel() {
+        // Contextual action chips — scene-specific quick actions
+        function renderActionChips() {
+            const bar = document.getElementById('action-chips');
+            if (!bar) return;
+            const scene = panelData.scene || {};
+            const player = panelData.player || {};
+            const npcs = panelData.npcs || [];
+            const inv = player.inventory || [];
+            const chips = [];
+
+            // Scene-based actions
+            const sceneActions = scene.available_actions || [];
+            if (sceneActions.includes('cultivate')) chips.push('修炼');
+            if (sceneActions.includes('explore')) chips.push('探索');
+            if (sceneActions.includes('fight')) chips.push('战斗');
+
+            // Movement — show first connection
+            const conns = scene.connections || [];
+            if (conns.length > 0) {
+                const sceneNames = {'outer_gate':'外门','inner_gate':'内门','bamboo_forest':'竹林','market':'集市','mountain_range':'山脉','spirit_valley':'山谷','misty_lake':'湖边'};
+                chips.push(`去${sceneNames[conns[0]]||conns[0]}`);
+            }
+
+            // Present NPCs — suggest talk
+            const present = npcs.filter(n => n.present);
+            if (present.length > 0) chips.push(`和${present[0].id==='linwaner'?'林婉儿':present[0].id==='chenhao'?'陈浩':'药老'}搭话`);
+
+            // Items — suggest use if any
+            if (inv.length > 0) chips.push(`使用${inv[0]}`);
+
+            bar.innerHTML = chips.map(c =>
+                `<span class="chip" data-prefill="${escapeAttr(c)}">${escapeHtml(c)}</span>`
+            ).join('');
+        }
             const p = panelData.player || {};
             const quests = panelData.quests || [];
             const npcs = panelData.npcs || [];
@@ -442,6 +476,7 @@
                 // in the top status bar (keeps the bar one compact row).
                 renderScenePanel();
                 maybeShowIntro(data);
+                renderActionChips();
             } catch(e) {
                 console.error('Status update failed:', e);
             }
