@@ -365,8 +365,10 @@
                 presentNpcs.forEach(n => {
                     const name = NPC_NAMES[n.id] || n.id;
                     const role = NPC_ROLE[n.id] || '';
+                    const fav = n.favorability ?? 50;
+                    const moodIcon = fav >= 80 ? '❤️' : fav >= 50 ? '😊' : fav >= 30 ? '😐' : '😒';
                     const label = role ? `${escapeHtml(name)} · ${escapeHtml(role)}` : escapeHtml(name);
-                    html += `<span class="who-tag" data-prefill="和${escapeAttr(name)}搭话">${label} · 搭话</span>`;
+                    html += `<span class="who-tag" data-prefill="和${escapeAttr(name)}搭话" title="好感度:${fav}">${moodIcon} ${label} · 搭话</span>`;
                 });
             } else {
                 html += '<span style="color:#8a7aa8;font-size:12px">四下无人</span>';
