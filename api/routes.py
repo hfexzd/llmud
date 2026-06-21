@@ -283,6 +283,19 @@ def create_router(
         elif intent == Intent.TALK:
             pass  # NPC interaction handled in DM phase
 
+        # Item usage: if input contains "使用" + item name, consume from inventory
+        item_use_message = None
+        if "使用" in filtered_input:
+            from engine.rules import use_item
+            for part in filtered_input.split("使用"):
+                part = part.strip()
+                if part and len(part) >= 2:
+                    new_p, msg = use_item(player, part)
+                    if new_p != player:  # item was consumed
+                        player = new_p
+                        item_use_message = msg
+                        break
+
         # Step 4: World layer — advance tick, check events, check NPC interactions
         player = world_engine.advance_tick(player)
 
@@ -720,6 +733,10 @@ def create_router(
             # M6: surface offline catch-up summary if player was away
             if offline_summary_for_response:
                 rest["offline_summary"] = offline_summary_for_response
+
+            # Surface item use message if an item was consumed
+            if item_use_message:
+                rest["item_use"] = item_use_message
 
             # Add intervention info to response
             if intervention:

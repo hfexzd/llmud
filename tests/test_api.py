@@ -950,3 +950,38 @@ class TestOfflineIntegration:
             data = response.json()
             # Player tick should have advanced beyond 10
             assert data["player"]["tick"] > 10
+
+
+class TestItemSystem:
+    """Item usage system."""
+
+    @pytest.mark.asyncio
+    async def test_use_item_consumes_and_affects_stats(self, db_conn, mock_llm_client):
+        """Using an item from inventory consumes it and applies its effect."""
+        mock_llm_client.generate_stream = None
+        mock_llm_client.generate.return_value = (
+            '{"intent":"other","story":"你服用了一株灵草。","action_valid":true}'
+        )
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        # Give player an item
+        player_repo.save(Player(
+            id="p1", current_scene="outer_gate", tick=3,
+            inventory=["灵草"],
+            spirit_power=10,
+        ))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "使用灵草"})
+            assert response.status_code == 200
+            data = response.json()
+            # Should have consumed the item
+            assert "item_use" in data

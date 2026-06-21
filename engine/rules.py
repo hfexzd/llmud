@@ -1,7 +1,7 @@
 import random
 from engine.models import (
     Player, Encounter, CombatResult, BreakthroughResult, LevelTier, LEVEL_TABLE,
-    SCENE_MAP,
+    SCENE_MAP, PHASE_0_BIBLE,
 )
 
 
@@ -134,3 +134,54 @@ def move(player: Player, destination: str) -> Player:
     if destination not in current.connections:
         return player
     return player.model_copy(update={"current_scene": destination})
+
+
+def use_item(player: Player, item_name: str) -> tuple[Player, str]:
+    """Use a consumable item from the player's inventory.
+
+    Looks up the item in PHASE_0_BIBLE items. If found and the player has it,
+    consumes one and applies the effect. Returns (updated_player, message).
+    """
+    if not player.inventory:
+        return player, "你身上没有携带任何物品。"
+
+    # Find the item by name (case-insensitive partial match)
+    item = None
+    matched = [i for i in player.inventory if item_name in i]
+    if not matched:
+        return player, f"你没有{item_name}。"
+    item_key = matched[0]
+
+    # Look up the item spec
+    item_spec = None
+    for spec in PHASE_0_BIBLE.items:
+        if spec.name in item_key:
+            item_spec = spec
+            break
+
+    new_inv = list(player.inventory)
+    new_inv.remove(item_key)
+    new_p = player.model_copy(update={"inventory": new_inv})
+
+    # Apply effect based on item spec
+    effect_msg = ""
+    if item_spec and item_spec.effect:
+        if "增益灵力" in item_spec.effect or "灵力" in item_spec.effect:
+            gain = 20 if item_spec.rarity == "灵" else 5
+            new_p = new_p.model_copy(update={"spirit_power": new_p.spirit_power + gain})
+            effect_msg = f"灵力+{gain}"
+        if "恢复气血" in item_spec.effect or "气血" in item_spec.effect:
+            heal = 30 if item_spec.rarity == "灵" else 15
+            new_hp = min(new_p.max_hp, new_p.hp + heal)
+            new_p = new_p.model_copy(update={"hp": new_hp})
+            effect_msg += f"，气血+{heal}"
+        if "气血上限" in item_spec.effect:
+            new_p = new_p.model_copy(update={"max_hp": new_p.max_hp + 10, "hp": new_p.hp + 10})
+            effect_msg = "气血上限+10"
+        if "解除" in item_spec.effect:
+            effect_msg = "毒素已清除"
+    else:
+        effect_msg = "但似乎没有什么效果。"
+
+    msg = f"使用了{item_key}。{effect_msg}。" if effect_msg else f"使用了{item_key}。"
+    return new_p, msg
