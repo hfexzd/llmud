@@ -357,6 +357,12 @@ def create_router(
             else:
                 _response_extras[0] = "你精神饱满，无需休息。"
 
+        # Training dummy at outer_gate (safe practice)
+        if ("练功" in filtered_input or "练习" in filtered_input) and player.current_scene == "outer_gate":
+            gain = 1
+            player = player.model_copy(update={"spirit_power": player.spirit_power + gain})
+            _response_extras[0] = f"你在练功场上练习招式，灵力略有精进（灵力+{gain}）。"
+
         # NPC gift system: give item to NPC to increase favorability
         gift_message = None
         import re as _re
