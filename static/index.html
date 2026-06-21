@@ -118,6 +118,7 @@
         <span class="stat"><span class="stat-label">灵石</span> <span class="stat-value" id="p-stones" style="color:#ffd700">100</span></span>
         <span class="stat"><span class="stat-label">回合</span> <span class="stat-value" id="p-tick-display">0</span></span>
         <span class="stat"><span class="stat-label">所务</span> <span class="stat-value" id="p-quest-progress" style="color:#7bc67e">0/4</span></span>
+        <span class="stat" id="p-last-action" style="display:none;font-size:10px;color:#b8a0d4;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
         <span class="stat" id="p-weapon-display" style="display:none"><span class="stat-label">武器</span> <span class="stat-value" id="p-weapon" style="color:#9dd5ff"></span></span>
         <span class="stat" id="p-armor-display" style="display:none"><span class="stat-label">防具</span> <span class="stat-value" id="p-armor" style="color:#9dd5ff"></span></span>
         <span class="stat" id="npc-rel" style="display:none"><span class="stat-label">师姐</span> <span class="stat-value" id="p-npc-stage">陌生</span> <span id="p-npc-fav" style="color:#ff6b9d">50</span></span>
@@ -900,6 +901,14 @@
 
                     // Show story text (fallback if empty)
                     aiBubbleEl.innerText = result.story || '（你的行动似乎没有引起什么变化……）';
+
+                    // Show last action in status bar
+                    const lastAct = document.getElementById('p-last-action');
+                    if (lastAct) {
+                        lastAct.style.display = 'inline';
+                        lastAct.textContent = `「${text.slice(0, 12)}${text.length>12?'…':''}」`;
+                        setTimeout(() => { lastAct.style.display = 'none'; }, 8000);
+                    }
 
                     // Show battle card if combat
                     if (result.combat) {
