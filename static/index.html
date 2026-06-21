@@ -247,7 +247,11 @@
             const sceneActions = scene.available_actions || [];
             if (sceneActions.includes('cultivate')) chips.push('修炼');
             if (sceneActions.includes('explore')) chips.push('探索');
-            if (sceneActions.includes('fight')) chips.push('战斗');
+            if (sceneActions.includes('fight')) {
+                const estAtk = Math.floor((p.spirit_power||0) * (p.level === '练气期一层'?1:p.level==='练气期二层'?1.2:p.level==='练气期三层'?1.5:p.level==='筑基期一层'?2:1));
+                const wepB = p.weapon&&{'剑':5,'刀':4,'掌':3,'拳':2,'杖':3}[Object.keys({'剑':5,'刀':4,'掌':3,'拳':2,'杖':3}).find(k=>p.weapon.includes(k))]||0;
+                chips.push(`战斗 (攻${estAtk+wepB})`);
+            }
 
             // Movement — show all connections as quick-travel chips
             const conns = scene.connections || [];
