@@ -636,6 +636,22 @@
         }
 
         // Toast notification system
+        // Simple notification beep using Web Audio API
+        function playBeep(freq, duration) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = freq;
+                gain.gain.value = 0.1;
+                osc.start();
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+                osc.stop(ctx.currentTime + duration);
+            } catch(e) { /* audio not available */ }
+        }
+
         function showToast(text, type) {
             const existing = document.querySelector('.toast-notification');
             if (existing) existing.remove();
@@ -643,6 +659,9 @@
             toast.className = 'toast-notification';
             const colors = {'breakthrough':'#ffd700','item':'#7bc67e','favor':'#ff6b9d','quest':'#9dd5ff','default':'#b8a0d4'};
             const color = colors[type] || colors.default;
+            const beeps = {'breakthrough':[880,0.3],'item':[660,0.15],'favor':[550,0.2],'default':[440,0.1]};
+            const [freq, dur] = beeps[type] || beeps.default;
+            playBeep(freq, dur);
             toast.style.cssText = `position:fixed;top:12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#2d1b4e,#1a1a3e);border:1px solid ${color};color:${color};border-radius:12px;padding:10px 20px;font-size:14px;z-index:999;animation:fadeIn 0.3s ease;box-shadow:0 4px 20px rgba(0,0,0,0.5);max-width:90%;text-align:center;`;
             toast.textContent = text;
             document.body.appendChild(toast);
