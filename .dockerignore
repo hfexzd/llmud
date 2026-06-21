@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+.env
+.git
+.omc
+.pytest_cache
+*.db
+test_*.py
+tests/
+docs/
+.superpowers/
