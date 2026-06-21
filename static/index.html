@@ -596,7 +596,23 @@
             container.scrollTop = container.scrollHeight;
         }
 
+        function playCombatSound(result) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain); gain.connect(ctx.destination);
+                gain.gain.value = 0.08;
+                if (result === 'win') { osc.frequency.value = 660; osc.type = 'sine'; setTimeout(() => { osc.frequency.value = 880; }, 100); }
+                else if (result === 'lose') { osc.frequency.value = 330; osc.type = 'sawtooth'; }
+                else { osc.frequency.value = 440; osc.type = 'triangle'; }
+                osc.start(); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+                osc.stop(ctx.currentTime + 0.3);
+            } catch(e) {}
+        }
+
         function addBattleCard(container, combat) {
+            playCombatSound(combat.result);
             const card = document.createElement('div');
             card.className = 'battle-card';
             const resultClass = combat.result === 'win' ? 'win'
