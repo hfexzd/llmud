@@ -432,6 +432,15 @@ def create_router(
             player = player.model_copy(update={"spirit_power": player.spirit_power + gain})
             _response_extras[0] = f"你在湖边仰望星空，心旷神怡（灵力+{gain}）。"
 
+        # Herb gathering at spirit_valley
+        if "采药" in filtered_input and player.current_scene == "spirit_valley":
+            import random as _herb
+            herbs = ["凝露草", "灵草"]
+            found = _herb.choice(herbs)
+            new_inv = list(player.inventory or []) + [found]
+            player = player.model_copy(update={"inventory": new_inv})
+            _response_extras[0] = f"你在山谷中采到了{found}。{'(药老点了点头。)' if _herb.random()<0.3 else ''}"
+
         # Fishing at misty_lake
         if "钓鱼" in filtered_input and player.current_scene == "misty_lake":
             import random as _rand
