@@ -620,6 +620,15 @@ def create_router(
                     npc_repo.update_favorability(comp_target.id, new_fav, new_stage)
                     _response_extras[0] = f"你称赞了{comp_target.name}，{['她','他'][0 if comp_target.id=='linwaner' else 1]}很开心。（好感度+2）"
 
+        # Whistle (fun)
+        if "吹口哨" in filtered_input or "口哨" in filtered_input:
+            _response_extras[0] = "你吹了一声响亮的口哨。" + {
+                "bamboo_forest": "（竹林里传来回音）",
+                "misty_lake": "（湖面泛起涟漪）",
+                "market": "（有人回头看你）",
+                "mountain_range": "（远处传来野兽的低吼）",
+            }.get(player.current_scene, "（没有人注意到）")
+
         # Sing (fun)
         if "唱歌" in filtered_input:
             reactions = {"market": "（集市的人们纷纷侧目）", "inner_gate": "（林婉儿微笑倾听）", "outer_gate": "（杨老微微点头）"}
