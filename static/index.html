@@ -1252,8 +1252,14 @@
         document.addEventListener('click', function(e) {
             const el = e.target.closest('[data-prefill]');
             if (!el) return;
-            prefill(el.getAttribute('data-prefill') || '',
-                    el.getAttribute('data-focus') === '1');
+            const val = el.getAttribute('data-prefill') || '';
+            prefill(val, el.getAttribute('data-focus') === '1');
+            // Double-click auto-sends the action
+            if (e.detail >= 2 && val) {
+                document.getElementById('user-input').value = val;
+                sendAction();
+                return;
+            }
             // Close the drawer so the prefilled input is visible and ready to
             // send — otherwise the drawer (z-index 21) covers the input bar
             // and the click looks like it did nothing.
