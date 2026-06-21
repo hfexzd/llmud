@@ -393,18 +393,26 @@ def create_router(
         # Item messages (initialized early so explore reward can set it)
         item_use_message = None
 
-        # Item inspection: if input contains "查看" + item name, show description
+        # Item/NPC inspection: if input contains "查看" + name, show description
         item_inspect_message = None
         if "查看" in filtered_input and not item_use_message:
             for part in filtered_input.split("查看"):
                 part = part.strip()
                 if part and len(part) >= 2:
+                    # Check items first
                     for spec in PHASE_0_BIBLE.items:
                         if spec.name in part:
                             rarity_cn = {"凡": "凡品", "灵": "灵品", "玄": "玄品", "天": "天品"}
                             r = rarity_cn.get(spec.rarity, spec.rarity)
                             item_inspect_message = f"【{spec.name}】（{r} {spec.kind}）{spec.lore}（效果：{spec.effect}）"
                             break
+                    # Check NPCs
+                    if not item_inspect_message:
+                        from engine.models import ALL_NPC_PROFILES
+                        for npc in ALL_NPC_PROFILES:
+                            if npc.name in part:
+                                item_inspect_message = f"【{npc.name}】{npc.persona}（动机：{npc.motive}）"
+                                break
                     break
 
         # Equipment: equip/unequip items
