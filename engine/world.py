@@ -405,6 +405,12 @@ def npc_step(world_state: WorldState, bible: WorldBible, tick: int) -> WorldStat
                     scene = schedule.scene_id
                     break
         prev = new_npc_state.get(npc_model.npc_id)
+        # Preserve dynamically-set scene_id (from world_delta). Only follow
+        # the schedule if the NPC is already at their schedule position or
+        # hasn't been placed yet.
+        prev_scene = prev.scene_id if prev else ""
+        if prev_scene and prev_scene != scene:
+            scene = prev_scene  # keep world_delta position
         new_npc_state[npc_model.npc_id] = NPCRuntimeState(
             npc_id=npc_model.npc_id,
             scene_id=scene,

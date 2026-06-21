@@ -343,6 +343,8 @@
         function renderActionChips() {
             const bar = document.getElementById('action-chips');
             if (!bar) return;
+            // Always clear first so stale chips don't flash on scene change
+            bar.innerHTML = '';
             const scene = panelData.scene || {};
             const p = panelData.player || {};
             const npcs = panelData.npcs || [];
