@@ -459,6 +459,12 @@ def create_router(
                 player = player.model_copy(update={"hp": player.hp + heal_fire})
             _response_extras[0] = f"你生起一堆篝火，暖意融融。" + (f"（气血+{heal_fire}）" if heal_fire > 0 else "")
 
+        # Stone skipping at misty_lake
+        if "打水漂" in filtered_input and player.current_scene == "misty_lake":
+            import random as _skip
+            skips = _skip.randint(1, 7)
+            _response_extras[0] = f"你打了{skips}个水漂！{'（湖隐微微点头）' if skips >= 5 else ''}"
+
         # Fishing at misty_lake
         if "钓鱼" in filtered_input and player.current_scene == "misty_lake":
             import random as _rand
