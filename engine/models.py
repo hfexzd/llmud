@@ -605,18 +605,23 @@ def world_canon() -> dict:
 
     The LLM may only reference locations/landmarks, NPCs, and enemies from
     here, and items/skills from their catalogs. Empty item/skill catalogs
-    mean "narrate generically, do not name specifics".
+    fall back to PHASE_0_BIBLE data.
     """
     locations: list[str] = []
     for scene in SCENE_MAP.values():
         locations.append(scene.name)
         locations.extend(scene.landmarks)
+
+    # Fall back to PHASE_0_BIBLE items/skills when standalone catalogs are empty
+    items = list(ITEM_CATALOG) if ITEM_CATALOG else [i.name for i in PHASE_0_BIBLE.items]
+    skills = list(SKILL_CATALOG) if SKILL_CATALOG else [s.name for s in PHASE_0_BIBLE.skills]
+
     return {
         "locations": locations,
         "npcs": [p.name for p in ALL_NPC_PROFILES],
         "enemies": list(ENCOUNTER_CATALOG),
-        "items": list(ITEM_CATALOG),
-        "skills": list(SKILL_CATALOG),
+        "items": items,
+        "skills": skills,
     }
 
 # --- World canon / behavior / content models (M1 scaffold; spec §4, §4.2) ---
