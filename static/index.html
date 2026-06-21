@@ -228,12 +228,10 @@
             if (sceneActions.includes('explore')) chips.push('探索');
             if (sceneActions.includes('fight')) chips.push('战斗');
 
-            // Movement — show first connection
+            // Movement — show all connections as quick-travel chips
             const conns = scene.connections || [];
-            if (conns.length > 0) {
-                const sceneNames = {'outer_gate':'外门','inner_gate':'内门','bamboo_forest':'竹林','market':'集市','mountain_range':'山脉','spirit_valley':'山谷','misty_lake':'湖边'};
-                chips.push(`去${sceneNames[conns[0]]||conns[0]}`);
-            }
+            const sceneNames = {'outer_gate':'外门','inner_gate':'内门','bamboo_forest':'竹林','market':'集市','mountain_range':'山脉','spirit_valley':'山谷','misty_lake':'湖边'};
+            conns.forEach(cid => chips.push(`去${sceneNames[cid]||cid}`));
 
             // Present NPCs — suggest talk
             const present = npcs.filter(n => n.present);
