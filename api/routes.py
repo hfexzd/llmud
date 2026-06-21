@@ -1440,6 +1440,7 @@ def create_router(
                 "state_delta": dm_response.state_delta or {},
                 "world_delta": world_delta_for_response,
                 "npc_actions": npc_actions,
+                "suggested_actions": dm_response.suggested_actions or [],
                 "player": {
                     "name": player.name,
                     "current_scene": player.current_scene,

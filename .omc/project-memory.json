@@ -147,20 +147,20 @@
   "hotPaths": [
     {
       "path": "static\\index.html",
-      "accessCount": 563,
-      "lastAccessed": 1782045714922,
+      "accessCount": 573,
+      "lastAccessed": 1782046015659,
       "type": "file"
     },
     {
       "path": "api\\routes.py",
-      "accessCount": 348,
-      "lastAccessed": 1782045871433,
+      "accessCount": 350,
+      "lastAccessed": 1782045957841,
       "type": "file"
     },
     {
       "path": "engine\\models.py",
-      "accessCount": 125,
-      "lastAccessed": 1782043439204,
+      "accessCount": 127,
+      "lastAccessed": 1782045927262,
       "type": "file"
     },
     {
@@ -212,15 +212,15 @@
       "type": "file"
     },
     {
-      "path": "docs\\superpowers\\plans\\2026-06-21-world-state-scaffold.md",
-      "accessCount": 10,
-      "lastAccessed": 1782014681249,
+      "path": "dm\\contract.py",
+      "accessCount": 11,
+      "lastAccessed": 1782045936723,
       "type": "file"
     },
     {
-      "path": "dm\\contract.py",
-      "accessCount": 9,
-      "lastAccessed": 1782023630239,
+      "path": "docs\\superpowers\\plans\\2026-06-21-world-state-scaffold.md",
+      "accessCount": 10,
+      "lastAccessed": 1782014681249,
       "type": "file"
     },
     {

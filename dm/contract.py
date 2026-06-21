@@ -145,6 +145,7 @@ def parse_dm_response(raw_text: str) -> DMResponse:
         combat=combat,
         npc_update=data.get("npc_update"),
         world_delta=data.get("world_delta"),  # M3
+        suggested_actions=data.get("suggested_actions"),  # M3
     )
 
 

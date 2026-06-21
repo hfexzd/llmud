@@ -124,6 +124,7 @@ class DMResponse(BaseModel):
     combat: CombatResult | None = None
     npc_update: dict | None = None
     world_delta: dict | None = None  # M3: tension/npc/faction increments
+    suggested_actions: list[str] | None = None  # M3: context-aware action hints from DM
 
 
 # --- Living World Models ---

@@ -408,14 +408,25 @@
             const wepName = p.weapon || null;
             const armName = p.armor || null;
 
-            bar.innerHTML = chips.map(c =>
-                `<span class="chip" data-prefill="${escapeAttr(c)}">${escapeHtml(c)}</span>`
-            ).join('') + (wepName ? `<span class="chip" style="opacity:0.6;font-size:10px">🗡${escapeHtml(wepName)}</span>` : '')
+            // Prepend context-aware suggested actions from DM (NPC对话后)
+            let suggested = [];
+            if (panelData.suggested_actions && panelData.suggested_actions.length) {
+                suggested = panelData.suggested_actions;
+            }
+            const allChips = [...suggested, ...chips];
+            // Deduplicate
+            const seen = new Set();
+            const unique = allChips.filter(c => { const k = c.trim(); if (seen.has(k)) return false; seen.add(k); return true; });
+
+            bar.innerHTML = unique.map(c => {
+                const isSug = suggested.includes(c);
+                return `<span class="chip" data-prefill="${escapeAttr(c)}" style="${isSug ? 'background:rgba(155,200,255,0.25);border-color:#9dd5ff;color:#fff;' : ''}">${isSug ? '💬 ' : ''}${escapeHtml(c)}</span>`;
+            }).join('') + (wepName ? `<span class="chip" style="opacity:0.6;font-size:10px">🗡${escapeHtml(wepName)}</span>` : '')
                 + (armName ? `<span class="chip" style="opacity:0.6;font-size:10px">🛡${escapeHtml(armName)}</span>` : '');
             // Update toggle with action count
             const toggle = document.getElementById('action-toggle');
             if (toggle && !document.getElementById('action-chips').classList.contains('collapsed')) {
-                toggle.innerHTML = `&#9660; 行动 (${chips.length})`;
+                toggle.innerHTML = `&#9660; 行动 (${unique.length})`;
             }
         }
 
@@ -747,7 +758,8 @@
                     scene: data.scene, npcs: data.npcs || [],
                     quests: data.quests || [],
                     nextQuest: data.next_quest || null,
-                    player: data,  // level/spirit/hp/max_hp/affinity/inventory/tick/next_threshold
+                    player: data,
+                    suggested_actions: data.suggested_actions || [],
                 };
                 const locEl = document.getElementById('p-loc');
                 locEl.textContent = (data.scene && data.scene.name) || SCENE_NAMES[data.current_scene] || data.current_scene || '未知';
@@ -1314,6 +1326,7 @@
                         npcs: result.npcs || panelData.npcs,
                         quests: result.quests || panelData.quests,
                         nextQuest: result.next_quest || null,
+                        suggested_actions: result.suggested_actions || [],
                         player: Object.assign({}, panelData.player, result.player || {}, {
                             // keep next_threshold from last status; action resp lacks it
                             next_threshold: panelData.player && panelData.player.next_threshold,
