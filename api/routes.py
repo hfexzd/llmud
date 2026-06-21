@@ -298,7 +298,14 @@ def create_router(
 
             combat_result, player, updated_enemy = resolve_combat(player, enemy)
             if combat_result.result == "lose":
-                player = player.model_copy(update={"hp": 1})
+                stones_lost = min(20, player.spirit_stones // 2)
+                player = player.model_copy(update={
+                    "hp": player.max_hp // 2,
+                    "current_scene": "outer_gate",
+                    "spirit_stones": player.spirit_stones - stones_lost,
+                    "active_enemy": None,
+                })
+                _response_extras[0] = f"你被击败了！在柴房醒来，损失了{stones_lost}灵石。"
 
             # M7: record combat outcome for flow governor
             from engine.flow import FlowGovernor
