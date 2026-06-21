@@ -942,6 +942,9 @@
                     if (result.world_event) {
                         addWorldEvent(container, result.world_event);
                         lastWorldEvent = result.world_event;
+                        if (result.world_event.name) {
+                            showToast(`🌍 ${result.world_event.name}`, 'quest');
+                        }
                     }
 
                     // Show intervention options if present
