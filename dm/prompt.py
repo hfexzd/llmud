@@ -1,4 +1,7 @@
-from engine.models import Player, Intent, CombatResult, BreakthroughResult, Scene, WorldEvent, Goal
+from engine.models import (
+    Player, Intent, CombatResult, BreakthroughResult, Scene, WorldEvent, Goal,
+    world_canon,
+)
 
 
 DM_SYSTEM_TEMPLATE = """你是一款文字修仙 MUD 游戏的"动态地下城主（DM）"。
@@ -11,6 +14,7 @@ DM_SYSTEM_TEMPLATE = """你是一款文字修仙 MUD 游戏的"动态地下城�
 - 当前灵力：{spirit_power}
 - 当前气血：{hp}/{max_hp}
 
+{canon_context}
 {scene_context}
 {world_event_context}
 {engine_context}
@@ -30,7 +34,8 @@ DM_SYSTEM_TEMPLATE = """你是一款文字修仙 MUD 游戏的"动态地下城�
 8. 【世界事件融合】若【世界事件】中提供了叙事提示，你【必须】将事件自然地融入故事描写中，不得生硬插入或直接复述提示文本。事件应像环境的一部分一样出现，让玩家感受到世界的生动与动态。
 9. 【地标一致】你叙事中提及的具体地标（如祭坛、灵泉、柴房）【必须】来自【当前场景】中列出的地标，不得凭空编造场景模型中不存在的地标。
 10. 【所务引导】若【当前所务】给出，你的叙事应自然地朝该方向埋下钩子、给出推动（新地点、新NPC、新疑团），但【不得】生硬复述所务文本，也【不得】强迫玩家行动。
-11. 【突破由引擎决定】境界突破/升境【完全】由引擎结算决定，你【不得】自行叙述。仅当【引擎结算】中出现【突破】字样时，你方可描写突破发生；否则【严禁】叙述玩家突破、升境、瓶颈碎裂成空、境界提升等任何境界变化。玩家当前境界以「当前境界：{level}」为准，即便【当前所务】提到突破、即便玩家声称已在突破，也【不得】在叙事中坐实突破——只可描写"瓶颈松动、灵力奔涌、距突破更近"等未完成的征兆。"""
+11. 【突破由引擎决定】境界突破/升境【完全】由引擎结算决定，你【不得】自行叙述。仅当【引擎结算】中出现【突破】字样时，你方可描写突破发生；否则【严禁】叙述玩家突破、升境、瓶颈碎裂成空、境界提升等任何境界变化。玩家当前境界以「当前境界：{level}」为准，即便【当前所务】提到突破、即便玩家声称已在突破，也【不得】在叙事中坐实突破——只可描写"瓶颈松动、灵力奔涌、距突破更近"等未完成的征兆。
+12. 【只述已有之物】你提及的地点/地标、人物、妖兽/敌人、灵材/丹药/物件、功法/招式【必须】取自上方【世界设定·可述及事物】清单；【严禁】凭空编造未列出的具名事物——不得自创地点（如"断崖洞窟"）、自创妖兽（如"铁背蜥"）、自创灵材丹药（如"三叶血兰"）、自创功法招式。当清单中某类为"暂无定名"时，确需提及该类事物只能用泛称（如"某株灵草""一门功法""山里出了好东西"），【绝不得】具名。NPC口中说出的传闻亦受此约束——传闻可含糊其辞，但不得说出系统没有的具名地点/物品/敌人。"""
 
 ENGINE_CONTEXT_TEMPLATES = {
     "cultivate": "【引擎结算】修炼成功，灵力增加。",
@@ -113,6 +118,25 @@ def build_dm_prompt(
     if goal:
         goal_context = f"【当前所务】{goal.label}\n（叙事指引：{goal.guidance}）"
 
+    # Build the world canon block: the named entities the LLM may reference.
+    # Items/skills are often empty (留白待补) → tell the DM to narrate them
+    # generically rather than naming specifics (rule 12).
+    canon = world_canon()
+
+    def _catalog_line(items: list[str], generic: str) -> str:
+        if items:
+            return "、".join(items)
+        return f"（暂无定名，只能用泛称如「{generic}」，不得具名）"
+
+    canon_context = (
+        "【世界设定·可述及事物】（你只能提及以下系统已有之物；未列出者不得凭空编造具名）\n"
+        f"- 地点/地标：{'、'.join(canon['locations'])}\n"
+        f"- 人物：{'、'.join(canon['npcs'])}\n"
+        f"- 妖兽/敌人：{'、'.join(canon['enemies'])}\n"
+        f"- 灵材/丹药/物件：{_catalog_line(canon['items'], '灵草、丹药、好东西')}\n"
+        f"- 功法/招式：{_catalog_line(canon['skills'], '一门功法、招式')}"
+    )
+
     system_prompt = DM_SYSTEM_TEMPLATE.format(
         name=player.name,
         location=location_name,
@@ -120,6 +144,7 @@ def build_dm_prompt(
         spirit_power=player.spirit_power,
         hp=player.hp,
         max_hp=player.max_hp,
+        canon_context=canon_context,
         scene_context=scene_context,
         world_event_context=world_event_context,
         engine_context=engine_ctx,

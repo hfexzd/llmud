@@ -532,3 +532,42 @@ ALL_NPC_PROFILES: list[NPCProfileData] = [
         relationship_stage="陌生",
     ),
 ]
+
+
+# --- Mentionable world canon ---
+# The named entities the world "has". The DM prompt lists these (see
+# dm/prompt.world_canon / build_dm_prompt) so the LLM narrates using
+# world-known things instead of inventing its own (e.g. 断崖洞窟/三叶血兰/
+# 铁背蜥 are all outside this canon). Add a string to a catalog and it
+# auto-appears in the prompt's canon block — no other wiring needed.
+#
+# Items and skills are intentionally empty for now: the system has no
+# 灵材/丹药/功法 catalog yet, so the DM is told to narrate them generically
+# ("某株灵草"/"一门功法") rather than name specifics. Fill these lists when
+# the world's lore is authored.
+ITEM_CATALOG: list[str] = []   # 灵材/丹药/物件 — 留白待补
+SKILL_CATALOG: list[str] = []  # 功法/招式/技能 — 留白待补
+
+# Canonical 妖兽/敌人 names. The encounter pool currently holds only
+# DEFAULT_ENCOUNTER (赤眼妖狼); extend here when more enemies are defined.
+ENCOUNTER_CATALOG: list[str] = [DEFAULT_ENCOUNTER.name]
+
+
+def world_canon() -> dict:
+    """All mentionable named entities, for the DM prompt's canon block.
+
+    The LLM may only reference locations/landmarks, NPCs, and enemies from
+    here, and items/skills from their catalogs. Empty item/skill catalogs
+    mean "narrate generically, do not name specifics".
+    """
+    locations: list[str] = []
+    for scene in SCENE_MAP.values():
+        locations.append(scene.name)
+        locations.extend(scene.landmarks)
+    return {
+        "locations": locations,
+        "npcs": [p.name for p in ALL_NPC_PROFILES],
+        "enemies": list(ENCOUNTER_CATALOG),
+        "items": list(ITEM_CATALOG),
+        "skills": list(SKILL_CATALOG),
+    }
