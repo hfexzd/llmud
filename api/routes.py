@@ -445,6 +445,16 @@ def create_router(
                     player = player.model_copy(update={"spirit_stones": player.spirit_stones - 10})
                     _response_extras[0] = f"你给了{bribe_target.name}10灵石。[好感度+5]"
 
+        # Item search
+        if "查找" in filtered_input and player.inventory:
+            search_term = filtered_input.split("查找")[-1].strip()
+            if search_term:
+                found = [i for i in player.inventory if search_term in i]
+                if found:
+                    _response_extras[0] = f"找到：{'、'.join(found)}（共{len(found)}件）"
+                else:
+                    _response_extras[0] = f"未找到包含「{search_term}」的物品。"
+
         # Auto-loot toggle
         if "自动拾取" in filtered_input or "自动收集" in filtered_input:
             player = player.model_copy(update={"auto_loot": not player.auto_loot})
