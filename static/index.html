@@ -279,7 +279,7 @@
                 toggle2.innerHTML = panel2.classList.contains('collapsed') ? '&#9660; ' + sceneLabel : '&#9650; ' + sceneLabel;
             }
             if (chips2 && actToggle2) {
-                actToggle2.innerHTML = chips2.classList.contains('collapsed') ? '&#9654; 行动' : '&#9654; 行动';
+                actToggle2.innerHTML = chips2.classList.contains('collapsed') ? '&#9650; 行动' : '&#9660; 行动';
             }
             // Restart collapse timers only for expanded panels
             if (_sceneCollapseTimer) clearTimeout(_sceneCollapseTimer);
@@ -294,7 +294,7 @@
             if (chips2 && !chips2.classList.contains('collapsed')) {
                 _actionCollapseTimer = setTimeout(() => {
                     chips2.classList.add('collapsed');
-                    actToggle2.innerHTML = '&#9654; 行动';
+                    actToggle2.innerHTML = '&#9650; 行动';
                     _actionCollapseTimer = null;
                 }, 5000);
             }
@@ -307,14 +307,14 @@
             const collapsed = chips.classList.toggle('collapsed');
             if (_actionCollapseTimer) { clearTimeout(_actionCollapseTimer); _actionCollapseTimer = null; }
             if (!collapsed) {
-                toggle.innerHTML = '⚡ 行动';
+                toggle.innerHTML = '&#9660; 行动';
                 _actionCollapseTimer = setTimeout(() => {
                     chips.classList.add('collapsed');
-                    toggle.innerHTML = '&#9654; 行动';
+                    toggle.innerHTML = '&#9650; 行动';
                     _actionCollapseTimer = null;
                 }, 5000);
             } else {
-                toggle.innerHTML = '&#9654; 行动';
+                toggle.innerHTML = '&#9650; 行动';
             }
         }
 
@@ -413,7 +413,7 @@
             // Update toggle with action count
             const toggle = document.getElementById('action-toggle');
             if (toggle && !document.getElementById('action-chips').classList.contains('collapsed')) {
-                toggle.innerHTML = `⚡ 行动 (${chips.length})`;
+                toggle.innerHTML = `&#9660; 行动 (${chips.length})`;
             }
         }
 
