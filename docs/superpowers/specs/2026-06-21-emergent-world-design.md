@@ -83,11 +83,50 @@ class WorldBible(BaseModel):
     phase_id: int                 # 0=种子，每次再生 +1
     phase_title: str              # "练气篇" / "筑基风云"
     scenes: list[SceneSpec]       # 本阶段场景（phase-0 = 现有 5 场景）
-    factions: list[FactionSpec]   # 势力：青云门/散修盟/妖兽潮…
+    factions: list[FactionSpec]   # 门派/势力（见 §4.2）
+    items: list[ItemSpec]         # 灵材/丹药/法器/物件（见 §4.2）
+    skills: list[SkillSpec]        # 功法/招式/身法/心法（见 §4.2）
     tensions: list[TensionSpec]   # 主要世界事件 = 张力（核心，见下）
     npc_models: list[BehaviorModel]  # NPC 行为模型
     ending_hints: dict            # 本阶段推动哪些终态原型
 ```
+
+WorldBible 的内容目录（scenes/factions/items/skills）就是该阶段的**活跃 canon**——DM 提示词的「世界设定·可述及事物」清单与校验器的 canon 检查都从这里取，取代我们之前留空的 `ITEM_CATALOG/SKILL_CATALOG`。**phase-0 手写一小套种子**（沿用「phase-0 不调 LLM」原则）：5 现有场景 + 青云门/散修盟等门派 + 几味基础灵材丹药 + 几门基础功法；**LLM worldgen 从 phase-1 起**再生并扩充这些目录。本版本中 items/skills/factions 作为**叙事 canon + 张力载体**（NPC 提及、张力涉及、作为解决奖励发放/剥夺、轻量进 `player.inventory`），**完整装备/掉落/功法修习的数值系统属 A 加深（OUT）**。
+
+### 4.2 内容目录 schema
+
+```python
+class FactionSpec(BaseModel):
+    id: str                        # "qingyun_sect"
+    name: str                      # "青云门"
+    type: str                      # 门派 | 散修组织 | 妖兽势力 | 中立方
+    stance: str                    # 正 | 魔 | 中立 | 野
+    relations: dict[str, str]      # 与其他势力关系：盟/敌/疏/密
+    tensions_involved: list[str]   # 卷入哪些张力
+    lore: str                      # 一句设定，供叙事
+
+class ItemSpec(BaseModel):
+    id: str                        # "three_leaf_blood_orchid"
+    name: str                      # "三叶血兰"
+    kind: str                      # 灵材 | 丹药 | 法器 | 材料 | 暗器
+    rarity: str                    # 凡 | 灵 | 玄 | 天
+    effect: str                    # 服用+灵力 / 装备+攻 / 解毒…（半结构化，供叙事+轻量结算）
+    source: list[str]              # 出没场景/来源：竹林地脉 / 妖兽掉落 / 集市
+    axis: str                       # 关联轴（成长/探索）
+    lore: str                      # 一句设定
+
+class SkillSpec(BaseModel):
+    id: str                        # "qingyun_sword_art"
+    name: str                      # "青云剑诀"
+    kind: str                      # 功法 | 招式 | 身法 | 心法
+    school: str                    # 所属门派/传承（引用 FactionSpec.id）
+    requirement: str                # 修习门槛：境界/灵根/好感
+    effect: str                    # +攻 / +防 / 特殊
+    axis: str
+    lore: str
+```
+
+张力与内容目录互引：`TensionSpec.involved_factions` 引用 FactionSpec.id；`ResolutionPath.outcome_state` 可含「得 X 物 / 习 Y 功法 / 失 Z」作为解决奖励/代价；校验器据此校「发放的物品/功法必须在 WorldBible.items/skills 内」。
 
 **TensionSpec（主要世界事件 = 张力）是涌现主线的心脏**——每个张力有触发条件、参与方、**多条可能解决方向**，但**不预设走哪条**：
 
@@ -311,9 +350,9 @@ class TerminalArchetype(BaseModel):
 
 ## 14. 范围 IN / OUT
 
-**IN**：WorldBible canon（phase-0 种子 + LLM 再生）/ WorldState（张力·npc·势力·压力）/ 规则驱动半自主 NPC tick / 结算校验器（流式感知分流）/ 终态原型 + 终章 / 张力脊柱编织三轴 / 所务迁移到张力派生 / 挂机离线成长 / 心流调节杠杆 / 情感主题与悲剧弧 / **单机**。
+**IN**：WorldBible canon（phase-0 种子 + LLM 再生）/ 内容目录 scenes·factions·items·skills（叙事 canon + 张力载体，轻量进背包）/ WorldState（张力·npc·势力·压力）/ 规则驱动半自主 NPC tick / 结算校验器（流式感知分流）/ 终态原型 + 终章 / 张力脊柱编织三轴 / 所务迁移到张力派生 / 挂机离线成长 / 心流调节杠杆 / 情感主题与悲剧弧 / **单机**。
 
-**OUT（延后）**：每 tick LLM 生成式代理（方案三）、异步社交层 F、鉴权/支付/运营 G、向量 RAG（C 加深，记忆不足再上）、开局每玩家独立 worldgen（phase-0 用共享手写种子）、实时多人。
+**OUT（延后）**：完整装备/掉落/功法修习的**数值系统**（A 加深——物品/功法本版本只作叙事 canon 与张力奖励/代价，不驱动攻防数值）、每 tick LLM 生成式代理（方案三）、异步社交层 F、鉴权/支付/运营 G、向量 RAG（C 加深，记忆不足再上）、开局每玩家独立 worldgen（phase-0 用共享手写种子）、实时多人。
 
 ---
 
@@ -323,7 +362,7 @@ class TerminalArchetype(BaseModel):
 - **M2 张力状态机 + 所务迁移**：TensionSpec/ResolutionPath、张力机、所务从张力派生（phase-0 映射现有 4 目标）；TensionSpec 加 emotion/difficulty。测：张力机、所务派生。仍无 LLM worldgen。
 - **M3 结算校验器**：canon/人格/因果/数值钳制；DM 契约加 world_delta；流后校验接入。测：校验规则（MockLLM）。
 - **M4 终态结局层**：原型集 + check_ending + 终章 LLM + sealed + 前端结局卡。测：谓词、sealed 流程。
-- **M5 世界生成 + 里程碑再生**：worldgen/ 模块、WorldBible schema 校验、再生触发、phase-0 种子。**首次 LLM worldgen 上线**，风险隔离到最后。
+- **M5 世界生成 + 里程碑再生**：worldgen/ 模块、WorldBible schema 校验、再生触发、phase-0 种子（含手写一小套 items/skills/factions 种子）、内容目录（scenes/factions/items/skills）由 worldgen 产出并接入 canon 块与校验器。**首次 LLM worldgen 上线**，风险隔离到最后。
 - **M6 挂机离线成长**：advance_offline + offline_directive + catch-up 卡 + 前端。测：离线预算/不破境/不触发终态。
 - **M7 涌现主线串起 + 心流/情感打磨**：resolved_tensions→再生跨阶段张力脊柱；phase-1+ NPC 行为模型 author；心流调节；情感主题落地；端到端通关 + 漂移观察；调压力/再生/心流阈值。
 
@@ -357,3 +396,4 @@ class TerminalArchetype(BaseModel):
 | E1 | 挂机离线成长（规则驱动、封顶、不破境、不终态） | 玩家体验诉求；零 LLM 成本 |
 | E2 | 心流调节杠杆（动态调压力/门槛） | 在线 flow 体验 |
 | E3 | 张力 emotion + NPC tragic_potential + 结局光谱 | 情感纠葛代入感，因果约束 |
+| D9 | 物品/道具/门派/功法由 worldgen 预生成进 canon（phase-0 手写种子） | 「构建世界」的一部分；取代留空目录；本版本只作叙事 canon + 张力载体，数值系统延后 |
