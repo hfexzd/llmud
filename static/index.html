@@ -332,7 +332,10 @@
             html += `<div class="bar-pct">${p.spirit_power??0}${nextT? ' / '+nextT+' 至下境':''}</div>`;
             html += `<div class="panel-label">气血</div><div class="bar hp"><i style="width:${hpPct}%"></i></div>`;
             html += `<div class="bar-pct">${p.hp??0} / ${p.max_hp??0}</div>`;
-            html += `<div class="stat-line"><span>时辰</span><b>${shichenLabel(p.tick)}</b></div>`;
+            const totalMin = p.tick || 0;
+            const hours = Math.floor(totalMin / 60);
+            const mins = totalMin % 60;
+            html += `<div class="stat-line"><span>时辰</span><b>${shichenLabel(p.tick)}</b><span style="margin-left:auto;font-size:11px;color:#8a7aa8">${hours?hours+'小时':''}${mins}分</span></div>`;
             html += `<div class="stat-line"><span>灵石</span><b style="color:#ffd700">${p.spirit_stones??0}</b></div>`;
             const wepBonus = {'剑':5,'刀':4,'掌':3,'拳':2,'杖':3};
             const armBonus = {'袍':3,'甲':5,'衣':2,'铠':6,'盾':4};
