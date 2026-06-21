@@ -452,6 +452,12 @@ def create_router(
             player = player.model_copy(update={"inventory": new_inv})
             _response_extras[0] = f"你在山谷中采到了{found}。{'(药老点了点头。)' if _herb.random()<0.3 else ''}"
 
+        # Scroll writing at inner_gate
+        if "写字" in filtered_input and player.current_scene == "inner_gate":
+            new_inv = list(player.inventory or []) + ["书法"]
+            player = player.model_copy(update={"inventory": new_inv})
+            _response_extras[0] = "你在案前挥毫泼墨，写下了一幅书法。获得【书法】。"
+
         # Bonfire at mountain_range
         if "生火" in filtered_input and player.current_scene == "mountain_range":
             heal_fire = min(15, player.max_hp - player.hp)
