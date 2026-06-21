@@ -493,6 +493,15 @@ ALL_EVENTS: list[WorldEvent] = [
         one_time=True,
     ),
     WorldEvent(
+        id="market_hint",
+        name="集市传闻",
+        scene_id="outer_gate",
+        trigger=EventTrigger(type="stat_threshold", conditions={"min_spirit": 14}),
+        narrative_hint="一位外门弟子匆匆路过，嘀咕着'集市那边新到了一批丹药……'",
+        guidance="explore_market",
+        one_time=True,
+    ),
+    WorldEvent(
         id="bamboo_whisper",
         name="竹林沙沙声",
         scene_id="inner_gate",
