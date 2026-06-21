@@ -290,6 +290,19 @@ def create_router(
         world_state = world_state.model_copy(update={"tick": player.tick})
         world_repo.save(world_state)
 
+        # M5: check milestone regen (must run before ending check)
+        from engine.world import check_regen, merge_bible, REGEN_THRESHOLD
+        if check_regen(world_state, bible) and llm_client is not None:
+            from worldgen.generator import generate_bible
+            new_bible = await generate_bible(
+                world_state.resolved_tensions, world_state, player, bible, llm_client,
+            )
+            if new_bible is not None:
+                world_state = merge_bible(world_state, new_bible)
+                bible = new_bible
+                world_state = world_state.model_copy(update={"phase_id": new_bible.phase_id})
+                world_repo.save(world_state)
+
         # M4: check ending after world tick
         from engine.ending import check_ending
         ending_id = check_ending(world_state, bible, player)

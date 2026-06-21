@@ -10,7 +10,7 @@ from api.routes import create_router
 from dm.client import MockLLMClient
 from db.connection import init_db
 from db.repository import PlayerRepository, NPCRepository, WorldRepository
-from engine.models import Player, WorldState, DEFAULT_ENCOUNTER
+from engine.models import Player, WorldState, TensionRuntime, PHASE_0_BIBLE, DEFAULT_ENCOUNTER
 from engine.world import WorldEngine
 
 
@@ -878,3 +878,35 @@ class TestEndingIntegration:
             assert mock_llm_client.generate.call_count == 1
             # The finale story should be present
             assert len(data.get("story", "")) > 0
+
+
+class TestWorldgenIntegration:
+    """M5: milestone regen integration."""
+
+    @pytest.mark.asyncio
+    async def test_worldgen_pipeline_does_not_crash(self, db_conn, mock_llm_client):
+        """The worldgen wiring in the pipeline does not crash on normal flow."""
+        mock_llm_client.generate_stream = None
+        mock_llm_client.generate.return_value = (
+            '{"intent":"cultivate","story":"你静心修炼。","action_valid":true}'
+        )
+
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        player_repo.save(Player(id="p1", current_scene="outer_gate", tick=3))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "修炼"})
+            assert response.status_code == 200
+            data = response.json()
+            # Normal response without ending (tick=3 < 20)
+            assert "story" in data
+            assert "intent" in data

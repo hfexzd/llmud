@@ -539,3 +539,43 @@ def apply_world_delta(world_state: WorldState, world_delta: dict) -> WorldState:
         "npc_state": new_npc,
         "faction_state": new_factions,
     })
+
+
+# ---------------------------------------------------------------------------
+# M5: Milestone regeneration
+# ---------------------------------------------------------------------------
+
+REGEN_THRESHOLD = 15  # world_pressure must reach this to trigger milestone regen
+
+
+def check_regen(world_state: WorldState, bible: WorldBible) -> bool:
+    """Return True if regen conditions are met:
+    - world_pressure >= REGEN_THRESHOLD
+    - No active tensions are currently resolving (have progress)
+    - world is not sealed
+    """
+    if world_state.sealed:
+        return False
+    if world_state.world_pressure < REGEN_THRESHOLD:
+        return False
+    # Check no active tension has progress (is in the middle of resolving)
+    for tid, rt in world_state.tensions.items():
+        if rt.status == "active" and rt.progress:
+            return False
+    return True
+
+
+def merge_bible(world_state: WorldState, new_bible: WorldBible) -> WorldState:
+    """Merge a new WorldBible into world_state after milestone regen.
+
+    Preserves resolved_tensions history, resets world_pressure to 0.
+    Tensions are replaced entirely with the new bible's tensions (dormant).
+    """
+    new_tensions: dict[str, TensionRuntime] = {}
+    for spec in new_bible.tensions:
+        new_tensions[spec.id] = TensionRuntime(status="dormant")
+
+    return world_state.model_copy(update={
+        "tensions": new_tensions,
+        "world_pressure": 0,
+    })

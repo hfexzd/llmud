@@ -2,9 +2,10 @@
 import pytest
 from engine.models import (
     WorldBible, WorldState, Player, PHASE_0_BIBLE,
-    TensionSpec, TensionTrigger, TensionRuntime,
+    TensionSpec, TensionTrigger, TensionRuntime, ResolvedTension,
 )
 from worldgen.validator import validate_bible
+from engine.world import check_regen, merge_bible, REGEN_THRESHOLD
 
 
 class TestValidateBible:
@@ -80,3 +81,39 @@ class TestGenerateBible:
         result = await generate_bible([], WorldState(), Player(), PHASE_0_BIBLE, client)
         assert result is not None
         assert result.phase_id == PHASE_0_BIBLE.phase_id + 1
+
+
+class TestRegenTrigger:
+    def test_pressure_below_threshold_returns_false(self):
+        ws = WorldState(world_pressure=5)
+        assert check_regen(ws, PHASE_0_BIBLE) is False
+
+    def test_pressure_at_threshold_with_no_active_progress_returns_true(self):
+        ws = WorldState(
+            world_pressure=15,
+            tensions={"t1": TensionRuntime(status="active", progress={})},
+        )
+        assert check_regen(ws, PHASE_0_BIBLE) is True
+
+    def test_pressure_at_threshold_with_active_progress_returns_false(self):
+        ws = WorldState(
+            world_pressure=15,
+            tensions={"t1": TensionRuntime(status="active", progress={"p1": 30})},
+        )
+        assert check_regen(ws, PHASE_0_BIBLE) is False
+
+    def test_sealed_world_never_triggers_regen(self):
+        ws = WorldState(world_pressure=15, sealed=True)
+        assert check_regen(ws, PHASE_0_BIBLE) is False
+
+    def test_merge_bible_preserves_resolved_tensions(self):
+        ws = WorldState(
+            world_pressure=20,
+            resolved_tensions=[ResolvedTension(
+                tension_id="old", resolved_tick=5, path_id="done",
+            )],
+        )
+        merged = merge_bible(ws, PHASE_0_BIBLE)
+        assert merged.world_pressure == 0
+        assert len(merged.resolved_tensions) == 1  # preserved
+        assert merged.tensions["venture_bamboo"].status == "dormant"
