@@ -202,7 +202,7 @@
         function shichenLabel(tick) { return SHICHEN[(tick || 0) % 12]; }
 
         // Cached panel data, refreshed by updateStatus() and after each action.
-        let panelData = {scene:null, npcs:[], quests:[], nextQuest:null, player:null};
+        let panelData = {scene:null, npcs:[], quests:[], nextQuest:null, player:null, suggested_actions:[]};
 
         // Panel clicks PREFILL the input (focus optional) — never auto-send, so
         // every action still flows through classify→engine→world→dm.
