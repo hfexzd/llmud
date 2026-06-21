@@ -297,6 +297,15 @@ def create_router(
                 enemy = encounter.model_copy()  # fresh, full-HP enemy
 
             combat_result, player, updated_enemy = resolve_combat(player, enemy)
+            # Track combo
+            combo_count = getattr(game_action, "_combo", 0)
+            if combat_result.result in ("ongoing", "win"):
+                combo_count += 1
+            else:
+                combo_count = 0
+            game_action._combo = combo_count
+            if combo_count > 1:
+                combat_result.combo = combo_count
             if combat_result.result == "lose":
                 stones_lost = min(20, player.spirit_stones // 2)
                 player = player.model_copy(update={

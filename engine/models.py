@@ -102,6 +102,7 @@ class CombatResult(BaseModel):
     enemy_remaining_hp: int
     player_remaining_hp: int
     crit: bool = False
+    combo: int = 1
 
 
 class BreakthroughResult(BaseModel):
