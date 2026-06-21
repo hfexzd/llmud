@@ -77,6 +77,8 @@ class Player(BaseModel):
     # visible list is derived from state; this only carries completed_tick for
     # strike-through + auto-expiry. See engine/world.py.
     quests: list[QuestState] = Field(default_factory=list)
+    weapon: str | None = None
+    armor: str | None = None
     tick: int = 0
     created_at: datetime = Field(default_factory=datetime.now)
     last_seen: datetime = Field(default_factory=datetime.now)
@@ -899,6 +901,12 @@ PHASE_0_BIBLE = WorldBible(
         ItemSpec(id="lake_pearl", name="湖心珠", kind="法器", rarity="灵",
                  effect="佩戴可缓慢恢复灵力", source=["雾隐湖"], axis="成长",
                  lore="湖心深处的灵珠，凝聚了雾隐湖百年的灵气精华。"),
+        ItemSpec(id="bronze_sword", name="青锋剑", kind="法器", rarity="凡",
+                 effect="装备可提升攻击", source=["修士集市"], axis="成长",
+                 lore="一柄普通的青铜长剑，锋利程度尚可。"),
+        ItemSpec(id="cloth_armor", name="布甲", kind="法器", rarity="凡",
+                 effect="装备可提升防御", source=["修士集市"], axis="成长",
+                 lore="粗布制成的简易护甲，聊胜于无。"),
     ],
     skills=[
         SkillSpec(id="qingyun_sword_art", name="青云剑诀", kind="功法",

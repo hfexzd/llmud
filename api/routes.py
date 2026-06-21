@@ -153,6 +153,8 @@ def create_router(
             "max_hp": player.max_hp,
             "affinity": player.affinity,
             "inventory": player.inventory,
+            "weapon": player.weapon,
+            "armor": player.armor,
             "attack": compute_attack(player),
             "defense": compute_defense(player),
             "scene": scene_info,
@@ -354,6 +356,46 @@ def create_router(
                             r = rarity_cn.get(spec.rarity, spec.rarity)
                             item_inspect_message = f"【{spec.name}】（{r} {spec.kind}）{spec.lore}（效果：{spec.effect}）"
                             break
+                    break
+
+        # Equipment: equip/unequip items
+        equip_message = None
+        if "装备" in filtered_input or "佩戴" in filtered_input:
+            for kw in ("装备", "佩戴"):
+                if kw in filtered_input:
+                    part = filtered_input.split(kw)[-1].strip()
+                    if part and part in (player.inventory or []):
+                        new_inv = list(player.inventory)
+                        new_inv.remove(part)
+                        from engine.rules import _equip_bonus, _WEAPON_BONUS, _ARMOR_BONUS
+                        wep_bonus = _equip_bonus(part, _WEAPON_BONUS)
+                        arm_bonus = _equip_bonus(part, _ARMOR_BONUS)
+                        updates = {"inventory": new_inv}
+                        if wep_bonus > 0:
+                            if player.weapon:
+                                new_inv.append(player.weapon)
+                            updates["weapon"] = part
+                            updates["inventory"] = new_inv
+                            equip_message = f"装备了{part}（攻击+{wep_bonus}）"
+                        elif arm_bonus > 0:
+                            if player.armor:
+                                new_inv.append(player.armor)
+                            updates["armor"] = part
+                            updates["inventory"] = new_inv
+                            equip_message = f"装备了{part}（防御+{arm_bonus}）"
+                        if equip_message:
+                            player = player.model_copy(update=updates)
+                        break
+                    break
+        # Unequip
+        if "卸下" in filtered_input or "取下" in filtered_input:
+            for slot in ("weapon", "armor"):
+                current = getattr(player, slot, None)
+                if current and (current in filtered_input or slot in filtered_input):
+                    new_inv = list(player.inventory or []) + [current]
+                    player = player.model_copy(update={"inventory": new_inv, slot: None})
+                    slot_name = "武器" if slot == "weapon" else "防具"
+                    equip_message = f"卸下了{current}（{slot_name}栏已空）"
                     break
 
         # Item usage: if input contains "使用" + item name, consume from inventory
@@ -789,6 +831,8 @@ def create_router(
                     "spirit_power": player.spirit_power,
                     "hp": player.hp,
                     "max_hp": player.max_hp,
+                    "weapon": player.weapon,
+                    "armor": player.armor,
                     "inventory": player.inventory,
                     "attack": compute_attack(player),
                     "defense": compute_defense(player),
@@ -832,6 +876,10 @@ def create_router(
             # Surface gift message if an item was given to an NPC
             if gift_message:
                 rest["item_use"] = gift_message
+
+            # Surface equip message
+            if equip_message:
+                rest["item_use"] = equip_message
 
             # Add intervention info to response
             if intervention:

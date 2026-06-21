@@ -17,14 +17,30 @@ def get_multiplier(player: Player) -> float:
     return get_current_tier(player).multiplier
 
 
+# Equipment bonuses by keyword in item name
+_WEAPON_BONUS: dict[str, int] = {"剑": 5, "刀": 4, "掌": 3, "拳": 2, "杖": 3}
+_ARMOR_BONUS: dict[str, int] = {"袍": 3, "甲": 5, "衣": 2, "铠": 6, "盾": 4}
+
+
+def _equip_bonus(item_name: str | None, table: dict[str, int]) -> int:
+    if not item_name:
+        return 0
+    for keyword, bonus in table.items():
+        if keyword in item_name:
+            return bonus
+    return 0
+
+
 def compute_attack(player: Player) -> int:
-    """attack = spirit_power × level_multiplier"""
-    return int(player.spirit_power * get_multiplier(player))
+    """attack = spirit_power × level_multiplier + weapon bonus"""
+    base = int(player.spirit_power * get_multiplier(player))
+    return base + _equip_bonus(player.weapon, _WEAPON_BONUS)
 
 
 def compute_defense(player: Player) -> int:
-    """defense = floor(spirit_power / 2) + 5"""
-    return player.spirit_power // 2 + 5
+    """defense = floor(spirit_power / 2) + 5 + armor bonus"""
+    base = player.spirit_power // 2 + 5
+    return base + _equip_bonus(player.armor, _ARMOR_BONUS)
 
 
 def cultivate(player: Player) -> Player:
