@@ -600,7 +600,10 @@
                     nextQuest: data.next_quest || null,
                     player: data,  // level/spirit/hp/max_hp/affinity/inventory/tick/next_threshold
                 };
-                document.getElementById('p-loc').textContent = (data.scene && data.scene.name) || SCENE_NAMES[data.current_scene] || data.current_scene || '未知';
+                const locEl = document.getElementById('p-loc');
+                locEl.textContent = (data.scene && data.scene.name) || SCENE_NAMES[data.current_scene] || data.current_scene || '未知';
+                const connNames = (data.scene && data.scene.connections) || [];
+                locEl.title = connNames.length ? '可前往：' + connNames.map(c => SCENE_NAMES[c]||c).join('、') : '';
                 document.getElementById('p-goal').textContent = (data.goal && data.goal.label) || '—';
                 if (data.goal && data.goal.label) lastGoalLabel = data.goal.label;
                 document.getElementById('p-level').textContent = data.level || '练气期一层';
