@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🏔</text></svg>">
     <title>修仙 MUD</title>
     <style>
         html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f3f3f3; overflow: hidden; }
@@ -260,6 +261,7 @@
             if (atmFreq && window.__soundOn) {
                 try {
                     const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    if (ctx.state === 'suspended') { ctx.resume(); }
                     const osc = ctx.createOscillator(); const gain = ctx.createGain();
                     osc.connect(gain); gain.connect(ctx.destination);
                     osc.frequency.value = atmFreq; osc.type = 'sine';
