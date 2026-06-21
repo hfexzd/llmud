@@ -173,9 +173,21 @@
     <div id="main-menu">
         <div class="menu-title">修 仙 MUD</div>
         <div class="menu-sub">— 灵 境 之 旅 —</div>
-        <button class="menu-btn primary" onclick="continueGame()">继续上次的故事</button>
-        <button class="menu-btn" onclick="resetGame()">重新开始</button>
-        <button class="menu-btn" onclick="showRuns()">游戏历程回顾</button>
+        <div id="menu-buttons">
+            <button class="menu-btn primary" onclick="continueGame()">继续上次的故事</button>
+            <button class="menu-btn" onclick="showNewGameDialog()">重新开始</button>
+            <button class="menu-btn" onclick="showRuns()">游戏历程回顾</button>
+        </div>
+        <div id="new-game-dialog" style="display:none">
+            <div style="color:#b8a0d4;font-size:14px;margin-bottom:12px">输入主角名字</div>
+            <input id="new-game-name" type="text" value="张铁柱" maxlength="8"
+                style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:8px 16px;color:#fff;font-size:16px;text-align:center;width:200px;outline:none"
+                onkeydown="if(event.key==='Enter')startNewGame()">
+            <div style="margin-top:12px">
+                <button class="menu-btn" onclick="hideNewGameDialog()" style="display:inline;width:auto;padding:8px 20px;margin:0 4px">取消</button>
+                <button class="menu-btn primary" onclick="startNewGame()" style="display:inline;width:auto;padding:8px 20px;margin:0 4px">踏入修仙之路</button>
+            </div>
+        </div>
         <div id="runs-list" style="display:none"></div>
         <button class="menu-btn" id="runs-back" style="display:none;margin-top:8px" onclick="hideRuns()">← 返回菜单</button>
     </div>
@@ -1013,25 +1025,48 @@
 
         function showMainMenu() {
             document.getElementById('main-menu').classList.remove('hidden');
+            document.getElementById('menu-buttons').style.display = '';
+            hideNewGameDialog();
             hideRuns();
         }
 
         function continueGame() {
             const hasPlayer = panelData.player && panelData.player.tick > 0;
-            if (hasPlayer || document.getElementById('chat-container').children.length > 0) {
+            if (hasPlayer || document.getElementById('chat-container').children.length > 1) {
                 hideMainMenu();
             } else {
-                // No save exists, start fresh
-                resetGame();
+                // No save exists, prompt for new game
+                showNewGameDialog();
             }
         }
 
-        async function resetGame() {
-            await fetch('/game/reset', {method:'POST'});
+        function showNewGameDialog() {
+            document.getElementById('menu-buttons').style.display = 'none';
+            document.getElementById('new-game-dialog').style.display = '';
+            document.getElementById('new-game-name').focus();
+        }
+
+        function hideNewGameDialog() {
+            document.getElementById('new-game-dialog').style.display = 'none';
+            document.getElementById('menu-buttons').style.display = '';
+        }
+
+        async function startNewGame() {
+            const name = document.getElementById('new-game-name').value.trim() || '张铁柱';
+            await fetch('/game/reset', {
+                method:'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({name: name})
+            });
             document.getElementById('chat-container').innerHTML = '';
             panelData = {scene:null, npcs:[], quests:[], nextQuest:null, player:null, suggested_actions:[]};
-            showMainMenu();
+            hideMainMenu();
             updateStatus();
+        }
+
+        async function resetGame() {
+            // Legacy: called from ending card or "重新开始" command
+            showNewGameDialog();
         }
 
         async function showRuns() {

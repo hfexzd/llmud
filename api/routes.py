@@ -23,6 +23,9 @@ class ActionRequest(BaseModel):
     user_input: str
     offline_directive: str | None = None
 
+class ResetRequest(BaseModel):
+    name: str | None = None
+
 
 def _resolve_talk_target(player, filtered_input, world_engine, npc_repo, world_state=None):
     """Pick the NPC id a TALK action addresses: a named NPC present in the
@@ -271,7 +274,7 @@ def create_router(
         return {"runs": runs}
 
     @router.post("/game/reset")
-    def reset_game():
+    def reset_game(req: ResetRequest = ResetRequest()):
         """Save current run to history, then reset all game state."""
         import os, json, datetime
         player = player_repo.get("p1")
@@ -301,7 +304,10 @@ def create_router(
                 json.dump(run_record, f, ensure_ascii=False, indent=2)
         from engine.models import DEFAULT_PLAYER
         player_repo.delete("p1")
-        player_repo.save(DEFAULT_PLAYER)
+        new_player = DEFAULT_PLAYER
+        if req.name and req.name.strip():
+            new_player = DEFAULT_PLAYER.model_copy(update={"name": req.name.strip()})
+        player_repo.save(new_player)
         world_repo.delete("default")
         npc_repo.delete_all_memories()
         from api.app import seed_database
