@@ -268,6 +268,15 @@ def create_router(
             if breakthrough:
                 player = player.model_copy(update={"level": breakthrough.to_level})
 
+        # Repeated cultivation (连续修炼 does it 5x)
+        if "连续修炼" in filtered_input:
+            for _ in range(4):  # already did 1 above, do 4 more
+                player = cultivate(player)
+                bt = check_breakthrough(player)
+                if bt:
+                    player = player.model_copy(update={"level": bt.to_level})
+                    breakthrough = bt
+
         elif intent == Intent.FIGHT:
             # Continue an in-progress fight in this scene from the enemy's
             # stored HP, or spawn a fresh enemy. Without persisting HP across
