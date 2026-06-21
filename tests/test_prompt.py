@@ -29,3 +29,24 @@ def test_cultivate_breakthrough_guidance_forbids_narrating_breakthrough():
     goal = next(g for g in GOALS if g.id == "cultivate_breakthrough")
     assert "绝不可" in goal.guidance or "不得" in goal.guidance
     assert "引擎结算决定" in goal.guidance
+
+
+def test_prompt_includes_world_delta_schema():
+    """The DM system prompt must describe the world_delta JSON schema."""
+    from dm.prompt import build_dm_prompt
+    system, _ = build_dm_prompt(
+        player=Player(), intent=Intent.OTHER,
+    )
+    assert "world_delta" in system
+    assert "tension" in system
+    assert "pressure" in system or "progress" in system
+
+
+def test_prompt_includes_world_delta_rule():
+    """The prompt must include a rule about world_delta canon constraints."""
+    from dm.prompt import build_dm_prompt
+    from engine.models import Player, Intent
+    system, _ = build_dm_prompt(
+        player=Player(), intent=Intent.OTHER,
+    )
+    assert "13." in system or "world_delta" in system.lower()
