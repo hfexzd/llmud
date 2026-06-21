@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from dm.client import LLMClient
-from db.repository import PlayerRepository, NPCRepository
+from db.repository import PlayerRepository, NPCRepository, WorldRepository
 from engine.models import DEFAULT_PLAYER, DEFAULT_ENCOUNTER, ALL_NPC_PROFILES
 from engine.world import WorldEngine
 from api.routes import create_router
@@ -40,6 +40,7 @@ def create_app(llm_client: LLMClient | None = None, db_path: str | None = None) 
     conn = create_db_connection_from_env(db_path)
     player_repo = PlayerRepository(conn)
     npc_repo = NPCRepository(conn)
+    world_repo = WorldRepository(conn)
 
     # Seed default data
     seed_database(player_repo, npc_repo)
@@ -67,6 +68,7 @@ def create_app(llm_client: LLMClient | None = None, db_path: str | None = None) 
         npc_repo=npc_repo,
         encounter=DEFAULT_ENCOUNTER,
         world_engine=world_engine,
+        world_repo=world_repo,
     )
     app.include_router(router)
 

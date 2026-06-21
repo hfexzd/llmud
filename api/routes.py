@@ -9,10 +9,10 @@ from dm.client import LLMClient
 from dm.contract import parse_dm_response, extract_story_so_far
 from dm.prompt import build_dm_prompt
 from engine.classify import classify_intent, classify_intent_llm, resolve_npc_target
-from engine.models import Intent, Player, Encounter, DEFAULT_ENCOUNTER, NPCInteraction, EventTrigger, WorldEvent, SCENE_MAP, next_spirit_threshold, DMResponse
+from engine.models import Intent, Player, Encounter, DEFAULT_ENCOUNTER, NPCInteraction, EventTrigger, WorldEvent, SCENE_MAP, next_spirit_threshold, DMResponse, WorldState, PHASE_0_BIBLE
 from engine.rules import cultivate, resolve_combat, check_breakthrough, compute_attack, compute_defense, move
-from engine.world import WorldEngine
-from db.repository import PlayerRepository, NPCRepository
+from engine.world import WorldEngine, npc_step, tension_tick
+from db.repository import PlayerRepository, NPCRepository, WorldRepository
 from npc.memory import update_memory, build_memory_context, compute_relationship_stage
 from npc.models import NPCMemory, NPCTurn, KeyFact, DEFAULT_NPC_PROFILE
 from safety.filter import pre_filter_input, post_filter_output
@@ -59,6 +59,7 @@ def create_router(
     npc_repo: NPCRepository,
     encounter: Encounter,
     world_engine: WorldEngine,
+    world_repo: WorldRepository,
 ) -> APIRouter:
     """Create a FastAPI router with game endpoints, wiring all subsystems."""
     router = APIRouter()
@@ -266,6 +267,17 @@ def create_router(
 
         # Step 4: World layer — advance tick, check events, check NPC interactions
         player = world_engine.advance_tick(player)
+
+        # World layer scaffold (M1): track emergent world state alongside the
+        # player. Rule-driven npc_step (NPCs follow their schedule) + a no-op
+        # tension_tick stub. Behavior is unchanged — world state is NOT yet fed
+        # to the DM prompt (that arrives in M3 with the outcome resolver).
+        world_state = world_repo.get("default") or WorldState()
+        bible = PHASE_0_BIBLE  # M5 swaps in LLM-regenerated bibles; M1 is always phase-0
+        world_state = npc_step(world_state, bible, player.tick)
+        world_state = tension_tick(world_state, bible, player)
+        world_state = world_state.model_copy(update={"tick": player.tick})
+        world_repo.save(world_state)
 
         # Get current scene info
         scene = world_engine.get_scene(player.current_scene)

@@ -78,6 +78,66 @@ class TestTensionTickStub:
 from engine.models import NPCRuntimeState, TensionRuntime
 from db.repository import WorldRepository
 
+import json
+import pytest
+from httpx import AsyncClient, ASGITransport
+from api.app import create_app
+from dm.client import MockLLMClient
+
+
+def _make_app(mock, tmp_path):
+    """Create an app with a temp database (mirrors test_api.py's helper)."""
+    return create_app(llm_client=mock, db_path=str(tmp_path / "t.db"))
+
+
+class TestPipelineWorldTick:
+    @pytest.mark.asyncio
+    async def test_action_persists_world_state_with_npc_positions(self, tmp_path):
+        # A MockLLMClient returning a minimal valid DM JSON so the streaming
+        # pipeline completes without a real LLM call.
+        mock = MockLLMClient(response=json.dumps({
+            "story": "你静心修炼片刻。", "intent": "cultivate",
+            "action_valid": True, "invalid_reason": "", "state_delta": {},
+            "breakthrough": None, "combat": None, "npc_update": None,
+        }, ensure_ascii=False))
+        app = _make_app(mock, tmp_path)
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            # Advance the world a few ticks (each action advances tick by 1).
+            for _ in range(3):
+                r = await client.post("/game/action", json={"user_input": "修炼"})
+                assert r.status_code == 200
+                body = json.loads(r.text)  # body is a single streamed JSON object
+                assert "story" in body
+
+        # The world state should now be persisted with NPC positions at tick 3.
+        ws = WorldRepository(app.state.db_conn).get()
+        assert ws is not None
+        assert ws.tick == 3
+        assert ws.npc_state["chenhao"].scene_id == "market"
+        assert ws.npc_state["old_yang"].scene_id == "outer_gate"
+        assert ws.npc_state["linwaner"].scene_id == "inner_gate"  # tick 3 < 10
+        assert ws.sealed is False
+        assert ws.ending is None
+
+    @pytest.mark.asyncio
+    async def test_behavior_unchanged_status_still_works(self, tmp_path):
+        mock = MockLLMClient(response=json.dumps({
+            "story": "你打坐片刻。", "intent": "cultivate",
+            "action_valid": True, "invalid_reason": "",
+            "state_delta": {"spirit_power": 1},
+            "breakthrough": None, "combat": None, "npc_update": None,
+        }, ensure_ascii=False))
+        app = _make_app(mock, tmp_path)
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            r = await client.post("/game/action", json={"user_input": "修炼"})
+            assert r.status_code == 200
+            # status endpoint still returns the player scene (existing behavior)
+            s = await client.get("/player/status")
+            assert s.status_code == 200
+            assert s.json()["current_scene"] == "outer_gate"
+
 
 class TestWorldRepository:
     def test_get_returns_none_when_absent(self, db_conn):
