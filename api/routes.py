@@ -1082,11 +1082,15 @@ def create_router(
         npc_context = ""
         npc_update_dict = None
 
+        # Track last TALK target so MOVE actions auto-move the NPC with the player
+        _last_talk_npc = None
+
         if intent == Intent.TALK:
             # Determine target NPC: a named NPC present in the scene if the
             # input names one (e.g. "对陈浩说…"), else the first present NPC,
             # else the default. See _resolve_talk_target.
             target_npc_id = _resolve_talk_target(player, filtered_input, world_engine, npc_repo)
+            _last_talk_npc = target_npc_id
 
             profile_row = npc_repo.get_profile(target_npc_id)
             npc_profile = dict(profile_row) if profile_row else {}
@@ -1276,6 +1280,14 @@ def create_router(
                         except Exception:
                             # Retry failed — keep the clamped original
                             pass
+
+                    # Auto-move last-talked NPC to current scene on MOVE
+                    if intent == Intent.MOVE and _last_talk_npc:
+                        wd = dict(clamped.world_delta or {})
+                        wd.setdefault("npc", {})
+                        wd["npc"].setdefault(_last_talk_npc, {})
+                        wd["npc"][_last_talk_npc]["scene_id"] = player.current_scene
+                        clamped = clamped.model_copy(update={"world_delta": wd})
 
                     # Apply validated + clamped world_delta to world_state
                     if clamped.world_delta:
