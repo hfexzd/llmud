@@ -367,7 +367,8 @@ def create_router(
                 "• 查看[物品] — 查看物品详情\n"
                 "• 装备[物品] — 装备武器/防具\n"
                 "• 卸下[物品] — 卸下装备\n"
-                "• 给[人名][物品] — 赠送礼物\n\n"
+                "• 给[人名][物品] — 赠送礼物\n"
+                "• 丢弃[物品] — 丢弃物品\n\n"
                 "【交易/炼制】\n"
                 "• 购买[物品] — 在集市购买\n"
                 "• 出售[物品] — 出售物品\n"
@@ -428,6 +429,18 @@ def create_router(
                     player = player.model_copy(update={"inventory": new_inv, slot: None})
                     slot_name = "武器" if slot == "weapon" else "防具"
                     equip_message = f"卸下了{current}（{slot_name}栏已空）"
+                    break
+
+        # Discard items
+        if "丢弃" in filtered_input or "扔掉" in filtered_input:
+            for kw in ("丢弃", "扔掉"):
+                if kw in filtered_input:
+                    part = filtered_input.split(kw)[-1].strip()
+                    if part and part in (player.inventory or []):
+                        new_inv = list(player.inventory)
+                        new_inv.remove(part)
+                        player = player.model_copy(update={"inventory": new_inv})
+                        item_use_message = f"丢弃了{part}。"
                     break
 
         # Alchemy: craft items at spirit_valley
