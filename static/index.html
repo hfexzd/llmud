@@ -379,7 +379,10 @@
                 }
             });
             const p = panelData.player || {};
-            let html = `<div class="panel-sec"><div class="panel-label">${escapeHtml(scene.name||'')} · ${escapeHtml(scene.atmosphere||'')}</div>`;
+            const tick = p.tick || 0;
+            const shichenIdx = tick % 12;
+            const timeIcons = ['🌙','🌙','🌙','🌅','☀️','☀️','☀️','☀️','☀️','🌅','🌆','🌙'];
+            let html = `<div class="panel-sec"><div class="panel-label">${timeIcons[shichenIdx]} ${escapeHtml(scene.name||'')} · ${escapeHtml(scene.atmosphere||'')}</div>`;
             const activeQuest = (panelData.quests||[]).find(q => q.status === 'active');
             html += `<div style="font-size:11px;color:#8a7aa8;margin-bottom:4px">💰${p.spirit_stones||0}灵石 | 🎒${(p.inventory||[]).length}件物品`;
             if (activeQuest) html += ` | <span style="color:#9dd5ff">▶ ${escapeHtml(activeQuest.label)}</span>`;
