@@ -497,6 +497,14 @@ def create_router(
             player = player.model_copy(update=updates)
             _response_extras[0] = f"你在灵泉眼中沐浴，身心舒畅。" + (f"（气血+{heal_spring}，灵力+{spirit_spring}）" if heal_spring > 0 else f"（灵力+{spirit_spring}）")
 
+        # Wind chime making at spirit_valley
+        if "做风铃" in filtered_input and player.current_scene == "spirit_valley" and "竹叶" in (player.inventory or []):
+            new_inv = list(player.inventory)
+            new_inv.remove("竹叶")
+            new_inv.append("风铃")
+            player = player.model_copy(update={"inventory": new_inv})
+            _response_extras[0] = "你用竹叶和细线做了一支风铃，挂在檐下叮咚作响。获得【风铃】。"
+
         # Herb drying at spirit_valley
         if "晒药" in filtered_input and player.current_scene == "spirit_valley":
             if any(h in (player.inventory or []) for h in ["凝露草", "灵草"]):
