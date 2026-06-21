@@ -358,6 +358,7 @@
             const itemCategory = {'灵芝':'灵材','蛇胆':'灵材','洗髓丹':'丹药','灵草':'灵材','凝露草':'灵材','聚气丹':'丹药','解毒丹':'丹药','灵鱼':'灵材','湖心珠':'法器','青锋剑':'法器','布甲':'防具'};
             const itemEffects = {'灵草':'灵力+3','凝露草':'灵力+3','聚气丹':'灵力+3','灵芝':'灵力+10+治愈','蛇胆':'气血上限+10','解毒丹':'解毒','灵鱼':'气血+10','湖心珠':'灵力恢复','青锋剑':'攻击+5','布甲':'防御+3','洗髓丹':'灵根+15'};
             const itemPrices = {'凝露草':5,'聚气丹':12,'解毒丹':7,'青锋剑':25,'布甲':20,'灵草':8,'灵芝':20,'蛇胆':15,'灵鱼':5,'湖心珠':30,'洗髓丹':40};
+            const itemSources = {'灵草':'竹林','凝露草':'外门','聚气丹':'集市','灵芝':'灵药谷','蛇胆':'灵药谷·毒鳞蟒','解毒丹':'灵药谷·炼制','灵鱼':'雾隐湖','湖心珠':'雾隐湖·玄水龟','青锋剑':'集市·购买','布甲':'集市·购买','洗髓丹':'集齐所务奖励'};
             // Sort: equipment first, then by rarity (灵 before 凡)
             const sortedItems = Object.entries(itemCount).sort(([a], [b]) => {
                 const aEquip = equippable.some(k => a.includes(k)) ? 0 : 1;
@@ -371,13 +372,14 @@
                 const color = rarityColors[itemRarity[it]] || '#b8a0d4';
                 const canEquip = equippable.some(k => it.includes(k));
                 const price = itemPrices[it] ? ` 出售价:${itemPrices[it]}灵石` : '';
+                const source = itemSources[it] ? ` 来源:${itemSources[it]}` : '';
                 const cat = itemCategory[it] || '';
                 const catTag = cat ? `<small style="opacity:0.6;font-size:9px">[${cat}]</small>` : '';
                 const isWep = it.includes('剑')||it.includes('刀')||it.includes('掌');
                 const isArm = it.includes('甲')||it.includes('袍')||it.includes('衣');
                 const curEq = isWep && p.weapon ? p.weapon : isArm && p.armor ? p.armor : null;
                 const compare = curEq ? ` (当前:${curEq})` : '';
-                html += `<span class="obj-tag" style="border-color:${color};color:${color}" title="[${itemRarity[it]||'?'}] ${itemEffects[it]||'?'}${price}${compare}${cnt>1?' ×'+cnt:''}" data-prefill="查看${escapeAttr(it)}">${catTag}${escapeHtml(it)}${cnt>1?'<small style=\"opacity:0.7\">×'+cnt+'</small>':''}</span>`;
+                html += `<span class="obj-tag" style="border-color:${color};color:${color}" title="[${itemRarity[it]||'?'}] ${itemEffects[it]||'?'}${source}${price}${compare}${cnt>1?' ×'+cnt:''}" data-prefill="查看${escapeAttr(it)}">${catTag}${escapeHtml(it)}${cnt>1?'<small style=\"opacity:0.7\">×'+cnt+'</small>':''}</span>`;
                 html += `<span class="obj-tag" style="background:rgba(107,200,255,0.18);color:#9dd5ff;border-color:rgba(107,200,255,0.4)" data-prefill="使用${escapeAttr(it)}">使用</span>`;
                 if (canEquip) html += `<span class="obj-tag" style="background:rgba(255,215,0,0.18);color:#ffd700;border-color:rgba(255,215,0,0.4)" data-prefill="装备${escapeAttr(it)}">装备</span>`;
                 html += `<span class="obj-tag" style="background:rgba(255,107,107,0.15);color:#ff6b6b;border-color:rgba(255,107,107,0.3)" data-prefill="丢弃${escapeAttr(it)}">丢弃</span>`;
