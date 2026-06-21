@@ -713,3 +713,65 @@ class WorldBible(BaseModel):
     tensions: list[TensionSpec] = Field(default_factory=list)
     npc_models: list[BehaviorModel] = Field(default_factory=list)
     ending_hints: dict = Field(default_factory=dict)
+
+
+# --- Phase-0 WorldBible seed (hand-authored, no LLM; LLM worldgen is M5) ---
+# Translates the existing hand-authored SCENE_MAP + NPC profiles into a
+# WorldBible, plus a small starter set of factions/items/skills so the canon
+# (DM prompt + validator) has concrete entities to reference from turn 1.
+# Tensions are empty in M1; M2 adds real tension data + the tension machine.
+PHASE_0_BIBLE = WorldBible(
+    phase_id=0,
+    phase_title="练气篇",
+    scenes=list(SCENE_MAP.values()),
+    factions=[
+        FactionSpec(id="qingyun_sect", name="青云门", type="门派", stance="正",
+                    relations={"sanxiu_league": "疏"}, lore="主角所在宗门，门规森严。"),
+        FactionSpec(id="sanxiu_league", name="散修盟", type="散修组织", stance="中立",
+                    relations={"qingyun_sect": "疏"}, lore="松散的散修互助组织，消息灵通。"),
+    ],
+    items=[
+        ItemSpec(id="spirit_herb", name="灵草", kind="灵材", rarity="凡",
+                 effect="服用可缓缓增益灵力", source=["幽竹林"], axis="成长",
+                 lore="竹林深处偶现的泛光灵草。"),
+        ItemSpec(id="ninglu_grass", name="凝露草", kind="灵材", rarity="凡",
+                 effect="服用可小幅恢复气血", source=["幽竹林", "outer_gate"], axis="成长",
+                 lore="叶尖凝露，清心养气。"),
+        ItemSpec(id="qi_pill", name="聚气丹", kind="丹药", rarity="凡",
+                 effect="服用可增益灵力", source=["修士集市"], axis="成长",
+                 lore="集市常见的入门丹药。"),
+    ],
+    skills=[
+        SkillSpec(id="qingyun_sword_art", name="青云剑诀", kind="功法",
+                  school="qingyun_sect", requirement="练气期一层",
+                  effect="提升攻击", axis="成长", lore="青云门入门剑法，中正平和。"),
+        SkillSpec(id="fentian_palm", name="焚天掌", kind="招式", school="",
+                  requirement="灵根·火", effect="火属性攻击招式", axis="成长",
+                  lore="以火灵根催动的烈掌。"),
+    ],
+    tensions=[],
+    npc_models=[
+        BehaviorModel(
+            npc_id="linwaner",
+            motive="希望找到一个可信赖之人，又怕身世暴露。",
+            goals=[NPCGoal(id="seek_confidant", label="寻一可托付之人", axis="陪伴",
+                           tragic_potential="身世暴露或被弃")],
+            routine=[BehaviorAction(type="move", params={"schedule": True}, condition={})],
+        ),
+        BehaviorModel(
+            npc_id="chenhao",
+            motive="想变强护人，又受禁术诱惑。",
+            goals=[NPCGoal(id="grow_strong", label="变强护人", axis="成长",
+                           tragic_potential="禁术败露被逐出宗门")],
+            routine=[BehaviorAction(type="move", params={"schedule": True}, condition={})],
+        ),
+        BehaviorModel(
+            npc_id="old_yang",
+            motive="守护外门，偶尔点拨有缘人。",
+            goals=[NPCGoal(id="guard_gate", label="守护外门", axis="探索",
+                           tragic_potential=None)],
+            routine=[BehaviorAction(type="move", params={"schedule": True}, condition={})],
+        ),
+    ],
+    ending_hints={},
+)
