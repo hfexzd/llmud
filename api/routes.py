@@ -598,6 +598,13 @@ def create_router(
                     npc_repo.update_favorability(comp_target.id, new_fav, new_stage)
                     _response_extras[0] = f"你称赞了{comp_target.name}，{['她','他'][0 if comp_target.id=='linwaner' else 1]}很开心。（好感度+2）"
 
+        # Dance (fun)
+        if "跳舞" in filtered_input:
+            _response_extras[0] = "你翩翩起舞，旁若无人。{}".format(
+                "（林婉儿掩嘴轻笑）" if player.current_scene == "inner_gate" else
+                "（药老摇了摇头）" if player.current_scene == "spirit_valley" else ""
+            )
+
         # Social interaction
         if "挥手" in filtered_input or "打招呼" in filtered_input:
             from engine.models import ALL_NPC_PROFILES as _SOCIAL_NPCS
