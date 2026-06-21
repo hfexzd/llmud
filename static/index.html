@@ -404,9 +404,11 @@
                     + `</div>`;
             }
             const loc = absent ? `常驻 ${SCENE_NAMES[n.default_scene]||n.default_scene}` : hint;
+            const fav = n.favorability ?? 50;
+            const nextStage = fav < 21 ? '相识(21)' : fav < 51 ? '熟悉(51)' : fav < 81 ? '知己(81)' : null;
             return `<div class="${cls}">`
-                + `<div class="npc-head"><b>${escapeHtml(name)} · ${escapeHtml(role)}</b><span class="npc-fav">${escapeHtml(n.relationship_stage||'陌生')} · ${n.favorability??0}</span></div>`
-                + `<div class="npc-desc">${escapeHtml(loc)}</div>`
+                + `<div class="npc-head"><b>${escapeHtml(name)} · ${escapeHtml(role)}</b><span class="npc-fav">${escapeHtml(n.relationship_stage||'陌生')} · ${fav}</span></div>`
+                + `<div class="npc-desc">${escapeHtml(loc)}${nextStage?'  →'+nextStage:''}</div>`
                 + acts + `</div>`;
         }
         function renderPlacePanel() {
