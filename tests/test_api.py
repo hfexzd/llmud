@@ -205,13 +205,23 @@ async def test_game_action_combat_accumulates_and_kills(tmp_path):
         d4 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
         hp4 = d4["combat"]["enemy_remaining_hp"]
         assert hp4 < hp3
-        assert d4["combat"]["result"] == "win"
-        assert hp4 == 0
+        # Enemy may have died now (normal) or earlier (crit). Either way, track
+        # whether the beast is dead so we can verify a fresh one spawns next.
+        beast_dead = d4["combat"]["result"] == "win" and hp4 == 0
 
-        # After the kill the fight ends; a fresh beast spawns on the next attack.
-        d5 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
-        assert d5["combat"]["result"] in ("ongoing", "win")
-        assert d5["combat"]["enemy_remaining_hp"] > 0  # fresh beast has HP
+        # Hit until the beast dies (at most 6 rounds with worst luck)
+        d5 = d4
+        for _ in range(6):
+            if d5["combat"]["result"] == "win" and d5["combat"]["enemy_remaining_hp"] == 0:
+                break
+            d5 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
+        assert d5["combat"]["result"] == "win"
+        assert d5["combat"]["enemy_remaining_hp"] == 0
+
+        # After the kill, a fresh beast spawns on the next attack.
+        d6 = json.loads((await client.post("/game/action", json={"user_input": "攻击"})).text)
+        assert d6["combat"]["result"] in ("ongoing", "win")
+        assert d6["combat"]["enemy_remaining_hp"] > 0  # fresh beast has HP
 
 
 @pytest.mark.asyncio
