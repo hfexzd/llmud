@@ -624,6 +624,10 @@
             hpEl.style.color = hpPct2 < 0.3 ? '#ff6b6b' : hpPct2 < 0.6 ? '#ffd700' : '#fff';
                 document.getElementById('p-atk').textContent = data.attack ?? 0;
                 document.getElementById('p-def').textContent = data.defense ?? 0;
+                const wepB = data.weapon && Object.entries({'剑':5,'刀':4,'掌':3,'拳':2,'杖':3}).find(([k])=>data.weapon.includes(k));
+                const armB = data.armor && Object.entries({'袍':3,'甲':5,'衣':2,'铠':6,'盾':4}).find(([k])=>data.armor.includes(k));
+                document.getElementById('p-atk').title = wepB ? `基础:${data.attack-(wepB?wepB[1]:0)} + 武器${wepB?wepB[1]:0}` : '';
+                document.getElementById('p-def').title = armB ? `基础:${data.defense-(armB?armB[1]:0)} + 防具${armB?armB[1]:0}` : '';
             const stones = data.spirit_stones ?? 0;
             const stoneEl = document.getElementById('p-stones');
             stoneEl.textContent = stones;
