@@ -906,6 +906,7 @@ def create_router(
                     "max_hp": player.max_hp,
                     "weapon": player.weapon,
                     "armor": player.armor,
+                    "spirit_stones": player.spirit_stones,
                     "inventory": player.inventory,
                     "attack": compute_attack(player),
                     "defense": compute_defense(player),
