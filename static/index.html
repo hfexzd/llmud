@@ -116,6 +116,7 @@
         <span class="stat"><span class="stat-label">攻</span> <span class="stat-value" id="p-atk">10</span></span>
         <span class="stat"><span class="stat-label">防</span> <span class="stat-value" id="p-def">10</span></span>
         <span class="stat"><span class="stat-label">灵石</span> <span class="stat-value" id="p-stones" style="color:#ffd700">100</span></span>
+        <span class="stat"><span class="stat-label">回合</span> <span class="stat-value" id="p-tick-display">0</span></span>
         <span class="stat" id="p-weapon-display" style="display:none"><span class="stat-label">武器</span> <span class="stat-value" id="p-weapon" style="color:#9dd5ff"></span></span>
         <span class="stat" id="p-armor-display" style="display:none"><span class="stat-label">防具</span> <span class="stat-value" id="p-armor" style="color:#9dd5ff"></span></span>
         <span class="stat" id="npc-rel" style="display:none"><span class="stat-label">师姐</span> <span class="stat-value" id="p-npc-stage">陌生</span> <span id="p-npc-fav" style="color:#ff6b9d">50</span></span>
@@ -559,6 +560,7 @@
                 document.getElementById('p-atk').textContent = data.attack ?? 0;
                 document.getElementById('p-def').textContent = data.defense ?? 0;
             document.getElementById('p-stones').textContent = data.spirit_stones ?? 0;
+            document.getElementById('p-tick-display').textContent = data.tick ?? 0;
             const wep = data.weapon;
             const arm = data.armor;
             document.getElementById('p-weapon-display').style.display = wep ? 'inline' : 'none';
