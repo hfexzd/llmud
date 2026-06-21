@@ -114,6 +114,7 @@ class DMResponse(BaseModel):
     breakthrough: BreakthroughResult | None = None
     combat: CombatResult | None = None
     npc_update: dict | None = None
+    world_delta: dict | None = None  # M3: tension/npc/faction increments
 
 
 # --- Living World Models ---

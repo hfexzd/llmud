@@ -144,6 +144,7 @@ def parse_dm_response(raw_text: str) -> DMResponse:
         breakthrough=breakthrough,
         combat=combat,
         npc_update=data.get("npc_update"),
+        world_delta=data.get("world_delta"),  # M3
     )
 
 
