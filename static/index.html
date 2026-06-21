@@ -537,6 +537,7 @@
         let introShown = false;
         // Last shown 所务 label, so we only surface a "所务更新" line when it changes.
         let lastGoalLabel = null;
+        let lastSceneId = null;
         let lastWorldEvent = null;
 
         async function updateStatus() {
@@ -958,6 +959,21 @@
                             showToast(result.item_use.split('[')[0], 'favor');
                         }
                     }
+
+                    // Show scene transition message
+                    const newScene = result.scene && result.scene.id;
+                    if (newScene && lastSceneId && newScene !== lastSceneId) {
+                        const travMsg = document.createElement('div');
+                        travMsg.className = 'msg system';
+                        const tb = document.createElement('div');
+                        tb.className = 'bubble';
+                        tb.style.fontSize = '12px';
+                        tb.style.color = '#9dd5ff';
+                        tb.textContent = `🚶 你来到了${result.scene.name}。`;
+                        travMsg.appendChild(tb);
+                        container.insertBefore(travMsg, container.firstChild.nextSibling);
+                    }
+                    if (newScene) lastSceneId = newScene;
 
                     // Show ending card if world is sealed
                     if (result.ending) {
