@@ -458,6 +458,16 @@ def create_router(
             player = player.model_copy(update={"inventory": new_inv})
             _response_extras[0] = f"你在山谷中采到了{found}。{'(药老点了点头。)' if _herb.random()<0.3 else ''}"
 
+        # Chess at inner_gate
+        if "下棋" in filtered_input and player.current_scene == "inner_gate":
+            profile_row = npc_repo.get_profile("linwaner")
+            if profile_row:
+                cur_fav = profile_row.get("favorability", 50)
+                new_fav = min(100, cur_fav + 1)
+                new_stage = compute_relationship_stage(new_fav)
+                npc_repo.update_favorability("linwaner", new_fav, new_stage)
+                _response_extras[0] = f"你和林婉儿对弈一局，{'你赢了' if __import__('random').random()<0.5 else '你输了'}。（好感度+1）"
+
         # Tea ceremony at inner_gate
         if "品茶" in filtered_input and player.current_scene == "inner_gate":
             profile_row = npc_repo.get_profile("linwaner")
