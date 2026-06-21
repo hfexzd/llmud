@@ -26,3 +26,50 @@ class TestPhase0Bible:
     def test_tensions_empty_in_m1(self):
         # Real tension data + machine arrive in M2.
         assert PHASE_0_BIBLE.tensions == []
+
+
+from engine.models import WorldState, PHASE_0_BIBLE, Player
+from engine.world import npc_step, tension_tick
+
+
+class TestNpcStep:
+    def test_npc_at_default_scene_when_no_schedule_matches(self):
+        ws = WorldState()
+        out = npc_step(ws, PHASE_0_BIBLE, tick=0)
+        # linwaner default inner_gate, schedule market only at tick 10-20
+        assert out.npc_state["linwaner"].scene_id == "inner_gate"
+        assert out.npc_state["chenhao"].scene_id == "market"
+        assert out.npc_state["old_yang"].scene_id == "outer_gate"
+        # schedule_tick records the tick the step ran at
+        assert out.npc_state["chenhao"].schedule_tick == 0
+
+    def test_linwaner_moves_to_market_on_schedule(self):
+        ws = WorldState()
+        out = npc_step(ws, PHASE_0_BIBLE, tick=15)
+        assert out.npc_state["linwaner"].scene_id == "market"
+
+    def test_pure_function_does_not_mutate_input(self):
+        ws = WorldState()
+        npc_step(ws, PHASE_0_BIBLE, tick=15)
+        assert ws.npc_state == {}  # input untouched
+
+    def test_preserves_existing_goal_progress_and_mood(self):
+        from engine.models import NPCRuntimeState
+        ws = WorldState(npc_state={
+            "chenhao": NPCRuntimeState(npc_id="chenhao", scene_id="market",
+                                       mood="eager", goal_progress={"grow_strong": 30}),
+        })
+        out = npc_step(ws, PHASE_0_BIBLE, tick=5)
+        assert out.npc_state["chenhao"].mood == "eager"
+        assert out.npc_state["chenhao"].goal_progress == {"grow_strong": 30}
+        assert out.npc_state["chenhao"].scene_id == "market"
+
+
+class TestTensionTickStub:
+    def test_stub_is_noop(self):
+        ws = WorldState(world_pressure=3)
+        out = tension_tick(ws, PHASE_0_BIBLE, Player())
+        # M1 stub: no-op, state unchanged
+        assert out is not ws
+        assert out.world_pressure == 3
+        assert out.tensions == {}

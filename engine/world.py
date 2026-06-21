@@ -18,6 +18,9 @@ from engine.models import (
     GOALS,
     QuestState,
     resolve_scene_id,
+    WorldState,
+    WorldBible,
+    NPCRuntimeState,
 )
 
 
@@ -334,3 +337,46 @@ class WorldEngine:
             return ("error", f"从{from_name}没有直达{to_name}的路，你只得暂且作罢。")
 
         return ("ok", target_id)
+
+
+# ----------------------------------------------------------------------
+# Emergent world tick (M1 scaffold) — module-level pure functions, no LLM.
+# ----------------------------------------------------------------------
+
+def npc_step(world_state: WorldState, bible: WorldBible, tick: int) -> WorldState:
+    """Rule-driven NPC step: set each NPC's scene_id from its presence
+    schedule at the given tick. No LLM. Pure function — returns a new
+    WorldState, leaves the input untouched.
+
+    M1 behavior is minimal: NPCs follow their NPC_PRESENCES schedule (the
+    same logic as WorldEngine.get_npcs_in_scene). Richer routine actions
+    (mood shifts, goal_progress bumps, interact_npc) arrive in later
+    milestones.
+    """
+    new_npc_state = dict(world_state.npc_state)
+    for npc_model in bible.npc_models:
+        presence = NPC_PRESENCES.get(npc_model.npc_id)
+        scene = presence.default_scene if presence else "outer_gate"
+        if presence:
+            for schedule in presence.schedule:
+                lo, hi = schedule.tick_range
+                if lo <= tick <= hi:
+                    scene = schedule.scene_id
+                    break
+        prev = new_npc_state.get(npc_model.npc_id)
+        new_npc_state[npc_model.npc_id] = NPCRuntimeState(
+            npc_id=npc_model.npc_id,
+            scene_id=scene,
+            mood=prev.mood if prev else "",
+            goal_progress=dict(prev.goal_progress) if prev else {},
+            schedule_tick=tick,
+            last_autonomous_action=prev.last_autonomous_action if prev else None,
+        )
+    return world_state.model_copy(update={"npc_state": new_npc_state})
+
+
+def tension_tick(world_state: WorldState, bible: WorldBible, player: Player) -> WorldState:
+    """Tension state machine stub (M1): no-op. Returns a copy so callers
+    can chain model_copy updates uniformly. M2 implements trigger /
+    progress / resolve; M7 adds world_pressure accumulation."""
+    return world_state.model_copy()
