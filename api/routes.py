@@ -176,6 +176,22 @@ def create_router(
         ]})
 
     # ------------------------------------------------------------------
+    # POST /game/reset — reset all game state
+    # ------------------------------------------------------------------
+    @router.post("/game/reset")
+    def reset_game():
+        """Reset all game state: player, NPCs, and world to defaults."""
+        from engine.models import DEFAULT_PLAYER
+        player_repo.delete("p1")
+        player_repo.save(DEFAULT_PLAYER)
+        world_repo.delete("default")
+        npc_repo.delete_all_memories()
+        from api.app import seed_database
+        seed_database(player_repo, npc_repo)
+        _cache.clear()
+        return {"status": "ok", "message": "游戏已重置 — 一切从零开始。"}
+
+    # ------------------------------------------------------------------
     # POST /game/action — full action pipeline with world layer
     # ------------------------------------------------------------------
     @router.post("/game/action")

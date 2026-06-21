@@ -96,6 +96,11 @@ class PlayerRepository:
         )
         self.conn.commit()
 
+    def delete(self, player_id: str) -> None:
+        """Delete a player record."""
+        self.conn.execute("DELETE FROM players WHERE id = ?", (player_id,))
+        self.conn.commit()
+
 
 class NPCRepository:
     def __init__(self, conn: sqlite3.Connection):
@@ -164,6 +169,11 @@ class NPCRepository:
         )
         self.conn.commit()
 
+    def delete_all_memories(self) -> None:
+        """Delete all NPC memory records (for game reset)."""
+        self.conn.execute("DELETE FROM npc_memories")
+        self.conn.commit()
+
 
 class WorldRepository:
     """Persists the single WorldState (keyed 'default') as one JSON blob.
@@ -188,4 +198,9 @@ class WorldRepository:
             "INSERT OR REPLACE INTO world_state (id, data) VALUES (?, ?)",
             (world_id, state.model_dump_json()),
         )
+        self.conn.commit()
+
+    def delete(self, world_id: str = "default") -> None:
+        """Delete a world state record."""
+        self.conn.execute("DELETE FROM world_state WHERE id = ?", (world_id,))
         self.conn.commit()
