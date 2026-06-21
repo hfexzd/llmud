@@ -585,6 +585,8 @@ def create_router(
             if event_id in reward_map and reward_map[event_id] not in player.inventory:
                 new_inv = list(player.inventory) + [reward_map[event_id]]
                 player = player.model_copy(update={"inventory": new_inv})
+                if not item_use_message:
+                    item_use_message = f"获得了{reward_map[event_id]}！"
 
         # Step 5: Narrative (DM LLM call)
         npc_context = ""
