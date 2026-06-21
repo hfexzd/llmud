@@ -330,7 +330,9 @@
             }
             html += '</div>';
 
-            html += `<div class="panel-sec"><div class="panel-label">${escapeHtml(p.name||'')} · ${escapeHtml(p.affinity||'')}灵根</div>`;
+            const levelColors = {'练气期三层':'#9dd5ff','筑基期一层':'#ffd700','筑基期二层':'#ff8c00','筑基期三层':'#ff6b6b','金丹期一层':'#ff1493'};
+            const nameColor = levelColors[p.level] || '#fff';
+            html += `<div class="panel-sec"><div class="panel-label" style="color:${nameColor}">${escapeHtml(p.name||'')} · ${escapeHtml(p.affinity||'')}灵根</div>`;
             html += `<div class="stat-line"><span>境界</span><b>${escapeHtml(p.level||'')}</b></div>`;
             html += `<div class="panel-label">灵力</div><div class="bar sp"><i style="width:${spPct}%"></i></div>`;
             html += `<div class="bar-pct">${p.spirit_power??0}${nextT? ' / '+nextT+' 至下境':''}</div>`;
