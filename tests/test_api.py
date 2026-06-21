@@ -256,10 +256,11 @@ async def test_get_scenes_endpoint(mock_llm_cultivate, tmp_path):
         assert response.status_code == 200
         data = response.json()
         assert "scenes" in data
-        assert len(data["scenes"]) == 5
+        assert len(data["scenes"]) == 6
         scene_ids = [s["id"] for s in data["scenes"]]
         assert "outer_gate" in scene_ids
         assert "inner_gate" in scene_ids
+        assert "spirit_valley" in scene_ids
 
 
 @pytest.mark.asyncio
@@ -509,7 +510,7 @@ async def test_get_player_status_enriched_for_panels(tmp_path):
     # npcs card array (all NPCs, with present flag)
     assert "npcs" in data
     npc_by_id = {n["id"]: n for n in data["npcs"]}
-    assert set(npc_by_id) == {"linwaner", "chenhao", "old_yang"}
+    assert set(npc_by_id) == {"linwaner", "chenhao", "old_yang", "medicine_elder"}
     assert "favorability" in npc_by_id["linwaner"]
     assert "present" in npc_by_id["linwaner"]
     # bamboo_forest has no NPCs at tick 4 -> none present
@@ -633,7 +634,7 @@ async def test_npc_repo_lists_all_profiles(tmp_path):
     seed_database(PlayerRepository(conn), NPCRepository(conn))
     profiles = NPCRepository(conn).get_all_profiles()
     ids = {p["id"] for p in profiles}
-    assert ids == {"linwaner", "chenhao", "old_yang"}
+    assert ids == {"linwaner", "chenhao", "old_yang", "medicine_elder"}
     conn.close()
 
 

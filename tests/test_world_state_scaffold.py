@@ -9,11 +9,11 @@ class TestPhase0Bible:
 
     def test_reuses_existing_five_scenes(self):
         ids = {s.id for s in PHASE_0_BIBLE.scenes}
-        assert ids == {"outer_gate", "inner_gate", "bamboo_forest", "market", "mountain_range"}
+        assert ids == {"outer_gate", "inner_gate", "bamboo_forest", "market", "mountain_range", "spirit_valley"}
 
     def test_has_three_npc_models_matching_profiles(self):
         ids = {m.npc_id for m in PHASE_0_BIBLE.npc_models}
-        assert ids == {"linwaner", "chenhao", "old_yang"}
+        assert ids == {"linwaner", "chenhao", "old_yang", "medicine_elder"}
         # each model has a schedule-follow routine (M1 minimal behavior)
         for m in PHASE_0_BIBLE.npc_models:
             assert any(a.type == "move" and a.params.get("schedule") for a in m.routine)

@@ -297,6 +297,9 @@ class NPCProfileData(BaseModel):
 
 DEFAULT_PLAYER = Player()
 DEFAULT_ENCOUNTER = Encounter()
+VALLEY_ENCOUNTER = Encounter(
+    id="e2", name="毒鳞蟒", attack=12, defense=5, hp=45, max_hp=45,
+)
 
 # --- Scene Data ---
 
@@ -328,7 +331,7 @@ SCENE_MAP: dict[str, Scene] = {
         name="幽竹林",
         description="竹林深处灵气充沛，偶有奇遇。但也传闻有妖兽出没。",
         atmosphere="神秘",
-        connections=["inner_gate", "mountain_range"],
+        connections=["inner_gate", "mountain_range", "spirit_valley"],
         available_actions=["cultivate", "explore", "fight"],
         encounter_ids=["e1"],
         npc_ids=[],
@@ -353,6 +356,17 @@ SCENE_MAP: dict[str, Scene] = {
         encounter_ids=["e1"],
         npc_ids=[],
     ),
+    "spirit_valley": Scene(
+        id="spirit_valley",
+        name="灵药谷",
+        description="竹林深处藏着一处隐秘山谷，灵气浓郁，奇花异草遍地。谷中住着一位隐居的药修。",
+        atmosphere="幽静",
+        connections=["bamboo_forest"],
+        available_actions=["explore", "cultivate"],
+        encounter_ids=["e2"],
+        npc_ids=["medicine_elder"],
+        landmarks=["药圃", "灵泉眼", "石洞"],
+    ),
 }
 
 # Short, natural-language keywords players use to refer to a scene.
@@ -364,6 +378,8 @@ SCENE_ALIASES: dict[str, str] = {
     "竹林": "bamboo_forest",
     "集市": "market",
     "山脉": "mountain_range",
+    "山谷": "spirit_valley",
+    "灵药谷": "spirit_valley",
 }
 
 
@@ -401,6 +417,7 @@ def resolve_scene_id(text: str | None) -> str | None:
 ENCOUNTERS_BY_SCENE: dict[str, list[str]] = {
     "bamboo_forest": ["e1"],
     "mountain_range": ["e1"],
+    "spirit_valley": ["e2"],
 }
 
 # --- NPC Presence Data ---
@@ -419,6 +436,11 @@ NPC_PRESENCES: dict[str, NPCPresence] = {
     "old_yang": NPCPresence(
         npc_id="old_yang",
         default_scene="outer_gate",
+        schedule=[],
+    ),
+    "medicine_elder": NPCPresence(
+        npc_id="medicine_elder",
+        default_scene="spirit_valley",
         schedule=[],
     ),
 }
@@ -530,6 +552,36 @@ ALL_EVENTS: list[WorldEvent] = [
         guidance="talk_linwaner",
         one_time=True,
     ),
+    # Spirit Valley events
+    WorldEvent(
+        id="valley_discovery",
+        name="隐秘山谷",
+        scene_id="bamboo_forest",
+        trigger=EventTrigger(type="stat_threshold", conditions={"min_spirit": 25}),
+        narrative_hint="竹林深处似有异光闪烁，隐约能闻到一股药香从某个方向飘来。",
+        guidance="explore_spirit_valley",
+        one_time=True,
+    ),
+    WorldEvent(
+        id="elder_first_meeting",
+        name="药老的试探",
+        scene_id="spirit_valley",
+        trigger=EventTrigger(type="location_enter", conditions={"first_time": True}),
+        narrative_hint="一位灰袍老者正在药圃中劳作，见你到来，抬头打量了一番。'小友也是修士？可懂药理？'",
+        guidance="talk_medicine_elder",
+        allow_intervene=True,
+        intervene_options=["恭敬请教", "展示灵草知识", "直言想寻灵药"],
+        one_time=True,
+    ),
+    WorldEvent(
+        id="valley_guardian",
+        name="谷中守护兽",
+        scene_id="spirit_valley",
+        trigger=EventTrigger(type="stat_threshold", conditions={"min_spirit": 35}),
+        narrative_hint="谷中深处传来低沉的嘶鸣声，药老神色凝重：'那条毒鳞蟒又在躁动了……你若能除去它，老夫自有重谢。'",
+        guidance="fight_valley_guardian",
+        one_time=True,
+    ),
 ]
 
 # --- NPC Interaction Data ---
@@ -579,6 +631,16 @@ ALL_NPC_PROFILES: list[NPCProfileData] = [
         favorability=40,
         relationship_stage="陌生",
     ),
+    NPCProfileData(
+        id="medicine_elder",
+        name="药老",
+        persona="隐居灵药谷的药修，性情古怪但心地善良。精通药理与炼丹之术。",
+        secret="他年轻时曾是宗门首席丹师，因炼出一枚禁丹被逐出师门，隐居至此。",
+        motive="寻找值得传承衣钵的有缘人，同时守护谷中的珍稀灵药。",
+        default_scene="spirit_valley",
+        favorability=25,
+        relationship_stage="陌生",
+    ),
 ]
 
 
@@ -598,7 +660,7 @@ SKILL_CATALOG: list[str] = []  # 功法/招式/技能 — 留白待补
 
 # Canonical 妖兽/敌人 names. The encounter pool currently holds only
 # DEFAULT_ENCOUNTER (赤眼妖狼); extend here when more enemies are defined.
-ENCOUNTER_CATALOG: list[str] = [DEFAULT_ENCOUNTER.name]
+ENCOUNTER_CATALOG: list[str] = [DEFAULT_ENCOUNTER.name, VALLEY_ENCOUNTER.name]
 
 
 def world_canon(bible: WorldBible | None = None) -> dict:
@@ -760,6 +822,15 @@ PHASE_0_BIBLE = WorldBible(
         ItemSpec(id="qi_pill", name="聚气丹", kind="丹药", rarity="凡",
                  effect="服用可增益灵力", source=["修士集市"], axis="成长",
                  lore="集市常见的入门丹药。"),
+        ItemSpec(id="lingzhi", name="灵芝", kind="灵材", rarity="灵",
+                 effect="服用可大幅增益灵力并恢复气血", source=["灵药谷"], axis="成长",
+                 lore="灵药谷中生长的珍稀灵芝，蕴含精纯灵气。"),
+        ItemSpec(id="snake_gall", name="蛇胆", kind="灵材", rarity="灵",
+                 effect="服用可永久提升气血上限", source=["灵药谷"], axis="成长",
+                 lore="毒鳞蟒的胆，入药可强筋健骨、拓展经脉。"),
+        ItemSpec(id="antidote_pill", name="解毒丹", kind="丹药", rarity="凡",
+                 effect="服用可解除多数毒素", source=["灵药谷"], axis="成长",
+                 lore="药老炼制的解毒丹药，可解百毒。"),
     ],
     skills=[
         SkillSpec(id="qingyun_sword_art", name="青云剑诀", kind="功法",
@@ -768,6 +839,9 @@ PHASE_0_BIBLE = WorldBible(
         SkillSpec(id="fentian_palm", name="焚天掌", kind="招式", school="",
                   requirement="灵根·火", effect="火属性攻击招式", axis="成长",
                   lore="以火灵根催动的烈掌。"),
+        SkillSpec(id="herbalism", name="百草经", kind="心法", school="",
+                  requirement="练气期一层", effect="提升灵力恢复速度",
+                  axis="成长", lore="药老所传的草药心法，可感知天地灵草。"),
     ],
     tensions=[
         TensionSpec(
@@ -903,6 +977,24 @@ PHASE_0_BIBLE = WorldBible(
                                condition={"always": True}),
             ],
             decision_rules=["沉默寡言但句句关键", "对勤奋弟子更友善"],
+        ),
+        BehaviorModel(
+            npc_id="medicine_elder",
+            motive="寻找衣钵传人，守护谷中灵药。",
+            goals=[
+                NPCGoal(id="find_apprentice", label="寻一可传衣钵之人", axis="陪伴",
+                        tragic_potential="衣钵无人可传"),
+                NPCGoal(id="protect_valley", label="守护灵药谷", axis="探索",
+                        tragic_potential=None),
+            ],
+            routine=[
+                BehaviorAction(type="move", params={"schedule": True}, condition={}),
+                BehaviorAction(type="mood", params={"mood": "curious"},
+                               condition={"seen_event": "elder_first_meeting"}),
+                BehaviorAction(type="mood", params={"mood": "grateful"},
+                               condition={"seen_event": "valley_guardian"}),
+            ],
+            decision_rules=["对懂药理者另眼相看", "提及宗门往事会沉默"],
         ),
     ],
     ending_hints={},

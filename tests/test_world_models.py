@@ -24,12 +24,13 @@ class TestSceneModel:
         assert "inner_gate" in scene.connections
 
     def test_scene_map_has_all_five(self):
-        assert len(SCENE_MAP) == 5
+        assert len(SCENE_MAP) == 6
         assert "outer_gate" in SCENE_MAP
         assert "inner_gate" in SCENE_MAP
         assert "bamboo_forest" in SCENE_MAP
         assert "market" in SCENE_MAP
         assert "mountain_range" in SCENE_MAP
+        assert "spirit_valley" in SCENE_MAP
 
     def test_scene_connections_are_bidirectional(self):
         for scene_id, scene in SCENE_MAP.items():
