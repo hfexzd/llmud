@@ -11,7 +11,7 @@ from dm.prompt import build_dm_prompt
 from engine.classify import classify_intent, classify_intent_llm, resolve_npc_target
 from engine.models import Intent, Player, Encounter, DEFAULT_ENCOUNTER, NPCInteraction, EventTrigger, WorldEvent, SCENE_MAP, next_spirit_threshold, DMResponse, WorldState, PHASE_0_BIBLE
 from engine.rules import cultivate, resolve_combat, check_breakthrough, compute_attack, compute_defense, move
-from engine.world import WorldEngine, npc_step, tension_tick
+from engine.world import WorldEngine, npc_step, tension_tick, apply_world_delta
 from db.repository import PlayerRepository, NPCRepository, WorldRepository
 from npc.memory import update_memory, build_memory_context, compute_relationship_stage
 from npc.models import NPCMemory, NPCTurn, KeyFact, DEFAULT_NPC_PROFILE
@@ -395,9 +395,12 @@ def create_router(
             # recent_stories all produce a new model_copy), so it must be
             # nonlocal — otherwise Python treats it as a generator-local and
             # the first read raises UnboundLocalError.
-            nonlocal player
+            nonlocal player, world_state
             # Prefix: open the JSON object and the story string.
             yield '{"story":"'
+
+            # M3: will be set after validator runs in the else branch
+            world_delta_for_response = None
 
             if move_error:
                 # Engine-authoritative: the move was invalid, so narrate the
@@ -455,6 +458,62 @@ def create_router(
                         story = last
                     if dm_response.story != story:
                         dm_response = dm_response.model_copy(update={"story": story})
+
+                    # --- M3: validate + retry ---
+                    from engine.validator import validate_dm_proposal, scan_story_for_canon_violations
+
+                    clamped, violations, should_retry = validate_dm_proposal(
+                        dm_response, world_state, bible, player,
+                    )
+
+                    # Post-hoc story scan (log only — story was already streamed)
+                    story_violations = scan_story_for_canon_violations(story, bible)
+                    if story_violations:
+                        print(f"[validator] story canon violations: {story_violations}")
+
+                    if should_retry and llm_client is not None:
+                        # Build retry prompt with violation context
+                        violation_text = "\n".join(f"- {v}" for v in violations)
+                        retry_system = (
+                            system_prompt
+                            + f"\n\n【校验失败·请重试】你的回复中world_delta存在以下问题，请修正后重新生成完整JSON（不要包含任何解释文字，只返回纯JSON）：\n{violation_text}"
+                        )
+                        try:
+                            retry_raw = await llm_client.generate(retry_system, user_prompt)
+                            retry_raw, _ = post_filter_output(retry_raw)
+                            retry_response = parse_dm_response(retry_raw)
+                            # Re-validate the retry
+                            clamped, violations, _ = validate_dm_proposal(
+                                retry_response, world_state, bible, player,
+                            )
+                            # Use the retry's story if it's non-empty
+                            if retry_response.story and retry_response.story.strip():
+                                story = retry_response.story
+                                dm_response = retry_response.model_copy(update={"story": story})
+                            else:
+                                dm_response = retry_response
+                            # Re-scan story
+                            story_violations2 = scan_story_for_canon_violations(story, bible)
+                            if story_violations2:
+                                print(f"[validator] retry story canon violations: {story_violations2}")
+                        except Exception:
+                            # Retry failed — keep the clamped original
+                            pass
+
+                    # Apply validated + clamped world_delta to world_state
+                    if clamped.world_delta:
+                        world_state = apply_world_delta(world_state, clamped.world_delta)
+                        # Re-run tension_tick so tension states reflect DM-proposed
+                        # progress/pressure nudges (e.g. a tension might now resolve
+                        # because its resolution path condition is met).
+                        world_state = tension_tick(world_state, bible, player)
+                        world_state = world_state.model_copy(update={"tick": player.tick})
+                        world_repo.save(world_state)
+
+                    world_delta_for_response = clamped.world_delta
+
+                    if violations:
+                        print(f"[validator] violations: {violations}")
 
             # --- common tail: apply DM-derived state, persist, build the rest ---
 
@@ -555,6 +614,7 @@ def create_router(
                 "intent": intent.value,  # Use our classified intent, not DM's
                 "action_valid": dm_response.action_valid,
                 "state_delta": dm_response.state_delta or {},
+                "world_delta": world_delta_for_response,
                 "player": {
                     "name": player.name,
                     "current_scene": player.current_scene,

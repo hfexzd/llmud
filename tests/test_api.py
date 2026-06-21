@@ -2,11 +2,16 @@
 import json
 import sqlite3
 import pytest
+from fastapi import FastAPI
 from httpx import AsyncClient, ASGITransport
 
 from api.app import create_app
+from api.routes import create_router
 from dm.client import MockLLMClient
 from db.connection import init_db
+from db.repository import PlayerRepository, NPCRepository, WorldRepository
+from engine.models import Player, DEFAULT_ENCOUNTER
+from engine.world import WorldEngine
 
 
 @pytest.fixture
@@ -674,3 +679,139 @@ async def test_game_action_persists_quest_completed_tick(tmp_path):
     assert "venture_bamboo" in recs, "venture_bamboo completed record was not persisted"
     assert recs["venture_bamboo"].status == "completed"
     assert recs["venture_bamboo"].completed_tick is not None
+
+
+class TestValidatorIntegration:
+    """M3: validator wired into game_action — validate -> retry -> apply."""
+
+    @pytest.mark.asyncio
+    async def test_world_delta_surfaced_in_response(self, db_conn, mock_llm_client):
+        """A valid world_delta from the DM is passed through to the response."""
+        mock_llm_client.generate_stream = None
+        mock_llm_client.generate.return_value = (
+            '{"intent":"explore","story":"你踏入竹林……",'
+            '"world_delta":{"tension":{"probe_anomaly":{"pressure":1,"progress":{"witness_herb":10}}}},'
+            '"action_valid":true}'
+        )
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        player_repo.save(Player(
+            id="p1", current_scene="bamboo_forest", tick=3,
+            visited_scenes=["outer_gate", "inner_gate", "bamboo_forest"],
+        ))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "探索竹林"})
+            assert response.status_code == 200
+            data = response.json()
+            assert "world_delta" in data
+            # Valid tension gets through
+            wd = data["world_delta"]
+            assert wd is not None
+
+    @pytest.mark.asyncio
+    async def test_invalid_world_delta_clamped(self, db_conn, mock_llm_client):
+        """A world_delta referencing unknown entities is clamped out."""
+        mock_llm_client.generate_stream = None
+        mock_llm_client.generate.return_value = (
+            '{"intent":"explore","story":"你发现一处神秘所在……",'
+            '"world_delta":{"tension":{"demon_invasion":{"pressure":5}}},'
+            '"action_valid":true}'
+        )
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        player_repo.save(Player(id="p1", current_scene="bamboo_forest", tick=3))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "探索"})
+            assert response.status_code == 200
+            data = response.json()
+            # Invalid world_delta should be clamped to None (empty after removal)
+            wd = data.get("world_delta")
+            # Either absent or empty
+            assert wd is None or wd == {}
+
+    @pytest.mark.asyncio
+    async def test_world_state_updated_after_valid_world_delta(self, db_conn, mock_llm_client):
+        """After a valid world_delta is applied, world_state reflects the changes."""
+        mock_llm_client.generate_stream = None
+        mock_llm_client.generate.return_value = (
+            '{"intent":"explore","story":"竹林中灵气涌动……",'
+            '"world_delta":{"tension":{"probe_anomaly":{"pressure":1,"progress":{"witness_herb":15}}}},'
+            '"action_valid":true}'
+        )
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        player_repo.save(Player(
+            id="p1", current_scene="bamboo_forest", tick=3,
+            visited_scenes=["outer_gate", "inner_gate", "bamboo_forest"],
+        ))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "探索竹林"})
+            assert response.status_code == 200
+
+        # Verify world_state was persisted with the applied delta
+        ws = world_repo.get("default")
+        assert ws is not None
+        rt = ws.tensions.get("probe_anomaly")
+        assert rt is not None
+        # Progress should reflect the DM's proposal
+        assert rt.progress.get("witness_herb", 0) == 15
+        assert rt.pressure == 1
+
+    @pytest.mark.asyncio
+    async def test_retry_on_canon_violation(self, db_conn, mock_llm_client):
+        """When the first DM response has a canon violation, the route retries once."""
+        mock_llm_client.generate_stream = None
+        # First call: invalid (unknown tension) -> should trigger retry
+        # Second call: valid
+        mock_llm_client.generate.side_effect = [
+            '{"intent":"explore","story":"你发现断崖洞窟……","world_delta":{"tension":{"fake_tension":{"pressure":5}}},"action_valid":true}',
+            '{"intent":"explore","story":"你继续在竹林探索……","world_delta":{"tension":{"probe_anomaly":{"pressure":1}}},"action_valid":true}',
+        ]
+        player_repo = PlayerRepository(db_conn)
+        npc_repo = NPCRepository(db_conn)
+        world_repo = WorldRepository(db_conn)
+        engine = WorldEngine()
+
+        player_repo.save(Player(
+            id="p1", current_scene="bamboo_forest", tick=3,
+            visited_scenes=["outer_gate", "inner_gate", "bamboo_forest"],
+        ))
+
+        router = create_router(mock_llm_client, player_repo, npc_repo,
+                               DEFAULT_ENCOUNTER, engine, world_repo)
+        app = FastAPI()
+        app.include_router(router)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/game/action", json={"user_input": "探索"})
+            assert response.status_code == 200
+
+        # Should have called generate twice (original + retry)
+        assert mock_llm_client.generate.call_count == 2

@@ -24,6 +24,7 @@ from engine.models import (
     NPCRuntimeState,
     TensionRuntime,
     ResolvedTension,
+    FactionRuntime,
 )
 
 
@@ -470,4 +471,71 @@ def tension_tick(world_state: WorldState, bible: WorldBible, player: Player) -> 
         "tensions": new_tensions,
         "resolved_tensions": new_resolved,
         "world_pressure": pressure,
+    })
+
+
+def apply_world_delta(world_state: WorldState, world_delta: dict) -> WorldState:
+    """Apply a validated world_delta to world_state. Pure — returns new WorldState.
+
+    Merges tension progress/pressure, NPC moods/goal_progress, and faction
+    trust/dominance from the DM's proposal into the world state. Values in
+    world_delta are additive (they add to, not replace, existing values).
+    The delta is presumed already validated — this function does no clamping.
+    """
+    if not world_delta:
+        return world_state
+
+    new_tensions = dict(world_state.tensions)
+    new_npc = dict(world_state.npc_state)
+    new_factions = dict(world_state.faction_state)
+
+    # Merge tension deltas
+    for tid, td in world_delta.get("tension", {}).items():
+        rt = new_tensions.get(tid)
+        if rt is None:
+            continue
+        updates: dict = {}
+        if "pressure" in td:
+            updates["pressure"] = rt.pressure + td["pressure"]
+        if "progress" in td:
+            new_prog = dict(rt.progress)
+            for pid, val in td["progress"].items():
+                new_prog[pid] = new_prog.get(pid, 0) + val
+            updates["progress"] = new_prog
+        if updates:
+            new_tensions[tid] = rt.model_copy(update=updates)
+
+    # Merge NPC deltas
+    for nid, nd in world_delta.get("npc", {}).items():
+        prev = new_npc.get(nid)
+        if prev is None:
+            continue
+        npc_updates: dict = {}
+        if "mood" in nd:
+            npc_updates["mood"] = nd["mood"]
+        if "goal_progress" in nd:
+            new_gp = dict(prev.goal_progress)
+            for gid, val in nd["goal_progress"].items():
+                new_gp[gid] = new_gp.get(gid, 0) + val
+            npc_updates["goal_progress"] = new_gp
+        if npc_updates:
+            new_npc[nid] = prev.model_copy(update=npc_updates)
+
+    # Merge faction deltas
+    for fname, fd in world_delta.get("faction", {}).items():
+        prev = new_factions.get(fname)
+        if prev is None:
+            prev = FactionRuntime(faction_id=fname)
+        faction_updates: dict = {}
+        if "trust" in fd:
+            faction_updates["trust"] = prev.trust + fd["trust"]
+        if "dominance" in fd:
+            faction_updates["dominance"] = prev.dominance + fd["dominance"]
+        if faction_updates:
+            new_factions[fname] = prev.model_copy(update=faction_updates)
+
+    return world_state.model_copy(update={
+        "tensions": new_tensions,
+        "npc_state": new_npc,
+        "faction_state": new_factions,
     })
