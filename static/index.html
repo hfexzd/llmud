@@ -5,14 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>修仙 MUD</title>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f3f3f3; }
-        #status-bar { background: linear-gradient(135deg, #2d1b4e, #4a2d6e); color: #fff; padding: 8px 12px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px 12px; position: fixed; top: 0; width: 100%; box-sizing: border-box; z-index: 10; align-items: center; }
+        html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f3f3f3; overflow: hidden; }
+        body { display: flex; flex-direction: column; }
+        #status-bar { background: linear-gradient(135deg, #2d1b4e, #4a2d6e); color: #fff; padding: 8px 12px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px 12px; flex: none; box-sizing: border-box; z-index: 10; align-items: center; }
         .stat { white-space: nowrap; }
         .stat-label { color: #b8a0d4; }
         .stat-value { font-weight: bold; }
         #favorability-bar { display: none; width: 100%; background: rgba(255,255,255,0.15); border-radius: 8px; height: 4px; margin-top: 2px; }
         #favorability-fill { height: 100%; background: #ff6b9d; border-radius: 8px; transition: width 0.3s; }
-        #chat-container { padding: 100px 10px 70px 10px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; height: calc(100% - 170px); }
+        #scene-panel { flex: none; background: #1b1430; color: #e8e0f5; padding: 10px 12px; border-bottom: 1px solid #4a2d6e; max-height: 40vh; overflow-y: auto; }
+        #chat-container { flex: 1; min-height: 0; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
         .msg { display: flex; margin-bottom: 6px; }
         .msg.user { justify-content: flex-end; }
         .bubble { max-width: 75%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; word-wrap: break-word; }
@@ -35,10 +37,9 @@
         .scene-tag.npc { background: rgba(255,107,157,0.25); color: #ff9dbf; }
         .scene-tag.conn { background: rgba(107,200,255,0.25); color: #9dd5ff; }
         .breakthrough-msg { background: linear-gradient(135deg, #4a2d6e, #6b3fa0); color: #ffd700; border-radius: 12px; padding: 12px; margin: 6px 0; text-align: center; font-weight: bold; font-size: 15px; }
-        #input-bar { position: fixed; bottom: 0; width: 100%; height: 56px; background: #f7f7f7; border-top: 1px solid #e0e0e0; display: flex; align-items: center; padding: 0 10px; box-sizing: border-box; }
+        #input-bar { flex: none; height: 56px; background: #f7f7f7; border-top: 1px solid #e0e0e0; display: flex; align-items: center; padding: 0 10px; box-sizing: border-box; }
         #user-input { flex: 1; height: 36px; border: 1px solid #ddd; border-radius: 18px; padding: 0 14px; font-size: 14px; outline: none; background: #fff; }
         #send-btn { width: 56px; height: 36px; background: linear-gradient(135deg, #6b3fa0, #4a2d6e); color: white; border: none; border-radius: 18px; margin-left: 8px; font-size: 13px; cursor: pointer; }
-        #chip-bar { position: fixed; top: 0; right: 0; display: flex; gap: 6px; padding: 6px 10px; z-index: 11; }
         .chip { background: rgba(255,255,255,0.12); color: #e8d6ff; border: 1px solid rgba(255,255,255,0.2); border-radius: 16px; padding: 4px 12px; font-size: 12px; cursor: pointer; user-select: none; }
         .chip.on { background: linear-gradient(135deg, #6b3fa0, #8b5fc0); color: #fff; border-color: #ab7fe0; }
         #drawer-overlay { display: none; position: fixed; inset: 0; top: 0; background: rgba(0,0,0,0.4); z-index: 20; }
@@ -59,6 +60,7 @@
         .obj-tag, .move-tag { display: inline-block; border-radius: 8px; padding: 4px 10px; margin: 3px 4px 3px 0; font-size: 12px; cursor: pointer; }
         .obj-tag { background: rgba(107,179,224,0.18); color: #9dd5ff; border: 1px solid rgba(107,179,224,0.4); }
         .move-tag { background: rgba(224,176,111,0.18); color: #e0b06f; border: 1px solid rgba(224,176,111,0.4); }
+        .who-tag { display: inline-block; background: rgba(255,107,157,0.18); color: #ff9dbf; border: 1px solid rgba(255,107,157,0.4); border-radius: 8px; padding: 4px 10px; margin: 3px 4px 3px 0; font-size: 12px; cursor: pointer; }
         .map-node { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); margin-bottom: 6px; font-size: 13px; }
         .map-node.here { border-color: #9dd5ff; background: rgba(107,179,224,0.18); }
         .map-node.reach { border-color: #5a8a6a; cursor: pointer; }
@@ -96,17 +98,10 @@
         <span class="stat"><span class="stat-label">防</span> <span class="stat-value" id="p-def">10</span></span>
         <span class="stat" id="npc-rel" style="display:none"><span class="stat-label">师姐</span> <span class="stat-value" id="p-npc-stage">陌生</span> <span id="p-npc-fav" style="color:#ff6b9d">50</span></span>
         <div id="favorability-bar"><div id="favorability-fill" style="width:50%"></div></div>
-        <div id="scene-info" style="display:none; width:100%; margin-top:2px;">
-            <div id="scene-npcs" style="margin-top:2px;"></div>
-            <div id="scene-connections" style="margin-top:2px;"></div>
-        </div>
-    </div>
-
-    <div id="chip-bar">
         <span class="chip" id="chip-role" onclick="openDrawer('role')">角色</span>
-        <span class="chip" id="chip-place" onclick="openDrawer('place')">地点</span>
         <span class="chip" id="chip-map" onclick="openDrawer('map')">地图</span>
     </div>
+    <div id="scene-panel"></div>
     <div id="drawer-overlay" onclick="closeDrawer()"></div>
     <div id="drawer">
         <div id="drawer-header">
@@ -164,9 +159,9 @@
             currentDrawer = which;
             document.getElementById('drawer-overlay').style.display = 'block';
             document.getElementById('drawer').style.display = 'block';
-            ['chip-role','chip-place','chip-map'].forEach(id => document.getElementById(id).classList.remove('on'));
+            ['chip-role','chip-map'].forEach(id => document.getElementById(id).classList.remove('on'));
             document.getElementById('chip-' + which).classList.add('on');
-            const titles = {role:'角色 · 所务与人物', place:'地点', map:'地图'};
+            const titles = {role:'角色 · 所务与人物', map:'地图'};
             document.getElementById('drawer-title').textContent = titles[which];
             renderDrawer(which);
         }
@@ -174,13 +169,21 @@
             currentDrawer = null;
             document.getElementById('drawer-overlay').style.display = 'none';
             document.getElementById('drawer').style.display = 'none';
-            ['chip-role','chip-place','chip-map'].forEach(id => document.getElementById(id).classList.remove('on'));
+            ['chip-role','chip-map'].forEach(id => document.getElementById(id).classList.remove('on'));
         }
         function renderDrawer(which) {
             const body = document.getElementById('drawer-body');
             if (which === 'role') body.innerHTML = renderRolePanel();
-            else if (which === 'place') body.innerHTML = renderPlacePanel();
             else if (which === 'map') body.innerHTML = renderMapPanel();
+        }
+        // The current scene panel is always visible — it's the base for
+        // interaction. Reuses renderPlacePanel() so the persistent panel and
+        // the (now-removed) 地点 drawer stay in sync. Tags use data-prefill
+        // so the global delegated handler fills the input without auto-sending.
+        function renderScenePanel() {
+            const panel = document.getElementById('scene-panel');
+            if (!panel) return;
+            panel.innerHTML = renderPlacePanel();
         }
         // Panel renderers are added in Tasks 10-12; stubs so the shell works.
         function renderRolePanel() {
@@ -268,6 +271,23 @@
             let html = `<div class="panel-sec"><div class="panel-label">${escapeHtml(scene.name||'')} · ${escapeHtml(scene.atmosphere||'')}</div>`;
             html += `<div class="scene-desc">${descHtml}</div></div>`;
 
+            // 在场人物 — present NPCs as interactable "搭话" tags, listed
+            // right after the scene description so people are the first
+            // interaction affordance in the persistent scene panel.
+            const presentNpcs = (panelData.npcs || []).filter(n => n.present);
+            html += '<div class="panel-sec"><div class="panel-label">在场人物</div>';
+            if (presentNpcs.length) {
+                presentNpcs.forEach(n => {
+                    const name = NPC_NAMES[n.id] || n.id;
+                    const role = NPC_ROLE[n.id] || '';
+                    const label = role ? `${escapeHtml(name)} · ${escapeHtml(role)}` : escapeHtml(name);
+                    html += `<span class="who-tag" data-prefill="和${escapeAttr(name)}搭话">${label} · 搭话</span>`;
+                });
+            } else {
+                html += '<span style="color:#8a7aa8;font-size:12px">四下无人</span>';
+            }
+            html += '</div>';
+
             html += '<div class="panel-sec"><div class="panel-label">可交互物件</div>';
             landmarks.forEach(lm => {
                 html += `<span class="obj-tag" data-prefill="查看${escapeAttr(lm)}">${escapeHtml(lm)} · 查看</span>`;
@@ -291,25 +311,75 @@
         function renderMapPanel() {
             const current = (panelData.scene && panelData.scene.id) || (panelData.player && panelData.player.current_scene);
             // Reachable = scenes directly connected to the current scene.
-            const currentScene = worldScenes.find(s => s.id === current);
-            const reachable = new Set(currentScene ? currentScene.connections : []);
-            let html = `<div class="panel-sec"><div class="panel-label">场景图谱（亮=可前往，蓝=你在此）</div>`;
-            worldScenes.forEach(s => {
-                let cls = 'map-node', tag = '';
-                if (s.id === current) { cls += ' here'; tag = '你在此'; }
-                else if (reachable.has(s.id)) { cls += ' reach'; tag = '→ 前往'; }
-                else { cls += ' dim'; tag = '需经他处'; }
-                const dataAttr = (reachable.has(s.id) && s.id !== current)
-                    ? `data-prefill="去${escapeAttr(SCENE_NAMES[s.id]||s.id)}"`
-                    : '';
-                html += `<div class="${cls}" ${dataAttr}><span>${escapeHtml(s.name)}</span><span class="tag">${tag}</span></div>`;
+            // Prefer panelData.scene.connections (always present) over
+            // worldScenes so the map still works if /game/scenes hasn't
+            // loaded yet.
+            const conns = (panelData.scene && panelData.scene.connections) || [];
+            const reachable = new Set(conns);
+
+            // Fixed 2D layout reflecting scene adjacency:
+            //        集市
+            //         |
+            //   外门 — 内门 — 竹林 — 山脉
+            const NODES = [
+                {id: 'market',         x: 50,  y: 36,  icon: '集', name: '修士集市'},
+                {id: 'outer_gate',     x: 50,  y: 110, icon: '门', name: '青云门外门'},
+                {id: 'inner_gate',     x: 150, y: 110, icon: '阁', name: '青云门内门'},
+                {id: 'bamboo_forest',  x: 250, y: 110, icon: '竹', name: '幽竹林'},
+                {id: 'mountain_range', x: 350, y: 110, icon: '山', name: '妖兽山脉'},
+            ];
+            const byId = {};
+            NODES.forEach(n => byId[n.id] = n);
+            // Undirected edges (drawn once each).
+            const EDGES = [
+                ['market', 'outer_gate'],
+                ['outer_gate', 'inner_gate'],
+                ['inner_gate', 'bamboo_forest'],
+                ['bamboo_forest', 'mountain_range'],
+            ];
+
+            const W = 400, H = 168;
+            let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;max-height:42vh;margin:4px 0">`;
+
+            // Edges first so nodes sit on top.
+            EDGES.forEach(([a, b]) => {
+                const A = byId[a], B = byId[b];
+                if (!A || !B) return;
+                svg += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="#6b3fa0" stroke-width="2" opacity="0.55"/>`;
             });
-            if (currentScene && currentScene.id) {
-                // also show current scene's landmarks
-                const scene = panelData.scene || {};
-                if (scene.landmarks && scene.landmarks.length) {
-                    html += `<div class="panel-label" style="margin-top:10px">所在场景地标</div><div style="font-size:12px;color:#b8a0d4">${scene.landmarks.map(escapeHtml).join(' · ')}</div>`;
+
+            // Nodes. Draw the current scene last so it sits on top of edges.
+            const ordered = NODES.slice().sort((a, b) => (a.id === current ? 1 : 0) - (b.id === current ? 1 : 0));
+            ordered.forEach(n => {
+                const here = n.id === current;
+                const reach = reachable.has(n.id);
+                let stroke = '#7b5ea7', fill = 'rgba(255,255,255,0.05)', opacity = 1, cursor = '', labelColor = '#b8a0d4', tag = '';
+                const dataAttr = (reach && !here) ? `data-prefill="去${escapeAttr(SCENE_NAMES[n.id] || n.id)}"` : '';
+                if (here) {
+                    stroke = '#9dd5ff'; fill = 'rgba(107,179,224,0.28)'; labelColor = '#9dd5ff'; tag = '你在此';
+                } else if (reach) {
+                    stroke = '#5a8a6a'; fill = 'rgba(90,138,106,0.20)'; labelColor = '#b8e6b8'; cursor = 'pointer'; tag = '前往';
+                } else {
+                    opacity = 0.4; tag = '远';
                 }
+                svg += `<g ${dataAttr} style="cursor:${cursor}" opacity="${opacity}">`;
+                if (here) {
+                    // subtle outer ring to mark the current location
+                    svg += `<circle cx="${n.x}" cy="${n.y}" r="29" fill="none" stroke="#9dd5ff" stroke-width="1" opacity="0.5"/>`;
+                }
+                svg += `<circle cx="${n.x}" cy="${n.y}" r="23" fill="${fill}" stroke="${stroke}" stroke-width="${here?3:2}"/>`;
+                svg += `<text x="${n.x}" y="${n.y+1}" text-anchor="middle" dominant-baseline="central" font-size="20" fill="#e8e0f5" style="pointer-events:none">${escapeHtml(n.icon)}</text>`;
+                svg += `<text x="${n.x}" y="${n.y-32}" text-anchor="middle" font-size="9" fill="${labelColor}" style="pointer-events:none">${escapeHtml(tag)}</text>`;
+                svg += `<text x="${n.x}" y="${n.y+40}" text-anchor="middle" font-size="10.5" fill="${here?'#9dd5ff':reach?'#b8e6b8':'#b8a0d4'}" style="pointer-events:none">${escapeHtml(n.name)}</text>`;
+                svg += `</g>`;
+            });
+            svg += `</svg>`;
+
+            let html = `<div class="panel-sec"><div class="panel-label">场景图谱（蓝=你在此 · 绿=可前往，点绿点即前往 · 暗=需经他处）</div>`;
+            html += svg;
+            // Current scene's landmarks, below the graph.
+            if (panelData.scene && panelData.scene.landmarks && panelData.scene.landmarks.length) {
+                html += `<div class="panel-label" style="margin-top:6px">所在场景地标</div><div style="font-size:12px;color:#b8a0d4">${panelData.scene.landmarks.map(escapeHtml).join(' · ')}</div>`;
             }
             html += '</div>';
             return html;
@@ -343,30 +413,9 @@
                 document.getElementById('p-atk').textContent = data.attack ?? 0;
                 document.getElementById('p-def').textContent = data.defense ?? 0;
 
-                // Scene info: NPCs present and connections
-                const scene = data.scene;
-                const sceneInfoEl = document.getElementById('scene-info');
-                const npcsEl = document.getElementById('scene-npcs');
-                const connsEl = document.getElementById('scene-connections');
-                if (scene) {
-                    sceneInfoEl.style.display = 'block';
-                    if (scene.npcs_present && scene.npcs_present.length > 0) {
-                        npcsEl.innerHTML = '<span class="stat-label">在场</span> ' +
-                            scene.npcs_present.map(id => `<span class="scene-tag npc">${NPC_NAMES[id] || id}</span>`).join('');
-                    } else {
-                        npcsEl.innerHTML = '';
-                    }
-                    if (scene.connections && scene.connections.length > 0) {
-                        connsEl.innerHTML = '<span class="stat-label">通道</span> ' +
-                            scene.connections.map(id => `<span class="scene-tag conn">${SCENE_NAMES[id] || id}</span>`).join('');
-                    } else {
-                        connsEl.innerHTML = '';
-                    }
-                } else {
-                    sceneInfoEl.style.display = 'none';
-                }
-
-                // Render the opening line once, matching the player's real scene.
+                // 在场人物 / 通道 live in the 地点 & 角色 panels — not duplicated
+                // in the top status bar (keeps the bar one compact row).
+                renderScenePanel();
                 maybeShowIntro(data);
             } catch(e) {
                 console.error('Status update failed:', e);
@@ -483,6 +532,54 @@
             return escapeHtml(s == null ? '' : String(s)).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
         }
 
+        // Incrementally decode the `story` string value from the streaming
+        // response JSON (which is sent as {"story":"<streamed>", ...rest}).
+        // Mirrors dm/contract.extract_story_so_far so the client can render
+        // the narrative live, before the full object arrives. A trailing
+        // incomplete escape is withheld so we never show a half-decoded char.
+        function extractStorySoFar(text) {
+            const key = '"story"';
+            const idx = text.indexOf(key);
+            if (idx === -1) return '';
+            let i = idx + key.length;
+            const n = text.length;
+            while (i < n && ' \t\n\r'.includes(text[i])) i++;
+            if (i >= n || text[i] !== ':') return '';
+            i++;
+            while (i < n && ' \t\n\r'.includes(text[i])) i++;
+            if (i >= n || text[i] !== '"') return '';
+            i++; // past opening quote
+            let out = '';
+            while (i < n) {
+                const c = text[i];
+                if (c === '\\') {
+                    if (i + 1 >= n) break; // incomplete escape — withhold
+                    const nxt = text[i + 1];
+                    if (nxt === '"') { out += '"'; i += 2; }
+                    else if (nxt === '\\') { out += '\\'; i += 2; }
+                    else if (nxt === '/') { out += '/'; i += 2; }
+                    else if (nxt === 'n') { out += '\n'; i += 2; }
+                    else if (nxt === 't') { out += '\t'; i += 2; }
+                    else if (nxt === 'r') { out += '\r'; i += 2; }
+                    else if (nxt === 'b') { out += '\b'; i += 2; }
+                    else if (nxt === 'f') { out += '\f'; i += 2; }
+                    else if (nxt === 'u') {
+                        if (i + 6 > n) break; // incomplete \uXXXX — withhold
+                        const hex = text.substring(i + 2, i + 6);
+                        if (!/^[0-9a-fA-F]{4}$/.test(hex)) { i += 2; continue; }
+                        out += String.fromCharCode(parseInt(hex, 16));
+                        i += 6;
+                    } else { out += nxt; i += 2; }
+                } else if (c === '"') {
+                    break; // closing quote — story complete
+                } else {
+                    out += c;
+                    i++;
+                }
+            }
+            return out;
+        }
+
         async function sendAction() {
             const inputEl = document.getElementById('user-input');
             const text = inputEl.value.trim();
@@ -522,7 +619,11 @@
                     const { value, done } = await reader.read();
                     if (done) break;
                     fullText += decoder.decode(value, { stream: true });
-                    aiBubbleEl.innerText = fullText;
+                    // The backend streams {"story":"<text>", ...}. Show the
+                    // narrative live as it arrives; keep the placeholder until
+                    // the story field starts.
+                    const liveStory = extractStorySoFar(fullText);
+                    aiBubbleEl.innerText = liveStory || '正在思考...';
                     container.scrollTop = container.scrollHeight;
                 }
 
@@ -589,6 +690,7 @@
                         }),
                     };
                     if (currentDrawer) renderDrawer(currentDrawer);
+                    renderScenePanel();
 
                     // Update status bar
                     await updateStatus();
@@ -617,6 +719,10 @@
             if (!el) return;
             prefill(el.getAttribute('data-prefill') || '',
                     el.getAttribute('data-focus') === '1');
+            // Close the drawer so the prefilled input is visible and ready to
+            // send — otherwise the drawer (z-index 21) covers the input bar
+            // and the click looks like it did nothing.
+            if (currentDrawer) closeDrawer();
         });
 
         // Initial status load

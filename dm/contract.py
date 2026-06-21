@@ -3,6 +3,77 @@ import re
 from engine.models import DMResponse, Intent, BreakthroughResult, CombatResult
 
 
+def extract_story_so_far(text: str) -> str:
+    r"""Incrementally decode the `story` string value from a partial JSON object.
+
+    Used while streaming the DM's (or the backend's response) JSON: as bytes
+    arrive we want to show the player the story text live, without waiting for
+    the whole object. This scans for the first `"story"` key, then reads its
+    string value, decoding JSON escapes, until the closing quote. A trailing
+    incomplete escape (`\` with no following char, or a partial `\uXXXX`) is
+    withheld until more text arrives so we never emit a half-decoded char.
+
+    Returns "" if no `"story"` string has started yet. If `story` is null or a
+    non-string type, returns "" (we only stream string stories).
+    """
+    key = '"story"'
+    idx = text.find(key)
+    if idx == -1:
+        return ""
+    i = idx + len(key)
+    n = len(text)
+    while i < n and text[i] in " \t\n\r":
+        i += 1
+    if i >= n or text[i] != ":":
+        return ""
+    i += 1
+    while i < n and text[i] in " \t\n\r":
+        i += 1
+    if i >= n or text[i] != '"':
+        return ""
+    i += 1  # past opening quote
+
+    out = []
+    while i < n:
+        c = text[i]
+        if c == "\\":
+            if i + 1 >= n:
+                break  # incomplete escape — withhold
+            nxt = text[i + 1]
+            if nxt == '"':
+                out.append('"'); i += 2
+            elif nxt == "\\":
+                out.append("\\"); i += 2
+            elif nxt == "/":
+                out.append("/"); i += 2
+            elif nxt == "n":
+                out.append("\n"); i += 2
+            elif nxt == "t":
+                out.append("\t"); i += 2
+            elif nxt == "r":
+                out.append("\r"); i += 2
+            elif nxt == "b":
+                out.append("\b"); i += 2
+            elif nxt == "f":
+                out.append("\f"); i += 2
+            elif nxt == "u":
+                if i + 6 > n:
+                    break  # incomplete \uXXXX — withhold
+                try:
+                    out.append(chr(int(text[i + 2:i + 6], 16)))
+                    i += 6
+                except ValueError:
+                    i += 2
+            else:
+                out.append(nxt); i += 2
+        elif c == '"':
+            break  # closing quote — story complete
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
 def parse_dm_response(raw_text: str) -> DMResponse:
     """
     Parse the DM's raw LLM output into a structured DMResponse.

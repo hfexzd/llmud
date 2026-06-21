@@ -6,10 +6,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from dm.client import LLMClient
-from dm.contract import parse_dm_response_with_retry
+from dm.contract import parse_dm_response, extract_story_so_far
 from dm.prompt import build_dm_prompt
 from engine.classify import classify_intent, classify_intent_llm, resolve_npc_target
-from engine.models import Intent, Player, Encounter, DEFAULT_ENCOUNTER, NPCInteraction, EventTrigger, WorldEvent, SCENE_MAP, next_spirit_threshold
+from engine.models import Intent, Player, Encounter, DEFAULT_ENCOUNTER, NPCInteraction, EventTrigger, WorldEvent, SCENE_MAP, next_spirit_threshold, DMResponse
 from engine.rules import cultivate, resolve_combat, check_breakthrough, compute_attack, compute_defense, move
 from engine.world import WorldEngine
 from db.repository import PlayerRepository, NPCRepository
@@ -36,6 +36,21 @@ def _resolve_talk_target(player, filtered_input, world_engine, npc_repo):
     if named:
         return named
     return npcs_in_scene[0] if npcs_in_scene else DEFAULT_NPC_PROFILE.id
+
+
+async def _stream_llm(llm_client, system_prompt: str, user_prompt: str):
+    """Yield LLM output chunks for the DM narrative.
+
+    Uses generate_stream when the client supports real token streaming; falls
+    back to a single generate() call otherwise so duck-typed test clients
+    (which only implement generate) keep working.
+    """
+    stream_fn = getattr(llm_client, "generate_stream", None)
+    if stream_fn is not None:
+        async for chunk in stream_fn(system_prompt, user_prompt):
+            yield chunk
+    else:
+        yield await llm_client.generate(system_prompt, user_prompt)
 
 
 def create_router(
@@ -329,220 +344,268 @@ def create_router(
         else:
             user_prompt = filtered_input
 
-        # Call LLM
-        try:
-            raw_response = await llm_client.generate(system_prompt, user_prompt)
-        except Exception:
-            def error_response():
-                yield json.dumps({
-                    "intent": intent.value,
-                    "action_valid": False,
-                    "invalid_reason": "传信飞鸽被雷劈了",
-                    "story": "【系统】传信飞鸽在半路被雷劈了，请重试。",
-                    "state_delta": {},
-                    "breakthrough": None,
-                    "combat": None,
-                    "npc_update": None,
-                }, ensure_ascii=False)
-            return StreamingResponse(error_response(), media_type="application/json")
-
-        # Step 6: Post-filter output
-        raw_response, _was_rewritten = post_filter_output(raw_response)
-
-        # Step 7: Parse DM response
-        dm_response = await parse_dm_response_with_retry(
-            raw_response, client=llm_client,
-            system_prompt=system_prompt, user_prompt=user_prompt,
-        )
-
-        # Ensure story is never empty — provide a fallback based on intent
-        story = dm_response.story
-        if not story or not story.strip():
-            story_fallbacks = {
-                Intent.CULTIVATE: f"{player.name}盘膝而坐，静静修炼，灵气缓缓涌入丹田。",
-                Intent.TALK: f"{player.name}与身边的人交谈了几句。",
-                Intent.FIGHT: f"{player.name}与妖兽展开了激烈的交锋！",
-                Intent.MOVE: f"{player.name}向新的方向走去。",
-                Intent.INTERVENE: f"{player.name}选择了介入。",
-                Intent.OTHER: f"{player.name}的行动似乎没有引起什么变化。",
-            }
-            story = story_fallbacks.get(intent, f"{player.name}的行动似乎没有引起什么变化。")
-
-        # Handle move error — if move was invalid, override the story
-        if move_error:
-            story = move_error
-            dm_response = dm_response.model_copy(update={"action_valid": False, "invalid_reason": move_error})
-
-        # Apply state_delta from DM (for move/other intents)
-        if dm_response.state_delta and dm_response.action_valid:
-            updates = {}
-            if "spirit_power" in dm_response.state_delta:
-                updates["spirit_power"] = player.spirit_power + dm_response.state_delta["spirit_power"]
-            if "hp" in dm_response.state_delta:
-                updates["hp"] = max(1, player.hp + dm_response.state_delta["hp"])
-            if "location" in dm_response.state_delta:
-                updates["current_scene"] = dm_response.state_delta["location"]
-            if updates:
-                player = player.model_copy(update=updates)
-
-        # Apply breakthrough from DM (authoritative if present)
-        if dm_response.breakthrough:
-            player = player.model_copy(update={"level": dm_response.breakthrough.to_level})
-
-        # Handle NPC update
-        if dm_response.npc_update:
-            # Use the target NPC: named NPC if the input named one, else first
-            # present, else default. Same resolution as the TALK context build.
-            target_npc_id = _resolve_talk_target(player, filtered_input, world_engine, npc_repo)
-
-            npc_update_dict = dm_response.npc_update
-            profile_row = npc_repo.get_profile(target_npc_id)
-            profile_dict = dict(profile_row) if profile_row else {}
-            current_favorability = profile_dict.get("favorability", 50)
-            favorability_change = npc_update_dict.get("favorability_change", 0)
-            new_favorability = max(0, min(100, current_favorability + favorability_change))
-            new_stage = compute_relationship_stage(new_favorability)
-            npc_repo.update_favorability(target_npc_id, new_favorability, new_stage)
-
-            # Update NPC memory
-            npc_memory_row = npc_repo.get_memory(target_npc_id)
-            memory = _build_memory_from_row(npc_memory_row) if npc_memory_row else NPCMemory(npc_id=target_npc_id)
-            memory = update_memory(
-                memory,
-                user_message=filtered_input,
-                npc_response=dm_response.story,
-                npc_update=npc_update_dict,
-            )
-            npc_repo.update_memory(
-                target_npc_id,
-                summary=memory.summary,
-                recent_turns=[t.model_dump() for t in memory.recent_turns],
-                key_facts=[f.model_dump() for f in memory.key_facts],
-            )
-
-        # Update recent story history (keep last 5)
-        updated_stories = list(player.recent_stories or [])
-        updated_stories.append(story)
-        if len(updated_stories) > 5:
-            updated_stories = updated_stories[-5:]
-        player = player.model_copy(update={"recent_stories": updated_stories})
-
-        # Update quest lifecycle records (completed_tick + prune expired) now
-        # that all state mutations, the tick advance, and any breakthrough are
-        # final. Runs BEFORE persistence so the records are actually saved.
-        # The visible list is derived from state; this only maintains records
-        # for strike-through/expiry.
-        player = world_engine.update_quests(player)
-
-        # Persist player state
-        player_repo.update(player)
-
-        # Build scene info for response
-        scene_response = None
-        if scene:
-            npcs_in_scene_now = world_engine.get_npcs_in_scene(scene.id, player.tick)
-            scene_response = {
-                "id": scene.id,
-                "name": scene.name,
-                "atmosphere": scene.atmosphere,
-                "description": scene.description,
-                "landmarks": scene.landmarks,
-                "npcs_present": npcs_in_scene_now,
-                "connections": scene.connections,
-            }
-
-        # Recompute the current objective from the final player state (a
-        # breakthrough applied above may have advanced it) and surface it so
-        # the status bar always shows the player's direction.
-        goal = world_engine.current_goal(player)
-        goal_info = {"id": goal.id, "label": goal.label} if goal else {
-            "id": None, "label": "暂无要务，随心而行",
+        # Step 5: Narrative — stream the story to the client token-by-token.
+        #
+        # The response is a single JSON object sent in pieces so the client can
+        # render the story as it arrives, while the full body still parses as
+        # one JSON object (tests do json.loads(response.text)). Layout:
+        #   {"story":"<streamed>", <rest>}
+        # story is emitted first (prefix + escaped deltas + closing quote),
+        # then the remaining engine/DM fields follow once the LLM finishes.
+        #
+        # Trade-off: streaming commits the story to the wire before we can
+        # validate the whole JSON, so parse_dm_response_with_retry's retry is
+        # disabled here — a malformed DM reply falls back to a deterministic
+        # story instead of a second LLM call. The retry only ever fired on
+        # already-broken output, so this costs little.
+        story_fallbacks = {
+            Intent.CULTIVATE: f"{player.name}盘膝而坐，静静修炼，灵气缓缓涌入丹田。",
+            Intent.TALK: f"{player.name}与身边的人交谈了几句。",
+            Intent.FIGHT: f"{player.name}与妖兽展开了激烈的交锋！",
+            Intent.MOVE: f"{player.name}向新的方向走去。",
+            Intent.INTERVENE: f"{player.name}选择了介入。",
+            Intent.OTHER: f"{player.name}的行动似乎没有引起什么变化。",
         }
 
-        # Panel refresh data (mirror of /player/status panel fields).
-        # Hoist the present-id set once so the comprehension below doesn't
-        # rebuild it on every iteration.
-        present_ids = set(scene_response["npcs_present"]) if scene_response else set()
+        async def response_generator():
+            # `player` is reassigned in the tail (state_delta/breakthrough/
+            # recent_stories all produce a new model_copy), so it must be
+            # nonlocal — otherwise Python treats it as a generator-local and
+            # the first read raises UnboundLocalError.
+            nonlocal player
+            # Prefix: open the JSON object and the story string.
+            yield '{"story":"'
 
-        # Build response
-        response_data = {
-            "intent": intent.value,  # Use our classified intent, not DM's
-            "action_valid": dm_response.action_valid,
-            "story": story,
-            "state_delta": dm_response.state_delta or {},
-            "player": {
-                "name": player.name,
-                "current_scene": player.current_scene,
-                "tick": player.tick,
-                "level": player.level,
-                "spirit_power": player.spirit_power,
-                "hp": player.hp,
-                "max_hp": player.max_hp,
-                "attack": compute_attack(player),
-                "defense": compute_defense(player),
-            },
-            "scene": scene_response,
-            "goal": goal_info,
-            "npcs": [
-                {
-                    "id": p["id"],
-                    "favorability": p.get("favorability", 50),
-                    "relationship_stage": p.get("relationship_stage", "陌生"),
-                    "default_scene": p.get("default_scene", "outer_gate"),
-                    "present": p["id"] in present_ids,
+            if move_error:
+                # Engine-authoritative: the move was invalid, so narrate the
+                # engine's in-world error directly. No LLM story is streamed.
+                dm_response = DMResponse(
+                    intent=Intent.OTHER, action_valid=False,
+                    invalid_reason=move_error, story=move_error,
+                )
+                story = move_error
+                yield json.dumps(story, ensure_ascii=False)[1:-1]
+            else:
+                raw_response = ""
+                last = ""
+                try:
+                    async for chunk in _stream_llm(llm_client, system_prompt, user_prompt):
+                        raw_response += chunk
+                        now = extract_story_so_far(raw_response)
+                        if now != last:
+                            # json.dumps(...)[1:-1] = the string content,
+                            # JSON-escaped, without the surrounding quotes.
+                            yield json.dumps(now[len(last):], ensure_ascii=False)[1:-1]
+                            last = now
+                except Exception:
+                    # LLM failed mid-stream. Close the story with an error and
+                    # fall through to the common tail so the engine/world
+                    # state already computed still persists.
+                    dm_response = DMResponse(
+                        intent=intent, action_valid=False,
+                        invalid_reason="传信飞鸽被雷劈了",
+                        story="【系统】传信飞鸽在半路被雷劈了，请重试。",
+                    )
+                    story = dm_response.story
+                    yield json.dumps(story, ensure_ascii=False)[1:-1]
+                    raw_response = ""
+                else:
+                    # Step 6 + 7: post-filter, then parse (no retry while
+                    # streaming — see the trade-off note above).
+                    raw_response, _was_rewritten = post_filter_output(raw_response)
+                    dm_response = parse_dm_response(raw_response)
+                    story = dm_response.story
+                    if not story or not story.strip():
+                        story = story_fallbacks.get(intent, f"{player.name}的行动似乎没有引起什么变化。")
+                    # Reconcile: emit any trailing story not yet streamed (the
+                    # extractor may lag if story wasn't the first field, or if
+                    # a trailing escape was withheld).
+                    if story.startswith(last):
+                        tail = story[len(last):]
+                        if tail:
+                            yield json.dumps(tail, ensure_ascii=False)[1:-1]
+                    elif last:
+                        # Streamed text diverged from the authoritative story
+                        # (a post_filter rewrite — rare for DM output). We
+                        # can't un-yield what the player already saw, so keep
+                        # the streamed text as the story of record.
+                        story = last
+                    if dm_response.story != story:
+                        dm_response = dm_response.model_copy(update={"story": story})
+
+            # --- common tail: apply DM-derived state, persist, build the rest ---
+
+            # Apply state_delta from DM (for move/other intents)
+            if dm_response.state_delta and dm_response.action_valid:
+                updates = {}
+                if "spirit_power" in dm_response.state_delta:
+                    updates["spirit_power"] = player.spirit_power + dm_response.state_delta["spirit_power"]
+                if "hp" in dm_response.state_delta:
+                    updates["hp"] = max(1, player.hp + dm_response.state_delta["hp"])
+                if "location" in dm_response.state_delta:
+                    updates["current_scene"] = dm_response.state_delta["location"]
+                if updates:
+                    player = player.model_copy(update=updates)
+
+            # Apply breakthrough from DM (authoritative if present)
+            if dm_response.breakthrough:
+                player = player.model_copy(update={"level": dm_response.breakthrough.to_level})
+
+            # Handle NPC update
+            if dm_response.npc_update:
+                # Use the target NPC: named NPC if the input named one, else first
+                # present, else default. Same resolution as the TALK context build.
+                target_npc_id = _resolve_talk_target(player, filtered_input, world_engine, npc_repo)
+
+                npc_update_dict = dm_response.npc_update
+                profile_row = npc_repo.get_profile(target_npc_id)
+                profile_dict = dict(profile_row) if profile_row else {}
+                current_favorability = profile_dict.get("favorability", 50)
+                favorability_change = npc_update_dict.get("favorability_change", 0)
+                new_favorability = max(0, min(100, current_favorability + favorability_change))
+                new_stage = compute_relationship_stage(new_favorability)
+                npc_repo.update_favorability(target_npc_id, new_favorability, new_stage)
+
+                # Update NPC memory
+                npc_memory_row = npc_repo.get_memory(target_npc_id)
+                memory = _build_memory_from_row(npc_memory_row) if npc_memory_row else NPCMemory(npc_id=target_npc_id)
+                memory = update_memory(
+                    memory,
+                    user_message=filtered_input,
+                    npc_response=dm_response.story,
+                    npc_update=npc_update_dict,
+                )
+                npc_repo.update_memory(
+                    target_npc_id,
+                    summary=memory.summary,
+                    recent_turns=[t.model_dump() for t in memory.recent_turns],
+                    key_facts=[f.model_dump() for f in memory.key_facts],
+                )
+
+            # Update recent story history (keep last 5)
+            updated_stories = list(player.recent_stories or [])
+            updated_stories.append(story)
+            if len(updated_stories) > 5:
+                updated_stories = updated_stories[-5:]
+            player = player.model_copy(update={"recent_stories": updated_stories})
+
+            # Update quest lifecycle records (completed_tick + prune expired) now
+            # that all state mutations, the tick advance, and any breakthrough are
+            # final. Runs BEFORE persistence so the records are actually saved.
+            # The visible list is derived from state; this only maintains records
+            # for strike-through/expiry.
+            player = world_engine.update_quests(player)
+
+            # Persist player state
+            player_repo.update(player)
+
+            # Build scene info for response
+            scene_response = None
+            if scene:
+                npcs_in_scene_now = world_engine.get_npcs_in_scene(scene.id, player.tick)
+                scene_response = {
+                    "id": scene.id,
+                    "name": scene.name,
+                    "atmosphere": scene.atmosphere,
+                    "description": scene.description,
+                    "landmarks": scene.landmarks,
+                    "npcs_present": npcs_in_scene_now,
+                    "connections": scene.connections,
                 }
-                for p in npc_repo.get_all_profiles()
-            ],
-            "quests": world_engine.visible_quests(player),
-            "next_quest": ({"label": nq.label} if (nq := world_engine.next_quest(player)) else None),
-        }
 
-        # Add world event info to response
-        if world_event:
-            response_data["world_event"] = {
-                "id": world_event.id,
-                "name": world_event.name,
-                "narrative_hint": world_event.narrative_hint,
+            # Recompute the current objective from the final player state (a
+            # breakthrough applied above may have advanced it) and surface it so
+            # the status bar always shows the player's direction.
+            goal = world_engine.current_goal(player)
+            goal_info = {"id": goal.id, "label": goal.label} if goal else {
+                "id": None, "label": "暂无要务，随心而行",
             }
 
-        # Add intervention info to response
-        if intervention:
-            response_data["intervention"] = {
-                "id": intervention.id,
-                "description": intervention.narrative_hint,
-                "options": intervention.intervene_options or [],
+            # Panel refresh data (mirror of /player/status panel fields).
+            # Hoist the present-id set once so the comprehension below doesn't
+            # rebuild it on every iteration.
+            present_ids = set(scene_response["npcs_present"]) if scene_response else set()
+
+            # Build the rest of the response — everything except `story`,
+            # which was already streamed as the first field.
+            rest = {
+                "intent": intent.value,  # Use our classified intent, not DM's
+                "action_valid": dm_response.action_valid,
+                "state_delta": dm_response.state_delta or {},
+                "player": {
+                    "name": player.name,
+                    "current_scene": player.current_scene,
+                    "tick": player.tick,
+                    "level": player.level,
+                    "spirit_power": player.spirit_power,
+                    "hp": player.hp,
+                    "max_hp": player.max_hp,
+                    "attack": compute_attack(player),
+                    "defense": compute_defense(player),
+                },
+                "scene": scene_response,
+                "goal": goal_info,
+                "npcs": [
+                    {
+                        "id": p["id"],
+                        "favorability": p.get("favorability", 50),
+                        "relationship_stage": p.get("relationship_stage", "陌生"),
+                        "default_scene": p.get("default_scene", "outer_gate"),
+                        "present": p["id"] in present_ids,
+                    }
+                    for p in npc_repo.get_all_profiles()
+                ],
+                "quests": world_engine.visible_quests(player),
+                "next_quest": ({"label": nq.label} if (nq := world_engine.next_quest(player)) else None),
             }
 
-        if combat_result:
-            response_data["combat"] = {
-                "enemy": encounter.name,
-                "dmg_to_enemy": combat_result.dmg_to_enemy,
-                "dmg_to_player": combat_result.dmg_to_player,
-                "result": combat_result.result,
-                "enemy_remaining_hp": combat_result.enemy_remaining_hp,
-                "player_remaining_hp": combat_result.player_remaining_hp,
-            }
+            # Add world event info to response
+            if world_event:
+                rest["world_event"] = {
+                    "id": world_event.id,
+                    "name": world_event.name,
+                    "narrative_hint": world_event.narrative_hint,
+                }
 
-        if dm_response.breakthrough:
-            response_data["breakthrough"] = {
-                "from": dm_response.breakthrough.from_level,
-                "to": dm_response.breakthrough.to_level,
-            }
+            # Add intervention info to response
+            if intervention:
+                rest["intervention"] = {
+                    "id": intervention.id,
+                    "description": intervention.narrative_hint,
+                    "options": intervention.intervene_options or [],
+                }
 
-        if npc_update_dict:
-            # Use the same target NPC id determined earlier (named NPC if the
-            # input named one, else first present, else default).
-            target_npc_id_final = _resolve_talk_target(player, filtered_input, world_engine, npc_repo)
-            profile_row = npc_repo.get_profile(target_npc_id_final)
-            profile_dict = dict(profile_row) if profile_row else {}
-            response_data["npc"] = {
-                "favorability": profile_dict.get("favorability", 50),
-                "relationship_stage": profile_dict.get("relationship_stage", "陌生"),
-            }
+            if combat_result:
+                rest["combat"] = {
+                    "enemy": encounter.name,
+                    "dmg_to_enemy": combat_result.dmg_to_enemy,
+                    "dmg_to_player": combat_result.dmg_to_player,
+                    "result": combat_result.result,
+                    "enemy_remaining_hp": combat_result.enemy_remaining_hp,
+                    "player_remaining_hp": combat_result.player_remaining_hp,
+                }
 
-        # Return as streaming response
-        def response_generator():
-            yield json.dumps(response_data, ensure_ascii=False)
+            if dm_response.breakthrough:
+                rest["breakthrough"] = {
+                    "from": dm_response.breakthrough.from_level,
+                    "to": dm_response.breakthrough.to_level,
+                }
+
+            if dm_response.npc_update:
+                # Use the same target NPC id determined earlier (named NPC if the
+                # input named one, else first present, else default).
+                target_npc_id_final = _resolve_talk_target(player, filtered_input, world_engine, npc_repo)
+                profile_row = npc_repo.get_profile(target_npc_id_final)
+                profile_dict = dict(profile_row) if profile_row else {}
+                rest["npc"] = {
+                    "favorability": profile_dict.get("favorability", 50),
+                    "relationship_stage": profile_dict.get("relationship_stage", "陌生"),
+                }
+
+            # Close the story string, then splice in the rest. rest_json begins
+            # with '{' — strip it so we append into the already-opened object.
+            rest_json = json.dumps(rest, ensure_ascii=False)
+            yield '",' + rest_json[1:]
 
         return StreamingResponse(response_generator(), media_type="application/json")
 
