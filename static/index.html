@@ -161,7 +161,7 @@
         <input type="text" id="user-input" placeholder="输入你的行动..." autocomplete="off">
         <button id="send-btn" onclick="sendAction()">发送</button>
     </div>
-    <div style="flex:none;font-size:10px;color:#4a2d6e;background:#f7f7f7;text-align:center;padding:1px 0;border-top:1px solid #e0e0e0">⌨ c=修炼 f=攻击 h=帮助 r=重复 ↑↓=历史 Tab=补全 Esc=清空</div>
+    <div style="flex:none;font-size:10px;color:#4a2d6e;background:#f7f7f7;text-align:center;padding:1px 0;border-top:1px solid #e0e0e0">⌨ c=修炼 f=攻击 i=物品 h=帮助 r=重复 ↑↓=历史 Tab=补全 Esc=清空</div>
     <div style="flex:none;font-size:10px;color:#4a2d6e;background:#f7f7f7;text-align:center;padding:2px 0;border-top:1px solid #e0e0e0"><span id="status-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#7bc67e;margin-right:4px"></span>修仙MUD v211 · <span id="sound-toggle" style="cursor:pointer" onclick="window.__soundOn=!window.__soundOn;this.textContent=window.__soundOn?'🔊音效':'🔇静音'">🔊音效</span> · <span style="cursor:pointer" onclick="document.querySelector('.bubble').style.fontSize=parseInt(getComputedStyle(document.querySelector('.bubble')).fontSize)==14?'18px':'14px';this.textContent=document.querySelector('.bubble').style.fontSize=='18px'?'🔍小':'🔍大'">🔍大</span></div>
 
     <script>
@@ -1272,6 +1272,12 @@
                     historyIdx = inputHistory.length;
                     input.value = '';
                 }
+            } else if (e.key === 'i' && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.target === input) {
+                e.preventDefault();
+                const inv = (panelData.player && panelData.player.inventory) || [];
+                if (inv.length > 0) input.value = '查看' + inv[0];
+                else input.value = '查看';
+                sendAction();
             } else if (e.key === 'h' && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.target === input) {
                 e.preventDefault();
                 input.value = '帮助';
