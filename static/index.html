@@ -226,6 +226,9 @@
             '清幽': '#1a1a2e', '庄严': '#1a1a3e', '神秘': '#1a2a1a',
             '繁忙': '#2a1a1a', '危险': '#2a1a1a', '幽静': '#1a2a2a', '缥缈': '#1a1a3e'
         };
+        const ATMOSPHERE_SOUNDS = {
+            '清幽': 220, '庄严': 165, '神秘': 196, '繁忙': 330, '危险': 147, '幽静': 262, '缥缈': 175
+        };
 
         function renderScenePanel() {
             const panel = document.getElementById('scene-panel');
@@ -236,6 +239,19 @@
             const scene = panelData.scene || {};
             const bgColor = ATMOSPHERE_COLORS[scene.atmosphere] || '#1b1430';
             panel.style.background = `linear-gradient(135deg, ${bgColor}, #1b1430)`;
+            // Subtle atmosphere tone when scene changes
+            const atmFreq = ATMOSPHERE_SOUNDS[scene.atmosphere];
+            if (atmFreq && window.__soundOn) {
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+                    osc.connect(gain); gain.connect(ctx.destination);
+                    osc.frequency.value = atmFreq; osc.type = 'sine';
+                    gain.gain.value = 0.03;
+                    osc.start(); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+                    osc.stop(ctx.currentTime + 1.5);
+                } catch(e) {}
+            }
         }
         // Contextual action chips — scene-specific quick actions
         function renderActionChips() {
