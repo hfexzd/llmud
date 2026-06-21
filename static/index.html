@@ -551,6 +551,10 @@
         // Last shown 所务 label, so we only surface a "所务更新" line when it changes.
         let lastGoalLabel = null;
         let lastSceneId = null;
+        // Cycle input placeholder
+        const placeholders = ['输入你的行动...','修炼 探索 去...','攻击 搭话 帮助','使用物品 装备'];
+        let phIdx = 0;
+        setInterval(() => { const el = document.getElementById('user-input'); if (el && !el.value) { phIdx = (phIdx+1) % placeholders.length; el.placeholder = placeholders[phIdx]; } }, 4000);
         let lastWorldEvent = null;
 
         async function updateStatus() {
