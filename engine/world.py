@@ -429,7 +429,58 @@ def npc_step(world_state: WorldState, bible: WorldBible, tick: int) -> WorldStat
 
 
 def tension_tick(world_state: WorldState, bible: WorldBible, player: Player) -> WorldState:
-    """Tension state machine stub (M1): no-op. Returns a copy so callers
-    can chain model_copy updates uniformly. M2 implements trigger /
-    progress / resolve; M7 adds world_pressure accumulation."""
-    return world_state.model_copy()
+    """Tension state machine (M2). Rule-driven, no LLM. Pure — returns a new
+    WorldState, leaves the input untouched.
+
+    For each TensionSpec in bible priority order:
+      - dormant + trigger holds  → active (sets activated_tick)
+      - active + a resolution_path condition holds → resolved (sets
+        resolved_tick/resolved_path, appends a ResolvedTension)
+      - resolved → stable (skipped, no duplicate history entry)
+    Conditions are evaluated against the *input* world_state, so a tension
+    resolving this tick does not propagate to later tensions until next tick
+    (deterministic, order-independent within a tick).
+
+    world_pressure is recomputed absolutely as the sum of every active (not
+    resolved) tension's pressure_weight. tick is left untouched here — the
+    pipeline sets it.
+    """
+    new_tensions = dict(world_state.tensions)
+    new_resolved = list(world_state.resolved_tensions)
+
+    for spec in bible.tensions:
+        rt = new_tensions.get(spec.id)
+        if rt is not None and rt.status == "resolved":
+            continue  # stable — already resolved
+        if rt is None:
+            rt = TensionRuntime()
+        if rt.status == "dormant" and evaluate_condition(spec.trigger.conditions, player, world_state):
+            rt = rt.model_copy(update={"status": "active", "activated_tick": player.tick})
+        if rt.status == "active":
+            for path in spec.resolution_paths:
+                if evaluate_condition(path.condition, player, world_state):
+                    rt = rt.model_copy(update={
+                        "status": "resolved",
+                        "resolved_tick": player.tick,
+                        "resolved_path": path.id,
+                    })
+                    new_resolved.append(ResolvedTension(
+                        tension_id=spec.id,
+                        resolved_tick=player.tick,
+                        path_id=path.id,
+                        summary=path.label,
+                    ))
+                    break
+        new_tensions[spec.id] = rt
+
+    pressure = 0
+    for spec in bible.tensions:
+        rt = new_tensions.get(spec.id)
+        if rt is not None and rt.status == "active":
+            pressure += spec.pressure_weight
+
+    return world_state.model_copy(update={
+        "tensions": new_tensions,
+        "resolved_tensions": new_resolved,
+        "world_pressure": pressure,
+    })

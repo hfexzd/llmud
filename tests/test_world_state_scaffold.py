@@ -33,7 +33,7 @@ class TestPhase0Bible:
 
 
 from engine.models import WorldState, PHASE_0_BIBLE, Player
-from engine.world import npc_step, tension_tick
+from engine.world import npc_step
 
 
 class TestNpcStep:
@@ -67,16 +67,6 @@ class TestNpcStep:
         assert out.npc_state["chenhao"].mood == "eager"
         assert out.npc_state["chenhao"].goal_progress == {"grow_strong": 30}
         assert out.npc_state["chenhao"].scene_id == "market"
-
-
-class TestTensionTickStub:
-    def test_stub_is_noop(self):
-        ws = WorldState(world_pressure=3)
-        out = tension_tick(ws, PHASE_0_BIBLE, Player())
-        # M1 stub: no-op, state unchanged
-        assert out is not ws
-        assert out.world_pressure == 3
-        assert out.tensions == {}
 
 
 from engine.models import NPCRuntimeState, TensionRuntime

@@ -1,8 +1,8 @@
 """Tests for the tension condition evaluator + phase-0 tension data (M2)."""
 from engine.models import (
-    Player, WorldState, PHASE_0_BIBLE, ResolvedTension,
+    Player, WorldState, PHASE_0_BIBLE, ResolvedTension, TensionRuntime,
 )
-from engine.world import evaluate_condition
+from engine.world import evaluate_condition, tension_tick
 
 
 class TestEvaluateCondition:
@@ -137,3 +137,80 @@ class TestPhase0Tensions:
             s.resolution_paths[0].condition,
             Player(visited_scenes=["mountain_range"]), WorldState(),
         ) is True
+
+
+class TestTensionTick:
+    def test_dormant_to_active_when_trigger_met(self):
+        # venture_bamboo trigger is {always}; fresh player → active
+        out = tension_tick(WorldState(), PHASE_0_BIBLE, Player(tick=1))
+        assert out.tensions["venture_bamboo"].status == "active"
+        assert out.tensions["venture_bamboo"].activated_tick == 1
+
+    def test_dormant_stays_dormant_when_trigger_unmet(self):
+        out = tension_tick(WorldState(), PHASE_0_BIBLE, Player())
+        assert out.tensions["probe_anomaly"].status == "dormant"
+        assert out.tensions["cultivate_breakthrough"].status == "dormant"
+        assert out.tensions["venture_mountain"].status == "dormant"
+
+    def test_active_to_resolved_when_resolution_met(self):
+        p = Player(tick=2, visited_scenes=["bamboo_forest"])
+        out = tension_tick(WorldState(), PHASE_0_BIBLE, p)
+        assert out.tensions["venture_bamboo"].status == "resolved"
+        assert out.tensions["venture_bamboo"].resolved_tick == 2
+        assert out.tensions["venture_bamboo"].resolved_path == "reach_bamboo"
+        # probe_anomaly trigger (visited bamboo) now met → active same tick
+        assert out.tensions["probe_anomaly"].status == "active"
+
+    def test_resolved_tension_appended_with_summary(self):
+        p = Player(tick=2, visited_scenes=["bamboo_forest"])
+        out = tension_tick(WorldState(), PHASE_0_BIBLE, p)
+        rt = [r for r in out.resolved_tensions if r.tension_id == "venture_bamboo"]
+        assert len(rt) == 1
+        assert rt[0].resolved_tick == 2
+        assert rt[0].path_id == "reach_bamboo"
+        assert rt[0].summary == "抵达幽竹林"
+
+    def test_already_resolved_stays_resolved_no_duplicate(self):
+        ws = WorldState(
+            tensions={"venture_bamboo": TensionRuntime(
+                status="resolved", resolved_tick=1, resolved_path="reach_bamboo")},
+            resolved_tensions=[ResolvedTension(
+                tension_id="venture_bamboo", resolved_tick=1, path_id="reach_bamboo",
+                summary="抵达幽竹林")],
+        )
+        out = tension_tick(ws, PHASE_0_BIBLE, Player(tick=2, visited_scenes=["bamboo_forest"]))
+        assert out.tensions["venture_bamboo"].status == "resolved"
+        rts = [r for r in out.resolved_tensions if r.tension_id == "venture_bamboo"]
+        assert len(rts) == 1  # no duplicate appended
+
+    def test_world_pressure_is_sum_of_active_pressure_weights(self):
+        # fresh: only venture_bamboo active (weight 1) → pressure 1
+        out = tension_tick(WorldState(), PHASE_0_BIBLE, Player())
+        assert out.world_pressure == 1
+        # at 二层 + seen herb + visited bamboo: only venture_mountain active (weight 1)
+        p = Player(level="练气期二层", visited_scenes=["bamboo_forest"], seen_events=["spirit_herb"])
+        out2 = tension_tick(WorldState(), PHASE_0_BIBLE, p)
+        assert out2.tensions["venture_mountain"].status == "active"
+        assert out2.world_pressure == 1
+
+    def test_resolved_tension_does_not_count_to_pressure(self):
+        p = Player(tick=2, visited_scenes=["bamboo_forest"])
+        out = tension_tick(WorldState(), PHASE_0_BIBLE, p)
+        # venture_bamboo resolved (not counted); probe_anomaly active (weight 1)
+        assert out.world_pressure == 1
+
+    def test_purity_does_not_mutate_input(self):
+        ws = WorldState()
+        out = tension_tick(ws, PHASE_0_BIBLE, Player())
+        assert out is not ws
+        assert ws.tensions == {}  # input untouched
+        assert ws.world_pressure == 0
+
+    def test_full_arc_resolves_first_three_activates_mountain(self):
+        p = Player(level="练气期二层", visited_scenes=["bamboo_forest"], seen_events=["spirit_herb"])
+        out = tension_tick(WorldState(), PHASE_0_BIBLE, p)
+        assert out.tensions["venture_bamboo"].status == "resolved"
+        assert out.tensions["probe_anomaly"].status == "resolved"
+        assert out.tensions["cultivate_breakthrough"].status == "resolved"
+        assert out.tensions["venture_mountain"].status == "active"
+        assert len(out.resolved_tensions) == 3
