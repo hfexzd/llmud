@@ -314,6 +314,14 @@ def create_router(
             if combo_count > 1:
                 combat_result.combo = combo_count
             if combat_result.result == "lose":
+                # Auto-heal: try to use healing item to survive
+                from engine.rules import use_item as _use_heal
+                for heal_item in ["灵芝", "凝露草", "灵鱼"]:
+                    if heal_item in (player.inventory or []):
+                        player, _ = _use_heal(player, heal_item)
+                        combat_result.result = "ongoing"
+                        break
+            if combat_result.result == "lose":
                 stones_lost = min(20, player.spirit_stones // 2)
                 player = player.model_copy(update={
                     "hp": player.max_hp // 2,
