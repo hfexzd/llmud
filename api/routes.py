@@ -1278,14 +1278,9 @@ def create_router(
                             # Retry failed — keep the clamped original
                             pass
 
-                    # Targeted NPC accompaniment detector: when the player changes
-                    # scene (via MOVE intent OR DM state_delta), check for explicit
-                    # "went together" patterns in the story and auto-add world_delta.
-                    _location_changed = (
-                        intent == Intent.MOVE
-                        or (dm_response.state_delta or {}).get("location") != player.current_scene
-                    )
-                    if _location_changed and story:
+                    # NPC accompaniment detector: check every response for clear
+                    # "went together" patterns and auto-add world_delta NPC moves.
+                    if story:
                         import re
                         from engine.models import ALL_NPC_PROFILES
                         for npc_p in ALL_NPC_PROFILES:
