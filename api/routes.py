@@ -548,6 +548,18 @@ def create_router(
             player = player.model_copy(update={"inventory": new_inv})
             _response_extras[0] = "你在案前挥毫泼墨，写下了一幅书法。获得【书法】。"
 
+        # Gem hunting at mountain_range
+        if "寻石" in filtered_input and player.current_scene == "mountain_range":
+            import random as _gem
+            if _gem.random() < 0.3:
+                gems = ["石英", "玛瑙", "碧玉"]
+                found = _gem.choice(gems)
+                new_inv = list(player.inventory or []) + [found]
+                player = player.model_copy(update={"inventory": new_inv})
+                _response_extras[0] = f"你在一处岩缝中发现了一块{found}！"
+            else:
+                _response_extras[0] = "你翻找了一阵，没有找到什么有价值的石头。"
+
         # Rock stacking at mountain_range
         if "堆石" in filtered_input and player.current_scene == "mountain_range":
             import random as _rock
