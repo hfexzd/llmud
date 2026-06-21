@@ -386,7 +386,8 @@ def create_router(
 
         # Rest/heal
         if "休息" in filtered_input or "疗伤" in filtered_input:
-            heal = min(20, player.max_hp - player.hp)
+            spirit_bonus = player.spirit_power // 20  # +1 per 20 spirit
+            heal = min(20 + spirit_bonus, player.max_hp - player.hp)
             if heal > 0:
                 player = player.model_copy(update={"hp": player.hp + heal})
                 _response_extras[0] = f"你休息片刻，恢复了{heal}点气血。"
