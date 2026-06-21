@@ -365,6 +365,7 @@ def create_router(
         elif intent == Intent.MOVE:
             # Resolve move via world engine
             destination = params.get("destination", filtered_input)
+            _prev_scene = player.current_scene  # remember for NPC sync
             status, result = world_engine.resolve_scene_move(player, destination)
             if status == "ok":
                 player = move(player, result)
@@ -1287,7 +1288,7 @@ def create_router(
                         for npc_p in ALL_NPC_PROFILES:
                             if npc_p.name in story:
                                 prev_state = world_state.npc_state.get(npc_p.id)
-                                if prev_state and prev_state.scene_id != player.current_scene:
+                                if prev_state and prev_state.scene_id == _prev_scene and prev_state.scene_id != player.current_scene:
                                     wd = dict(clamped.world_delta or {})
                                     wd.setdefault("npc", {})
                                     wd["npc"].setdefault(npc_p.id, {})
