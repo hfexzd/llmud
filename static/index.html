@@ -294,6 +294,7 @@
             // Shop at market
             if (scene.id === 'market') {
                 chips.push('购买聚气丹', '购买凝露草');
+                if ((p.spirit_stones || 0) >= 3) chips.push('喝酒');
             }
             // Crafting at spirit_valley
             if (scene.id === 'spirit_valley') {
