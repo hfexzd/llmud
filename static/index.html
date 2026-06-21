@@ -589,7 +589,10 @@
                 if (data.goal && data.goal.label) lastGoalLabel = data.goal.label;
                 document.getElementById('p-level').textContent = data.level || '练气期一层';
                 document.getElementById('p-spirit').textContent = data.spirit_power ?? 0;
-                document.getElementById('p-hp').textContent = `${data.hp ?? 100}/${data.max_hp ?? 100}`;
+                const hpEl = document.getElementById('p-hp');
+            const hpPct2 = (data.hp ?? 100) / (data.max_hp ?? 100);
+            hpEl.textContent = `${data.hp ?? 100}/${data.max_hp ?? 100}`;
+            hpEl.style.color = hpPct2 < 0.3 ? '#ff6b6b' : hpPct2 < 0.6 ? '#ffd700' : '#fff';
                 document.getElementById('p-atk').textContent = data.attack ?? 0;
                 document.getElementById('p-def').textContent = data.defense ?? 0;
             const stones = data.spirit_stones ?? 0;
