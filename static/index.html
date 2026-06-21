@@ -460,8 +460,11 @@
                     const favColor = fav >= 80 ? favColors[80] : fav >= 60 ? favColors[60] : favColors[30];
                     const label = role ? `${escapeHtml(name)} · ${escapeHtml(role)}` : escapeHtml(name);
                     const hint = NPC_HINT[n.id] || '';
-                    html += `<div style="margin-bottom:4px"><span class="who-tag" data-prefill="和${escapeAttr(name)}搭话" title="好感度:${fav}" style="border-color:${favColor}">${moodIcon} ${label} · 搭话</span>`;
-                    if (hint) html += `<div style="font-size:11px;color:#8a7aa8;margin:2px 0 0 4px">${escapeHtml(hint)}</div>`;
+                    const npcDefaultScenes = {'linwaner':'内门','chenhao':'集市','old_yang':'外门','medicine_elder':'灵药谷','lake_hermit':'雾隐湖'};
+                    const defScene = npcDefaultScenes[n.id];
+                    const locInfo = defScene && n.default_scene && n.default_scene !== (panelData.scene||{}).id ? `(常在${defScene})` : '';
+                    html += `<div style="margin-bottom:4px"><span class="who-tag" data-prefill="和${escapeAttr(name)}搭话" title="好感度:${fav}${locInfo}" style="border-color:${favColor}">${moodIcon} ${label} · 搭话</span>`;
+                    if (hint) html += `<div style="font-size:11px;color:#8a7aa8;margin:2px 0 0 4px">${escapeHtml(hint)}${locInfo}</div>`;
                     html += `</div>`;
                 });
             } else {
