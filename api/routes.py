@@ -485,6 +485,11 @@ def create_router(
             player = player.model_copy(update={"auto_loot": not player.auto_loot})
             _response_extras[0] = f"自动拾取已{'开启' if player.auto_loot else '关闭'}。"
 
+        # Fun commands
+        if filtered_input == "抛硬币":
+            import random as _coin
+            _response_extras[0] = f"🪙 抛出了：{'正面' if _coin.random() < 0.5 else '反面'}！"
+
         # Help system
         help_message = None
         if filtered_input in ("帮助", "help", "？", "?"):
