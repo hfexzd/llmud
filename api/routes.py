@@ -450,6 +450,12 @@ def create_router(
                 player = player.model_copy(update={"hp": player.hp + hp_gain})
             _response_extras[0] = f"你在练功场上活动筋骨。{'（气血+'+str(hp_gain)+'）' if hp_gain > 0 else '（精神饱满）'}"
 
+        # Pottery at outer_gate
+        if "制陶" in filtered_input and player.current_scene == "outer_gate":
+            new_inv = list(player.inventory or []) + ["陶罐"]
+            player = player.model_copy(update={"inventory": new_inv})
+            _response_extras[0] = "你用泥巴捏了一个陶罐，虽然粗糙但还算实用。获得【陶罐】。"
+
         # Rock painting at outer_gate
         if "画石" in filtered_input and player.current_scene == "outer_gate":
             new_inv = list(player.inventory or []) + ["彩石"]
