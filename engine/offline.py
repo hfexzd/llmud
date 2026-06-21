@@ -51,7 +51,15 @@ def advance_offline(
     if now is None:
         now = datetime.now()
 
-    budget = compute_offline_budget(player.last_seen, now)
+    # Normalize timezone: both must be aware or both naive for subtraction
+    from datetime import timezone
+    ls = player.last_seen
+    if ls.tzinfo is None and now.tzinfo is not None:
+        ls = ls.replace(tzinfo=timezone.utc)
+    elif ls.tzinfo is not None and now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+
+    budget = compute_offline_budget(ls, now)
     if budget <= 0:
         return player, world_state, "你刚刚离开，世界还没来得及变化。"
 
