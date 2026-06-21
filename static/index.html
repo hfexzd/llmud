@@ -343,7 +343,6 @@
         function renderActionChips() {
             const bar = document.getElementById('action-chips');
             if (!bar) return;
-            // Always clear first so stale chips don't flash on scene change
             bar.innerHTML = '';
             const scene = panelData.scene || {};
             const p = panelData.player || {};
@@ -351,79 +350,35 @@
             const inv = p.inventory || [];
             const chips = [];
 
-            // Scene-based actions
-            const sceneActions = scene.available_actions || [];
-            if (sceneActions.includes('cultivate')) { chips.push('修炼'); chips.push('连续修炼'); }
-            if (scene.id === 'bamboo_forest') { chips.push('观鸟'); chips.push('赏花'); chips.push('拾叶'); chips.push('采蘑菇'); chips.push('做笛'); chips.push('编花环'); }
-            if (scene.id === 'outer_gate') { chips.push('练功'); chips.push('射箭'); chips.push('锻炼'); chips.push('画石'); chips.push('制陶'); }
-            if (sceneActions.includes('explore')) chips.push('探索');
-            if (sceneActions.includes('fight')) {
-                const estAtk = Math.floor((p.spirit_power||0) * (p.level === '练气期一层'?1:p.level==='练气期二层'?1.2:p.level==='练气期三层'?1.5:p.level==='筑基期一层'?2:1));
-                const wepB = p.weapon&&{'剑':5,'刀':4,'掌':3,'拳':2,'杖':3}[Object.keys({'剑':5,'刀':4,'掌':3,'拳':2,'杖':3}).find(k=>p.weapon.includes(k))]||0;
-                const enemyNames = {'bamboo_forest':'vs赤眼妖狼','mountain_range':'vs赤眼妖狼','spirit_valley':'vs毒鳞蟒','misty_lake':'vs玄水龟'};
-                chips.push(`战斗${enemyNames[scene.id]||''} (攻${estAtk+wepB})`);
-            }
-            // Quick rest when HP is low
-            const hpPctLow = (p.hp||100) / (p.max_hp||100);
-            if (hpPctLow < 0.5) chips.push('休息');
+            // Core actions (always useful)
+            if ((scene.available_actions||[]).includes('cultivate')) chips.push('修炼');
 
-            // Movement — show all connections as quick-travel chips
+            // Movement — show connections
             const conns = scene.connections || [];
-            const sceneNames = {'outer_gate':'外门','inner_gate':'内门','bamboo_forest':'竹林','market':'集市','mountain_range':'山脉','spirit_valley':'山谷','misty_lake':'湖边'};
+            const sceneNames = {'outer_gate':'外门','inner_gate':'内门','bamboo_forest':'竹林','market':'集市','mountain_range':'山脉','spirit_valley':'灵药谷','misty_lake':'雾隐湖'};
             conns.forEach(cid => chips.push(`去${sceneNames[cid]||cid}`));
 
             // Present NPCs — suggest talk
             const present = npcs.filter(n => n.present);
             const npcDisplayNames = {'linwaner':'林婉儿','chenhao':'陈浩','old_yang':'杨老','medicine_elder':'药老','lake_hermit':'湖隐'};
-            if (present.length > 0) chips.push(`和${npcDisplayNames[present[0].id]||present[0].id}搭话`);
+            present.forEach(n => chips.push(`和${npcDisplayNames[n.id]||n.id}搭话`));
 
-            // Shop at market
-            if (scene.id === 'market') {
-                chips.push('购买聚气丹', '购买凝露草');
-                if ((p.spirit_stones || 0) >= 3) chips.push('喝酒');
-            }
-            if (scene.id === 'mountain_range') { chips.push('生火'); chips.push('看云'); chips.push('堆石'); chips.push('寻石'); chips.push('设陷阱'); }
-            // Crafting at spirit_valley
-            if (scene.id === 'spirit_valley') {
-                chips.push('向药老请教');
-                chips.push('炼制聚气丹');
-                chips.push('采药');
-                chips.push('晒药');
-                chips.push('做风铃');
-                chips.push('沐浴');
-            }
-            // Meditation at inner_gate
-            if (scene.id === 'inner_gate') { chips.push('冥想'); chips.push('品茶'); chips.push('下棋'); chips.push('写字'); chips.push('折纸'); }
-            // Fishing at misty_lake
-            if (scene.id === 'misty_lake') { chips.push('钓鱼'); chips.push('撒网'); chips.push('观星'); chips.push('打水漂'); chips.push('看日落'); }
+            // Combat if scene has encounters
+            if ((scene.available_actions||[]).includes('fight')) chips.push('战斗');
 
-            // Items — suggest healing items when low HP, otherwise first item
-            const hpPct3 = (p.hp||100) / (p.max_hp||100);
-            if (hpPct3 < 0.5) {
-                const heals = inv.filter(i => ['凝露草','灵鱼','灵芝','聚气丹'].includes(i));
-                if (heals.length > 0) chips.push(`使用${heals[0]}`);
-            } else if (inv.length > 0) chips.push(`使用${inv[0]}`);
+            // Low HP → rest
+            if ((p.hp||100) / (p.max_hp||100) < 0.5) chips.push('休息');
 
-            // Equipped items indicator
-            const wepName = p.weapon || null;
-            const armName = p.armor || null;
-
-            // Prepend context-aware suggested actions from DM (NPC对话后)
-            let suggested = [];
-            if (panelData.suggested_actions && panelData.suggested_actions.length) {
-                suggested = panelData.suggested_actions;
-            }
+            // DM-suggested actions FIRST (most important, from story context)
+            let suggested = panelData.suggested_actions || [];
             const allChips = [...suggested, ...chips];
-            // Deduplicate
             const seen = new Set();
             const unique = allChips.filter(c => { const k = c.trim(); if (seen.has(k)) return false; seen.add(k); return true; });
 
             bar.innerHTML = unique.map(c => {
                 const isSug = suggested.includes(c);
                 return `<span class="chip" data-prefill="${escapeAttr(c)}" style="${isSug ? 'background:rgba(155,200,255,0.25);border-color:#9dd5ff;color:#fff;' : ''}">${isSug ? '💬 ' : ''}${escapeHtml(c)}</span>`;
-            }).join('') + (wepName ? `<span class="chip" style="opacity:0.6;font-size:10px">🗡${escapeHtml(wepName)}</span>` : '')
-                + (armName ? `<span class="chip" style="opacity:0.6;font-size:10px">🛡${escapeHtml(armName)}</span>` : '');
-            // Update toggle with action count
+            }).join('');
             const toggle = document.getElementById('action-toggle');
             if (toggle && !document.getElementById('action-chips').classList.contains('collapsed')) {
                 toggle.innerHTML = `&#9660; 行动 (${unique.length})`;
