@@ -376,6 +376,10 @@
                 if ((panelData.scene||{}).id === 'market') html += `<span class="obj-tag" style="background:rgba(255,215,0,0.12);color:#ffd700;border-color:rgba(255,215,0,0.3)" data-prefill="出售${escapeAttr(it)}">出售${cnt>1?'(×'+cnt+')':''}</span>`;
             });
             if (!(p.inventory||[]).length) html += '<span style="color:#8a7aa8;font-size:12px">空空如也</span>';
+            // Auto-equip best gear button
+            const hasWep = (p.inventory||[]).some(i => i.includes('剑')||i.includes('刀'));
+            const hasArm = (p.inventory||[]).some(i => i.includes('甲')||i.includes('袍'));
+            if (hasWep || hasArm) html += `<span class="obj-tag" style="background:rgba(255,215,0,0.12);color:#ffd700;border-color:rgba(255,215,0,0.3)" data-prefill="装备${hasWep?'青锋剑':''}${hasArm?'布甲':''}">自动装备</span>`;
             html += `</div><div style="margin-top:8px"><span class="obj-tag" data-prefill="修炼">打坐修炼</span></div>`;
             html += '</div>';
 
