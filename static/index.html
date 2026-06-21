@@ -714,7 +714,8 @@
                     quests: data.quests || [],
                     nextQuest: data.next_quest || null,
                     player: data,
-                    suggested_actions: data.suggested_actions || [],
+                    // Preserve suggestions from last action resp; status doesn't include them
+                    suggested_actions: data.suggested_actions || panelData.suggested_actions || [],
                 };
                 const locEl = document.getElementById('p-loc');
                 locEl.textContent = (data.scene && data.scene.name) || SCENE_NAMES[data.current_scene] || data.current_scene || '未知';
