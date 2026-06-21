@@ -323,12 +323,13 @@
             html += `<div class="panel-label">行囊</div><div>`;
             const rarityColors = {'灵':'#ffd700','凡':'#b8a0d4'};
             const equippable = ['剑','刀','掌','拳','杖','袍','甲','衣','铠','盾'];
-            (p.inventory||[]).forEach(it => {
-                const color = rarityColors['灵'] || '#b8a0d4';
+            const itemCount = {}; (p.inventory||[]).forEach(i => { itemCount[i] = (itemCount[i]||0)+1; });
+            const itemRarity = {'灵芝':'灵','蛇胆':'灵','湖心珠':'灵','洗髓丹':'灵','灵草':'凡','凝露草':'凡','聚气丹':'凡','解毒丹':'凡','灵鱼':'凡','青锋剑':'凡','布甲':'凡'};
+            const itemEffects = {'灵草':'灵力+3','凝露草':'灵力+3','聚气丹':'灵力+3','灵芝':'灵力+10+治愈','蛇胆':'气血上限+10','解毒丹':'解毒','灵鱼':'气血+10','湖心珠':'灵力恢复','青锋剑':'攻击+5','布甲':'防御+3','洗髓丹':'灵根+15'};
+            Object.entries(itemCount).forEach(([it, cnt]) => {
+                const color = rarityColors[itemRarity[it]] || '#b8a0d4';
                 const canEquip = equippable.some(k => it.includes(k));
-                const itemRarity = {'灵芝':'灵','蛇胆':'灵','湖心珠':'灵','洗髓丹':'灵','灵草':'凡','凝露草':'凡','聚气丹':'凡','解毒丹':'凡','灵鱼':'凡','青锋剑':'凡','布甲':'凡'};
-                const itemEffects = {'灵草':'灵力+3','凝露草':'灵力+3','聚气丹':'灵力+3','灵芝':'灵力+10+治愈','蛇胆':'气血上限+10','解毒丹':'解毒','灵鱼':'气血+10','湖心珠':'灵力恢复','青锋剑':'攻击+5','布甲':'防御+3','洗髓丹':'灵根+15'};
-                html += `<span class="obj-tag" style="border-color:${color};color:${color}" title="[${itemRarity[it]||'?'}] ${itemEffects[it]||'?'}" data-prefill="查看${escapeAttr(it)}">${escapeHtml(it)}</span>`;
+                html += `<span class="obj-tag" style="border-color:${color};color:${color}" title="[${itemRarity[it]||'?'}] ${itemEffects[it]||'?'}${cnt>1?' ×'+cnt:''}" data-prefill="查看${escapeAttr(it)}">${escapeHtml(it)}${cnt>1?'<small style=\"opacity:0.7\">×'+cnt+'</small>':''}</span>`;
                 html += `<span class="obj-tag" style="background:rgba(107,200,255,0.18);color:#9dd5ff;border-color:rgba(107,200,255,0.4)" data-prefill="使用${escapeAttr(it)}">使用</span>`;
                 if (canEquip) html += `<span class="obj-tag" style="background:rgba(255,215,0,0.18);color:#ffd700;border-color:rgba(255,215,0,0.4)" data-prefill="装备${escapeAttr(it)}">装备</span>`;
             });
