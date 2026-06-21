@@ -1090,6 +1090,10 @@
             btn.style.display = el.scrollHeight - el.scrollTop - el.clientHeight > 100 ? 'block' : 'none';
         });
 
+        // Tab completion for common commands
+        const TAB_COMMANDS = ['修炼', '探索', '战斗', '帮助', '打坐', '攻击', '查看', '使用', '装备', '卸下', '购买', '出售', '炼制', '丢弃', '去内门', '去外门', '去集市', '去竹林', '去山脉', '去山谷', '去湖边', '和婉儿搭话', '和师兄搭话', '和杨老搭话'];
+        let tabIdx = -1;
+
         // Input history for Up arrow recall
         let inputHistory = [];
         let historyIdx = -1;
@@ -1102,7 +1106,17 @@
                 }
                 historyIdx = inputHistory.length;
                 sendAction();
-            } else if (e.key === 'ArrowUp') {
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                const partial = input.value.trim().toLowerCase();
+                const matches = TAB_COMMANDS.filter(c => c.includes(partial) || partial.includes(c));
+                if (matches.length > 0) {
+                    tabIdx = (tabIdx + 1) % matches.length;
+                    input.value = matches[tabIdx];
+                }
+            } else {
+                tabIdx = -1;  // reset tab completion on any other key
+                if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 if (historyIdx > 0) {
                     historyIdx--;
