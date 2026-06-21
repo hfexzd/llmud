@@ -906,6 +906,14 @@ def create_router(
             # for strike-through/expiry.
             player = world_engine.update_quests(player, world_state, bible)
 
+            # Quest completion reward: all 4 done -> 洗髓丹
+            if (player.quests and len([q for q in player.quests if q.status == "completed"]) >= 4
+                    and "洗髓丹" not in (player.inventory or [])):
+                new_inv = list(player.inventory or []) + ["洗髓丹"]
+                player = player.model_copy(update={"inventory": new_inv})
+                if not item_use_message:
+                    item_use_message = "🎉 所有所务完成！获得洗髓丹！"
+
             # Persist player state
             player_repo.update(player)
 
