@@ -50,7 +50,7 @@ def cultivate(player: Player) -> Player:
     return updated
 
 
-def resolve_combat(player: Player, enemy: Encounter, flee: bool = False) -> tuple[CombatResult, Player, Encounter]:
+def resolve_combat(player: Player, enemy: Encounter, flee: bool = False, crit_chance: float = 0.1) -> tuple[CombatResult, Player, Encounter]:
     """
     Deterministic combat resolution for a single round. Engine is the sole
     source of truth for numbers. Returns (CombatResult, updated_player, updated_enemy).
@@ -67,7 +67,7 @@ def resolve_combat(player: Player, enemy: Encounter, flee: bool = False) -> tupl
     """
     p_atk = compute_attack(player)
     p_def = compute_defense(player)
-    is_crit = not flee and random.random() < 0.1
+    is_crit = not flee and crit_chance > 0 and random.random() < crit_chance
 
     if flee:
         result = CombatResult(

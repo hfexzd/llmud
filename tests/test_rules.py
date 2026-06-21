@@ -39,7 +39,7 @@ def test_resolve_combat_win():
     player = Player(id="p1", name="张铁柱", level="练气期一层", spirit_power=50,
                     hp=100, max_hp=100, affinity="火", current_scene="外门", inventory=[])
     enemy = Encounter(id="e1", name="赤眼妖狼", attack=8, defense=3, hp=30, max_hp=30)
-    result, updated_player, updated_enemy = resolve_combat(player, enemy)
+    result, updated_player, updated_enemy = resolve_combat(player, enemy, crit_chance=0)
     # attack=50*1.0=50, dmg_to_enemy=max(1,50-3)=47
     assert result.dmg_to_enemy == 47
     assert result.result == "win"
@@ -50,7 +50,7 @@ def test_resolve_combat_flee():
     player = Player(id="p1", name="张铁柱", level="练气期一层", spirit_power=10,
                     hp=100, max_hp=100, affinity="火", current_scene="外门", inventory=[])
     enemy = Encounter(id="e1", name="赤眼妖狼", attack=8, defense=3, hp=30, max_hp=30)
-    result, _, _ = resolve_combat(player, enemy, flee=True)
+    result, _, _ = resolve_combat(player, enemy, flee=True, crit_chance=0)
     assert result.result == "flee"
     assert result.dmg_to_enemy == 0
     assert result.dmg_to_player == 0
@@ -62,7 +62,7 @@ def test_resolve_combat_ongoing_when_both_alive():
     player = Player(id="p1", name="张铁柱", level="练气期一层", spirit_power=11,
                     hp=100, max_hp=100, affinity="火", current_scene="外门", inventory=[])
     enemy = Encounter(id="e1", name="赤眼妖狼", attack=8, defense=3, hp=30, max_hp=30)
-    result, updated_player, updated_enemy = resolve_combat(player, enemy)
+    result, updated_player, updated_enemy = resolve_combat(player, enemy, crit_chance=0)
     assert result.result == "ongoing"
     # atk = 11*1.0 = 11; dmg = max(1, 11-3) = 8 -> 30-8 = 22
     assert updated_enemy.hp == 22
