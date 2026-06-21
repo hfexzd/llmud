@@ -183,6 +183,11 @@ def create_router(
     # ------------------------------------------------------------------
     # POST /game/reset — reset all game state
     # ------------------------------------------------------------------
+    @router.get("/game/version")
+    def get_version():
+        """Return version info."""
+        return {"branch": "feat/living-world", "commits": 148, "tests": 277}
+
     @router.post("/game/reset")
     def reset_game():
         """Reset all game state: player, NPCs, and world to defaults."""
