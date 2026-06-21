@@ -258,10 +258,9 @@
             panel.style.background = `linear-gradient(135deg, ${bgColor}, #1b1430)`;
             // Subtle atmosphere tone when scene changes
             const atmFreq = ATMOSPHERE_SOUNDS[scene.atmosphere];
-            if (atmFreq && window.__soundOn) {
+            if (atmFreq && window.__soundOn && window.__hadUserGesture) {
                 try {
                     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                    if (ctx.state === 'suspended') { ctx.resume(); }
                     const osc = ctx.createOscillator(); const gain = ctx.createGain();
                     osc.connect(gain); gain.connect(ctx.destination);
                     osc.frequency.value = atmFreq; osc.type = 'sine';
@@ -1081,6 +1080,7 @@
         }
 
         async function sendAction() {
+            window.__hadUserGesture = true;
             const inputEl = document.getElementById('user-input');
             const text = inputEl.value.trim();
             if (!text) return;
