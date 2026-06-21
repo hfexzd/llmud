@@ -89,8 +89,10 @@ def resolve_combat(player: Player, enemy: Encounter, flee: bool = False, crit_ch
     enemy_hp_after = enemy.hp - dmg_to_enemy
 
     # Enemy retaliates only if still alive
+    is_dodge = False
     if enemy_hp_after > 0:
-        dmg_to_player = max(1, enemy.attack - p_def)
+        is_dodge = not flee and random.random() < 0.05 and p_def > enemy.attack
+        dmg_to_player = 0 if is_dodge else max(1, enemy.attack - p_def)
     else:
         dmg_to_player = 0
 
@@ -116,6 +118,7 @@ def resolve_combat(player: Player, enemy: Encounter, flee: bool = False, crit_ch
         enemy_remaining_hp=enemy_remaining,
         player_remaining_hp=player_remaining,
         crit=is_crit,
+        dodge=is_dodge,
     )
 
     updated_player = player.model_copy(update={"hp": player_remaining})
