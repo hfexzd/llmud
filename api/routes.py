@@ -1,5 +1,6 @@
 """Game endpoints — orchestrates the full classify→engine→world→dm→npc pipeline."""
 import json
+import time
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
@@ -64,12 +65,34 @@ def create_router(
     """Create a FastAPI router with game endpoints, wiring all subsystems."""
     router = APIRouter()
 
+    # Simple TTL cache: caches return value for `ttl` seconds.
+    _cache: dict[str, tuple[float, dict]] = {}
+
+    def _cached(key: str, ttl: float, factory):
+        now = time.time()
+        entry = _cache.get(key)
+        if entry and (now - entry[0]) < ttl:
+            return entry[1]
+        result = factory()
+        _cache[key] = (now, result)
+        return result
+
+    def _invalidate_cache(key: str = ""):
+        if key:
+            _cache.pop(key, None)
+        else:
+            _cache.clear()
+
     # ------------------------------------------------------------------
     # GET /player/status — player status with scene info
     # ------------------------------------------------------------------
     @router.get("/player/status")
     def get_status():
         """Return current player status including scene + panel data."""
+        return _cached("status", 2.0, lambda: _build_status_response())
+
+    def _build_status_response():
+        """Build the full status response dict (extracted for caching)."""
         player = player_repo.get("p1")
         if player is None:
             return {"error": "Player not found"}
@@ -145,17 +168,12 @@ def create_router(
     # ------------------------------------------------------------------
     @router.get("/game/scenes")
     def list_scenes():
-        """Return all scenes in the world."""
-        scenes = []
-        for scene_id, scene in SCENE_MAP.items():
-            scenes.append({
-                "id": scene.id,
-                "name": scene.name,
-                "atmosphere": scene.atmosphere,
-                "connections": scene.connections,
-                "available_actions": scene.available_actions,
-            })
-        return {"scenes": scenes}
+        """Return all scenes in the world (cached indefinitely, data is static)."""
+        return _cached("scenes", 9999, lambda: {"scenes": [
+            {"id": s.id, "name": s.name, "atmosphere": s.atmosphere,
+             "connections": s.connections, "available_actions": s.available_actions}
+            for s in SCENE_MAP.values()
+        ]})
 
     # ------------------------------------------------------------------
     # POST /game/action — full action pipeline with world layer
@@ -847,6 +865,9 @@ def create_router(
             # with '{' — strip it so we append into the already-opened object.
             rest_json = json.dumps(rest, ensure_ascii=False)
             yield '",' + rest_json[1:]
+
+        # Invalidate status cache after any action
+        _invalidate_cache("status")
 
         return StreamingResponse(response_generator(), media_type="application/json")
 
