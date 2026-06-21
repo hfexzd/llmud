@@ -1020,7 +1020,8 @@
         // --- Main Menu ---
         function hideMainMenu() {
             document.getElementById('main-menu').classList.add('hidden');
-            document.getElementById('loading-screen').style.display = 'none';
+            const ls = document.getElementById('loading-screen');
+            if (ls) ls.style.display = 'none';
         }
 
         function showMainMenu() {
@@ -1529,7 +1530,8 @@
         });
 
         // Initial load — show main menu, load scenes in background
-        document.getElementById('loading-screen').style.display = 'none';
+        const ls = document.getElementById('loading-screen');
+        if (ls) ls.style.display = 'none';
         showMainMenu();
         loadWorldScenes();
         updateStatus();  // background load to check for existing save
