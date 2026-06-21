@@ -335,7 +335,16 @@
             const itemRarity = {'灵芝':'灵','蛇胆':'灵','湖心珠':'灵','洗髓丹':'灵','灵草':'凡','凝露草':'凡','聚气丹':'凡','解毒丹':'凡','灵鱼':'凡','青锋剑':'凡','布甲':'凡'};
             const itemEffects = {'灵草':'灵力+3','凝露草':'灵力+3','聚气丹':'灵力+3','灵芝':'灵力+10+治愈','蛇胆':'气血上限+10','解毒丹':'解毒','灵鱼':'气血+10','湖心珠':'灵力恢复','青锋剑':'攻击+5','布甲':'防御+3','洗髓丹':'灵根+15'};
             const itemPrices = {'凝露草':5,'聚气丹':12,'解毒丹':7,'青锋剑':25,'布甲':20,'灵草':8,'灵芝':20,'蛇胆':15,'灵鱼':5,'湖心珠':30,'洗髓丹':40};
-            Object.entries(itemCount).forEach(([it, cnt]) => {
+            // Sort: equipment first, then by rarity (灵 before 凡)
+            const sortedItems = Object.entries(itemCount).sort(([a], [b]) => {
+                const aEquip = equippable.some(k => a.includes(k)) ? 0 : 1;
+                const bEquip = equippable.some(k => b.includes(k)) ? 0 : 1;
+                if (aEquip !== bEquip) return aEquip - bEquip;
+                const rA = itemRarity[a] === '灵' ? 0 : 1;
+                const rB = itemRarity[b] === '灵' ? 0 : 1;
+                return rA - rB;
+            });
+            sortedItems.forEach(([it, cnt]) => {
                 const color = rarityColors[itemRarity[it]] || '#b8a0d4';
                 const canEquip = equippable.some(k => it.includes(k));
                 const price = itemPrices[it] ? ` 出售价:${itemPrices[it]}灵石` : '';
