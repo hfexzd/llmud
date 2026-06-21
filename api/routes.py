@@ -1278,6 +1278,30 @@ def create_router(
                             # Retry failed — keep the clamped original
                             pass
 
+                    # Targeted NPC accompaniment detector: on MOVE, if the story
+                    # clearly says the player went WITH an NPC, auto-add world_delta.
+                    # Only matches explicit accompaniment patterns, not mere mentions.
+                    if intent == Intent.MOVE and story:
+                        import re
+                        from engine.models import ALL_NPC_PROFILES
+                        for npc_p in ALL_NPC_PROFILES:
+                            name = npc_p.name
+                            # Only match clear "went together" patterns
+                            patterns = [
+                                rf'与{name}.*(?:同行|同去|一同|一起|并肩|拨开|前去|前往|踏入|穿过|走进|步入)',
+                                rf'{name}.*(?:随|跟|陪|伴).*(?:你|前往|走向|来到|进了|穿过)',
+                                rf'(?:你|二人|两人|你们).*(?:与|和|随|带).*{name}.*(?:同行|同去|一同|一起|并肩|前去|前往|踏入|穿过|走进|步入)',
+                            ]
+                            matched = any(re.search(p, story) for p in patterns)
+                            if matched:
+                                prev_state = world_state.npc_state.get(npc_p.id)
+                                if prev_state and prev_state.scene_id != player.current_scene:
+                                    wd = dict(clamped.world_delta or {})
+                                    wd.setdefault("npc", {})
+                                    wd["npc"].setdefault(npc_p.id, {})
+                                    wd["npc"][npc_p.id]["scene_id"] = player.current_scene
+                                    clamped = clamped.model_copy(update={"world_delta": wd})
+
                     # Apply validated + clamped world_delta to world_state
                     if clamped.world_delta:
                         world_state = apply_world_delta(world_state, clamped.world_delta)
