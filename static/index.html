@@ -611,6 +611,16 @@
             bubble.textContent = prefix + hintStr;
             el.appendChild(bubble);
             const container = document.getElementById('chat-container');
+            // Show help tip on first load
+            const tipEl = document.createElement('div');
+            tipEl.className = 'msg system';
+            const tipBubble = document.createElement('div');
+            tipBubble.className = 'bubble';
+            tipBubble.style.fontSize = '12px';
+            tipBubble.style.color = '#b8a0d4';
+            tipBubble.textContent = '💡 输入"帮助"查看指令，或点击上方蓝色chip。';
+            tipEl.appendChild(tipBubble);
+            container.appendChild(tipEl);
             container.appendChild(el);
             container.scrollTop = container.scrollHeight;
         }
