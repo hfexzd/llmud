@@ -13,7 +13,10 @@
         .stat-value { font-weight: bold; }
         #favorability-bar { display: none; width: 100%; background: rgba(255,255,255,0.15); border-radius: 8px; height: 4px; margin-top: 2px; }
         #favorability-fill { height: 100%; background: #ff6b9d; border-radius: 8px; transition: width 0.3s; }
-        #scene-panel { flex: none; background: #1b1430; color: #e8e0f5; padding: 10px 12px; border-bottom: 1px solid #4a2d6e; max-height: 40vh; overflow-y: auto; }
+        #scene-panel { flex: none; background: #1b1430; color: #e8e0f5; padding: 10px 12px; border-bottom: 1px solid #4a2d6e; max-height: 40vh; overflow-y: auto; transition: max-height 0.3s, padding 0.3s, border 0.3s; }
+        #scene-panel.collapsed { max-height: 0; overflow: hidden; padding: 0 12px; border-bottom: none; }
+        #scene-toggle { flex: none; text-align: center; padding: 3px 0; background: rgba(74,45,110,0.5); border-bottom: 1px solid #4a2d6e; cursor: pointer; user-select: none; font-size: 11px; color: #8a7aa8; transition: background 0.2s; }
+        #scene-toggle:hover { background: rgba(74,45,110,0.8); color: #b8a0d4; }
         #chat-container { flex: 1; min-height: 0; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
         .msg { display: flex; margin-bottom: 6px; }
         .msg.user { justify-content: flex-end; }
@@ -141,6 +144,7 @@
         <div style="color:#b8a0d4;font-size:13px;margin-top:8px">正在加载...</div>
     </div>
     <div id="scene-panel"></div>
+    <div id="scene-toggle" onclick="toggleScenePanel()" title="点击展开/收起场景面板">▼ 场景</div>
     <div id="drawer-overlay" onclick="closeDrawer()"></div>
     <button id="clear-chat" style="position:fixed;bottom:120px;right:16px;background:rgba(255,255,255,0.08);color:#8a7aa8;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:4px 10px;font-size:11px;cursor:pointer;z-index:40" onclick="document.getElementById('chat-container').innerHTML='';introShown=false;updateStatus()" title="清除对话">🗑</button>
     <div id="drawer">
@@ -255,15 +259,45 @@
                     osc.stop(ctx.currentTime + 1.5);
                 } catch(e) {}
             }
+            // Auto-collapse scene panel after 5s when first shown
+            const panel2 = document.getElementById('scene-panel');
+            const toggle2 = document.getElementById('scene-toggle');
+            if (panel2 && toggle2 && !panel2.classList.contains('collapsed')) {
+                if (_sceneCollapseTimer) clearTimeout(_sceneCollapseTimer);
+                _sceneCollapseTimer = setTimeout(() => {
+                    panel2.classList.add('collapsed');
+                    toggle2.innerHTML = '&#9654; 场景';
+                    _sceneCollapseTimer = null;
+                }, 5000);
+            }
         }
+
+        let _sceneCollapseTimer = null;
+        function toggleScenePanel() {
+            const panel = document.getElementById('scene-panel');
+            const toggle = document.getElementById('scene-toggle');
+            if (!panel || !toggle) return;
+            const collapsed = panel.classList.toggle('collapsed');
+            toggle.innerHTML = collapsed ? '&#9654; 场景' : '&#9660; 场景';
+            if (_sceneCollapseTimer) { clearTimeout(_sceneCollapseTimer); _sceneCollapseTimer = null; }
+            if (!collapsed) {
+                // Auto-collapse after 5 seconds
+                _sceneCollapseTimer = setTimeout(() => {
+                    panel.classList.add('collapsed');
+                    toggle.innerHTML = '&#9654; 场景';
+                    _sceneCollapseTimer = null;
+                }, 5000);
+            }
+        }
+
         // Contextual action chips — scene-specific quick actions
         function renderActionChips() {
             const bar = document.getElementById('action-chips');
             if (!bar) return;
             const scene = panelData.scene || {};
-            const player = panelData.player || {};
+            const p = panelData.player || {};
             const npcs = panelData.npcs || [];
-            const inv = player.inventory || [];
+            const inv = p.inventory || [];
             const chips = [];
 
             // Scene-based actions
@@ -320,14 +354,16 @@
             } else if (inv.length > 0) chips.push(`使用${inv[0]}`);
 
             // Equipped items indicator
-            const wepName = player.weapon || null;
-            const armName = player.armor || null;
+            const wepName = p.weapon || null;
+            const armName = p.armor || null;
 
             bar.innerHTML = chips.map(c =>
                 `<span class="chip" data-prefill="${escapeAttr(c)}">${escapeHtml(c)}</span>`
             ).join('') + (wepName ? `<span class="chip" style="opacity:0.6;font-size:10px">🗡${escapeHtml(wepName)}</span>` : '')
                 + (armName ? `<span class="chip" style="opacity:0.6;font-size:10px">🛡${escapeHtml(armName)}</span>` : '');
         }
+
+        function renderRolePanel() {
             const p = panelData.player || {};
             const quests = panelData.quests || [];
             const npcs = panelData.npcs || [];
@@ -682,7 +718,7 @@
             document.getElementById('p-tick-display').textContent = data.tick ?? 0;
             // Update visited scenes count
             const vEl = document.getElementById('p-visited');
-            if (vEl) vEl.textContent = `🏠${data.visited_count||0}/${SCENE_ALIASES ? Object.keys(SCENE_ALIASES).length : 7}`;
+            if (vEl) vEl.textContent = `🏠${data.visited_count||0}/7`;
             const t = data.tick || 0;
             document.getElementById('p-playtime-display').textContent = t > 0 ? `${Math.floor(t/60)}h${t%60}m` : '';
             const qs = data.quests || [];
@@ -1307,6 +1343,7 @@
             } else if (e.key === 'Escape') {
                 input.value = '';
                 input.blur();
+            }
             }
         });
 

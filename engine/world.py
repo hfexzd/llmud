@@ -514,6 +514,8 @@ def apply_world_delta(world_state: WorldState, world_delta: dict) -> WorldState:
         if prev is None:
             continue
         npc_updates: dict = {}
+        if "scene_id" in nd:
+            npc_updates["scene_id"] = nd["scene_id"]
         if "mood" in nd:
             npc_updates["mood"] = nd["mood"]
         if "goal_progress" in nd:

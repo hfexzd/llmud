@@ -147,8 +147,8 @@
   "hotPaths": [
     {
       "path": "static\\index.html",
-      "accessCount": 470,
-      "lastAccessed": 1782037439547,
+      "accessCount": 513,
+      "lastAccessed": 1782042989044,
       "type": "file"
     },
     {
@@ -171,14 +171,14 @@
     },
     {
       "path": "engine\\world.py",
-      "accessCount": 47,
-      "lastAccessed": 1782023666581,
+      "accessCount": 49,
+      "lastAccessed": 1782042904205,
       "type": "file"
     },
     {
       "path": "dm\\prompt.py",
-      "accessCount": 24,
-      "lastAccessed": 1782027413463,
+      "accessCount": 27,
+      "lastAccessed": 1782042920631,
       "type": "file"
     },
     {
@@ -207,8 +207,8 @@
     },
     {
       "path": "engine\\validator.py",
-      "accessCount": 14,
-      "lastAccessed": 1782023960715,
+      "accessCount": 16,
+      "lastAccessed": 1782042937207,
       "type": "file"
     },
     {
@@ -230,6 +230,12 @@
       "type": "file"
     },
     {
+      "path": "",
+      "accessCount": 9,
+      "lastAccessed": 1782041575566,
+      "type": "directory"
+    },
+    {
       "path": "dm\\client.py",
       "accessCount": 8,
       "lastAccessed": 1782021684678,
@@ -243,15 +249,9 @@
     },
     {
       "path": "api\\app.py",
-      "accessCount": 7,
-      "lastAccessed": 1782021550697,
+      "accessCount": 8,
+      "lastAccessed": 1782041579963,
       "type": "file"
-    },
-    {
-      "path": "",
-      "accessCount": 7,
-      "lastAccessed": 1782023352839,
-      "type": "directory"
     },
     {
       "path": "tests\\conftest.py",

@@ -366,6 +366,12 @@ def _validate_personality(
 
     for nid, ndelta in list(nd.items()):
         nd_clamped = dict(ndelta)
+        # scene_id must be a known scene if present
+        if "scene_id" in nd_clamped:
+            valid_scene_ids = {s.id for s in bible.scenes}
+            if nd_clamped["scene_id"] not in valid_scene_ids:
+                violations.append(f"personality: npc '{nid}' scene_id '{nd_clamped['scene_id']}' unknown — removed")
+                del nd_clamped["scene_id"]
         # mood must be a non-empty string if present
         if "mood" in nd_clamped:
             if not isinstance(nd_clamped["mood"], str) or not nd_clamped["mood"].strip():

@@ -109,3 +109,6 @@
 {"t":0,"agent":"a07e6b2","agent_type":"executor","event":"agent_stop","success":true,"duration_ms":8762596}
 {"t":0,"agent":"a07e6b2","agent_type":"executor","event":"agent_stop","success":true,"duration_ms":11961429}
 {"t":0,"agent":"a07e6b2","agent_type":"executor","event":"agent_stop","success":true,"duration_ms":16025283}
+{"t":0,"agent":"abeb137","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"system","event":"skill_invoked","skill_name":"run"}
+{"t":0,"agent":"a40f6b8","agent_type":"unknown","event":"agent_stop","success":true}
