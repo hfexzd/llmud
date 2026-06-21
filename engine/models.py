@@ -313,6 +313,12 @@ LAKE_ENCOUNTER = Encounter(
     id="e3", name="玄水龟", attack=8, defense=7, hp=50, max_hp=50,
 )
 
+ALL_ENEMIES: dict[str, Encounter] = {
+    "e1": DEFAULT_ENCOUNTER,
+    "e2": VALLEY_ENCOUNTER,
+    "e3": LAKE_ENCOUNTER,
+}
+
 # --- Scene Data ---
 
 SCENE_MAP: dict[str, Scene] = {
@@ -440,11 +446,31 @@ def resolve_scene_id(text: str | None) -> str | None:
 
 
 ENCOUNTERS_BY_SCENE: dict[str, list[str]] = {
-    "bamboo_forest": ["e1"],
-    "mountain_range": ["e1"],
+    "bamboo_forest": ["e1", "e2"],
+    "mountain_range": ["e1", "e2"],
     "spirit_valley": ["e2"],
     "misty_lake": ["e3"],
 }
+
+# Encounter id → display name for story-based matching
+ENCOUNTER_NAME_MAP: dict[str, str] = {
+    "e1": "赤眼妖狼",
+    "e2": "毒鳞蟒",
+    "e3": "玄水龟",
+}
+
+def resolve_encounter_for_scene(scene_id: str, story_text: str = "") -> str | None:
+    """Pick an encounter for the scene. If the DM's story mentions a specific
+    enemy by name, use that encounter. Otherwise use the first available."""
+    available = ENCOUNTERS_BY_SCENE.get(scene_id, [])
+    if not available:
+        return None
+    # Check if DM story mentions a specific enemy
+    for eid in available:
+        ename = ENCOUNTER_NAME_MAP.get(eid, "")
+        if ename and ename in (story_text or ""):
+            return eid
+    return available[0]  # default first
 
 # --- NPC Presence Data ---
 

@@ -358,7 +358,22 @@ def create_router(
                     max_hp=active.get("max_hp", encounter.max_hp),
                 )
             else:
-                enemy = encounter.model_copy()  # fresh, full-HP enemy
+                # Pick encounter based on player input or scene default
+                from engine.models import resolve_encounter_for_scene
+                eid = resolve_encounter_for_scene(player.current_scene, filtered_input)
+                if eid:
+                    from engine.models import ALL_ENEMIES
+                    enemy_data = ALL_ENEMIES.get(eid)
+                    if enemy_data:
+                        enemy = Encounter(
+                            id=enemy_data.id, name=enemy_data.name,
+                            attack=enemy_data.attack, defense=enemy_data.defense,
+                            hp=enemy_data.hp, max_hp=enemy_data.max_hp,
+                        )
+                    else:
+                        enemy = encounter.model_copy()
+                else:
+                    enemy = encounter.model_copy()
 
             combat_result, player, updated_enemy = resolve_combat(player, enemy)
             # Track combo
