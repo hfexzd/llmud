@@ -570,6 +570,20 @@
             container.appendChild(card);
         }
 
+        // Toast notification system
+        function showToast(text, type) {
+            const existing = document.querySelector('.toast-notification');
+            if (existing) existing.remove();
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification';
+            const colors = {'breakthrough':'#ffd700','item':'#7bc67e','favor':'#ff6b9d','quest':'#9dd5ff','default':'#b8a0d4'};
+            const color = colors[type] || colors.default;
+            toast.style.cssText = `position:fixed;top:12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#2d1b4e,#1a1a3e);border:1px solid ${color};color:${color};border-radius:12px;padding:10px 20px;font-size:14px;z-index:999;animation:fadeIn 0.3s ease;box-shadow:0 4px 20px rgba(0,0,0,0.5);max-width:90%;text-align:center;`;
+            toast.textContent = text;
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 3000);
+        }
+
         function updateFavorability(npc) {
             if (!npc) return;
             document.getElementById('npc-rel').style.display = 'inline';
@@ -718,6 +732,7 @@
                     // Show breakthrough if present
                     if (result.breakthrough) {
                         addBreakthroughMsg(container, result.breakthrough);
+                        showToast(`✨ 突破！${result.breakthrough.to}`, 'breakthrough');
                     }
 
                     // Show world event if present
@@ -746,6 +761,9 @@
                         card.className = 'world-event';
                         card.textContent = itemMsg;
                         container.appendChild(card);
+                        if (result.item_use && result.item_use.includes('好感度')) {
+                            showToast(result.item_use.split('[')[0], 'favor');
+                        }
                     }
 
                     // Show ending card if world is sealed
