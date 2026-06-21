@@ -506,6 +506,11 @@ def create_router(
             player = player.model_copy(update={"inventory": new_inv})
             _response_extras[0] = "你在案前挥毫泼墨，写下了一幅书法。获得【书法】。"
 
+        # Rock stacking at mountain_range
+        if "堆石" in filtered_input and player.current_scene == "mountain_range":
+            import random as _rock
+            _response_extras[0] = f"你叠起几块石头，{'成功堆出了一座小石塔！' if _rock.random()<0.4 else '石块滑落了……'}"
+
         # Cloud watching at mountain_range
         if "看云" in filtered_input and player.current_scene == "mountain_range":
             player = player.model_copy(update={"spirit_power": player.spirit_power + 1})
