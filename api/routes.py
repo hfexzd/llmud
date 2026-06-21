@@ -166,6 +166,7 @@ def create_router(
             "quests": world_engine.visible_quests(player, world_state, bible),
             "next_quest": next_quest_info,
             "next_threshold": next_spirit_threshold(player.level),
+            "visited_count": len(player.visited_scenes or []),
         }
 
     # ------------------------------------------------------------------

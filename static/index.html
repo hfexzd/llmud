@@ -118,6 +118,7 @@
         <span class="stat"><span class="stat-label">灵石</span> <span class="stat-value" id="p-stones" style="color:#ffd700">100</span></span>
         <span class="stat"><span class="stat-label">回合</span> <span class="stat-value" id="p-tick-display">0</span></span>
         <span class="stat" style="font-size:10px;color:#4a2d6e" id="p-playtime-display"></span>
+        <span class="stat" style="font-size:10px;color:#8a7aa8" id="p-visited"></span>
         <span class="stat"><span class="stat-label">所务</span> <span class="stat-value" id="p-quest-progress" style="color:#7bc67e">0/4</span></span>
         <span class="stat" id="p-last-action" style="display:none;font-size:10px;color:#b8a0d4;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
         <span class="stat" id="p-weapon-display" style="display:none"><span class="stat-label">武器</span> <span class="stat-value" id="p-weapon" style="color:#9dd5ff"></span></span>
@@ -661,6 +662,9 @@
             stoneEl.textContent = stones;
             stoneEl.style.color = stones < 20 ? '#ff6b6b' : stones < 50 ? '#ffd700' : '#ffd700';
             document.getElementById('p-tick-display').textContent = data.tick ?? 0;
+            // Update visited scenes count
+            const vEl = document.getElementById('p-visited');
+            if (vEl) vEl.textContent = `🏠${data.visited_count||0}/${SCENE_ALIASES ? Object.keys(SCENE_ALIASES).length : 7}`;
             const t = data.tick || 0;
             document.getElementById('p-playtime-display').textContent = t > 0 ? `${Math.floor(t/60)}h${t%60}m` : '';
             const qs = data.quests || [];
