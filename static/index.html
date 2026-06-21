@@ -709,6 +709,14 @@
 
         function addBattleCard(container, combat) {
             playCombatSound(combat.result);
+            if (combat.crit) {
+                const el = document.getElementById('chat-container');
+                el.style.transition = 'transform 0.05s';
+                el.style.transform = 'translate(3px, -2px)';
+                setTimeout(() => el.style.transform = 'translate(-2px, 1px)', 50);
+                setTimeout(() => el.style.transform = 'translate(1px, -1px)', 100);
+                setTimeout(() => el.style.transform = '', 150);
+            }
             const card = document.createElement('div');
             card.className = 'battle-card';
             const resultClass = combat.result === 'win' ? 'win'
