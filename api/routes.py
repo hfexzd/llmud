@@ -598,6 +598,11 @@ def create_router(
                     npc_repo.update_favorability(social_target.id, new_fav, new_stage)
                     _response_extras[0] = f"你向{social_target.name}挥了挥手。（好感度+1）"
 
+        # Time check
+        if filtered_input in ("时间", "时辰"):
+            from engine.models import shichen_label as _shichen
+            _response_extras[0] = f"当前时辰：{_shichen(player.tick)}。"
+
         # Weather forecast
         if filtered_input in ("天气", "天气预报"):
             weathers = ["☀️ 晴空万里", "⛅ 多云", "☁️ 阴天", "🌦️ 阵雨", "🌧️ 下雨", "⛈️ 雷暴"]
