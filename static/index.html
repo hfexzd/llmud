@@ -1104,6 +1104,12 @@
             inputEl.value = '';
             inputEl.focus();
 
+            // Clear scene panel immediately so stale scene info isn't shown
+            // during the LLM streaming delay. The panel will repopulate when
+            // the response arrives.
+            const scenePanel = document.getElementById('scene-panel');
+            if (scenePanel) scenePanel.innerHTML = '<div style="color:#8a7aa8;font-size:12px;padding:4px 0">…</div>';
+
             const container = document.getElementById('chat-container');
 
             // User message

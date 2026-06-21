@@ -365,7 +365,6 @@ def create_router(
         elif intent == Intent.MOVE:
             # Resolve move via world engine
             destination = params.get("destination", filtered_input)
-            _prev_scene = player.current_scene  # remember for NPC sync
             status, result = world_engine.resolve_scene_move(player, destination)
             if status == "ok":
                 player = move(player, result)
@@ -1278,25 +1277,6 @@ def create_router(
                         except Exception:
                             # Retry failed — keep the clamped original
                             pass
-
-                    # NPC sync on scene change: when the player moves to a new
-                    # scene (via MOVE intent or DM state_delta), auto-move any
-                    # NPC mentioned in the story who was in the old scene.
-                    _player_moved = (intent == Intent.MOVE)
-                    if _player_moved and story:
-                        from engine.models import ALL_NPC_PROFILES
-                        for npc_p in ALL_NPC_PROFILES:
-                            if npc_p.name in story:
-                                print(f'[npc_sync] found {npc_p.name} in story, prev_scene={_prev_scene}, player_scene={player.current_scene}')
-                                prev_state = world_state.npc_state.get(npc_p.id)
-                                if prev_state and prev_state.scene_id != player.current_scene:
-                                    # Only sync if NPC was in player's old scene (or we know old scene)
-                                    if not _prev_scene or prev_state.scene_id == _prev_scene:
-                                        wd = dict(clamped.world_delta or {})
-                                        wd.setdefault("npc", {})
-                                        wd["npc"].setdefault(npc_p.id, {})
-                                        wd["npc"][npc_p.id]["scene_id"] = player.current_scene
-                                        clamped = clamped.model_copy(update={"world_delta": wd})
 
                     # Apply validated + clamped world_delta to world_state
                     if clamped.world_delta:
