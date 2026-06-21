@@ -481,6 +481,20 @@ def create_router(
             player = player.model_copy(update=updates)
             _response_extras[0] = f"你在灵泉眼中沐浴，身心舒畅。" + (f"（气血+{heal_spring}，灵力+{spirit_spring}）" if heal_spring > 0 else f"（灵力+{spirit_spring}）")
 
+        # Herb drying at spirit_valley
+        if "晒药" in filtered_input and player.current_scene == "spirit_valley":
+            if any(h in (player.inventory or []) for h in ["凝露草", "灵草"]):
+                for h in ["凝露草", "灵草"]:
+                    if h in (player.inventory or []):
+                        new_inv = list(player.inventory)
+                        new_inv.remove(h)
+                        new_inv.append(f"干{h}")
+                        player = player.model_copy(update={"inventory": new_inv})
+                        _response_extras[0] = f"你将{h}晒干，制成了干{h}。"
+                        break
+            else:
+                _response_extras[0] = "你没有可以晾晒的药材。"
+
         # Herb gathering at spirit_valley
         if "采药" in filtered_input and player.current_scene == "spirit_valley":
             import random as _herb
