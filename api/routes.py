@@ -358,9 +358,10 @@ def create_router(
                     max_hp=active.get("max_hp", encounter.max_hp),
                 )
             else:
-                # Pick encounter based on player input or scene default
+                # Pick encounter from recent story context + player input
                 from engine.models import resolve_encounter_for_scene
-                eid = resolve_encounter_for_scene(player.current_scene, filtered_input)
+                search_text = filtered_input + " " + " ".join(player.recent_stories or [])
+                eid = resolve_encounter_for_scene(player.current_scene, search_text)
                 if eid:
                     from engine.models import ALL_ENEMIES
                     enemy_data = ALL_ENEMIES.get(eid)
