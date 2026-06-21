@@ -181,46 +181,26 @@ class WorldEngine:
 
     # ------------------------------------------------------------------
     # Current objective (所务) + quest log
+    #
+    # 所务迁移 (spec §10): the visible 所务 list is now a projection of the
+    # tension state machine's output (world_state.tensions[*].status), not a
+    # fixed GOALS iteration. current_goal = first active (non-resolved)
+    # tension; visible_quests = active→"active", resolved→"completed" (until
+    # expiry), dormant→hidden; next_quest = first dormant tension. The
+    # tension→Goal label mapping uses GOAL_BY_ID (phase-0 tension ids == goal
+    # ids, so labels/guidance are unchanged — behavior compatible).
     # ------------------------------------------------------------------
 
-    def current_goal(self, player: Player) -> Goal | None:
-        """Return the player's current objective: the first quest that is
-        unlocked but not yet satisfied (by priority order in GOALS), or None
-        when the whole arc is complete. Pure function of player state."""
-        for goal in GOALS:
-            if self._quest_unlocked(goal.id, player) and not self._goal_satisfied(goal.id, player):
-                return goal
+    def current_goal(self, player: Player, world_state: WorldState,
+                     bible: WorldBible) -> Goal | None:
+        """The player's current objective: the first active (trigger-met,
+        not-yet-resolved) tension, mapped to its Goal. None when no tension
+        is active (the arc is complete or not yet begun past dormant)."""
+        for spec in bible.tensions:
+            rt = world_state.tensions.get(spec.id)
+            if rt is not None and rt.status == "active":
+                return GOAL_BY_ID[spec.id]
         return None
-
-    def _quest_unlocked(self, goal_id: str, player: Player) -> bool:
-        """Deterministic unlock gate keyed on player state. A quest appears in
-        the visible list only once its unlock condition is met — this is what
-        makes the 所务 list 'grow as the story progresses', engine-driven."""
-        visited = set(player.visited_scenes or [])
-        seen = set(player.seen_events or [])
-        if goal_id == "venture_bamboo":
-            return True
-        if goal_id == "probe_anomaly":
-            return "bamboo_forest" in visited
-        if goal_id == "cultivate_breakthrough":
-            return "spirit_herb" in seen
-        if goal_id == "venture_mountain":
-            return player.level == "练气期二层"
-        return False
-
-    def _goal_satisfied(self, goal_id: str, player: Player) -> bool:
-        """Deterministic satisfaction check keyed on player state only."""
-        visited = set(player.visited_scenes or [])
-        seen = set(player.seen_events or [])
-        if goal_id == "venture_bamboo":
-            return "bamboo_forest" in visited
-        if goal_id == "probe_anomaly":
-            return "spirit_herb" in seen
-        if goal_id == "cultivate_breakthrough":
-            return player.level == "练气期二层"
-        if goal_id == "venture_mountain":
-            return "mountain_range" in visited
-        return False
 
     def _quest_record(self, player: Player, goal_id: str) -> QuestState | None:
         """Return the persisted record for a goal, if any."""
@@ -229,46 +209,53 @@ class WorldEngine:
                 return q
         return None
 
-    def visible_quests(self, player: Player) -> list[dict]:
-        """The visible 所务 list, derived purely from player state. Each entry
-        is {id, label, status}. Completed quests show only until expiry
-        (QUEST_EXPIRY_TICKS after their recorded completed_tick)."""
+    def visible_quests(self, player: Player, world_state: WorldState,
+                      bible: WorldBible) -> list[dict]:
+        """The visible 所务 list, derived from tension statuses. Each entry is
+        {id, label, status}. Active tensions show as 'active'; resolved ones
+        show as 'completed' until QUEST_EXPIRY_TICKS after their recorded
+        completed_tick; dormant tensions (trigger not yet met) are hidden."""
         visible: list[dict] = []
-        for goal in GOALS:
-            if not self._quest_unlocked(goal.id, player):
+        for spec in bible.tensions:
+            rt = world_state.tensions.get(spec.id)
+            if rt is None or rt.status == "dormant":
                 continue
-            if self._goal_satisfied(goal.id, player):
-                rec = self._quest_record(player, goal.id)
+            goal = GOAL_BY_ID[spec.id]
+            if rt.status == "resolved":
+                rec = self._quest_record(player, spec.id)
                 completed_tick = rec.completed_tick if rec else player.tick
                 if player.tick - completed_tick < QUEST_EXPIRY_TICKS:
-                    visible.append({"id": goal.id, "label": goal.label, "status": "completed"})
+                    visible.append({"id": spec.id, "label": goal.label, "status": "completed"})
             else:
-                visible.append({"id": goal.id, "label": goal.label, "status": "active"})
+                visible.append({"id": spec.id, "label": goal.label, "status": "active"})
         return visible
 
-    def next_quest(self, player: Player) -> Goal | None:
-        """The first not-yet-unlocked goal (preview line '将解锁…'), or None."""
-        for goal in GOALS:
-            if not self._quest_unlocked(goal.id, player):
-                return goal
+    def next_quest(self, player: Player, world_state: WorldState,
+                   bible: WorldBible) -> Goal | None:
+        """The first dormant (not-yet-triggered) tension (preview '将解锁…'),
+        or None when every tension is active or resolved."""
+        for spec in bible.tensions:
+            rt = world_state.tensions.get(spec.id)
+            if rt is None or rt.status == "dormant":
+                return GOAL_BY_ID[spec.id]
         return None
 
-    def update_quests(self, player: Player) -> Player:
-        """Called once per action, after all state mutations + tick advance.
-        Records completed_tick for newly-satisfied quests (so the visible list
-        can expire them later) and prunes expired records. Returns a new Player.
-
-        The visible list itself is derived from state, so this only maintains
-        the lifecycle records — it does not change what is 'true'."""
+    def update_quests(self, player: Player, world_state: WorldState,
+                      bible: WorldBible) -> Player:
+        """Called once per action after the world tick. Records completed_tick
+        for newly-resolved tensions (so the visible list can expire them) and
+        prunes expired records. Returns a new Player. The visible list itself
+        is derived from tension statuses; this only maintains the lifecycle
+        records — it does not change what is 'true'."""
         now = player.tick
         records: dict[str, QuestState] = {q.id: q for q in player.quests or []}
-        for goal in GOALS:
-            if self._quest_unlocked(goal.id, player) and self._goal_satisfied(goal.id, player):
-                if goal.id not in records:
-                    records[goal.id] = QuestState(
-                        id=goal.id, status="completed",
-                        unlocked_tick=now, completed_tick=now,
-                    )
+        for spec in bible.tensions:
+            rt = world_state.tensions.get(spec.id)
+            if rt is not None and rt.status == "resolved" and spec.id not in records:
+                records[spec.id] = QuestState(
+                    id=spec.id, status="completed",
+                    unlocked_tick=now, completed_tick=now,
+                )
         kept = [
             q for q in records.values()
             if not (q.status == "completed"
