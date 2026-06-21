@@ -519,6 +519,11 @@ def create_router(
             skips = _skip.randint(1, 7)
             _response_extras[0] = f"你打了{skips}个水漂！{'（湖隐微微点头）' if skips >= 5 else ''}"
 
+        # Sunset viewing at misty_lake
+        if "看日落" in filtered_input and player.current_scene == "misty_lake":
+            player = player.model_copy(update={"spirit_power": player.spirit_power + 2})
+            _response_extras[0] = "你坐在湖畔，看夕阳一点点沉入水面，天地间一片宁静。（灵力+2）"
+
         # Fishing at misty_lake
         if "钓鱼" in filtered_input and player.current_scene == "misty_lake":
             import random as _rand
