@@ -298,10 +298,10 @@ class NPCProfileData(BaseModel):
 DEFAULT_PLAYER = Player()
 DEFAULT_ENCOUNTER = Encounter()
 VALLEY_ENCOUNTER = Encounter(
-    id="e2", name="毒鳞蟒", attack=12, defense=5, hp=45, max_hp=45,
+    id="e2", name="毒鳞蟒", attack=12, defense=5, hp=40, max_hp=40,
 )
 LAKE_ENCOUNTER = Encounter(
-    id="e3", name="玄水龟", attack=6, defense=10, hp=60, max_hp=60,
+    id="e3", name="玄水龟", attack=8, defense=7, hp=50, max_hp=50,
 )
 
 # --- Scene Data ---

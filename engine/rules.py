@@ -167,11 +167,11 @@ def use_item(player: Player, item_name: str) -> tuple[Player, str]:
     effect_msg = ""
     if item_spec and item_spec.effect:
         if "增益灵力" in item_spec.effect or "灵力" in item_spec.effect:
-            gain = 20 if item_spec.rarity == "灵" else 5
+            gain = 10 if item_spec.rarity == "灵" else 3
             new_p = new_p.model_copy(update={"spirit_power": new_p.spirit_power + gain})
             effect_msg = f"灵力+{gain}"
         if "恢复气血" in item_spec.effect or "气血" in item_spec.effect:
-            heal = 30 if item_spec.rarity == "灵" else 15
+            heal = 25 if item_spec.rarity == "灵" else 10
             new_hp = min(new_p.max_hp, new_p.hp + heal)
             new_p = new_p.model_copy(update={"hp": new_hp})
             effect_msg += f"，气血+{heal}"

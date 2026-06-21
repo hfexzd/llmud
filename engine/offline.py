@@ -18,7 +18,7 @@ OFFLINE_MAX_BUDGET = 480
 TICK_DURATION_MINUTES = 1
 
 DIRECTIVE_RATES = {
-    "闭关": {"spirit_per_tick": 2, "hp_per_tick": 0, "tension_progress": False},
+    "闭关": {"spirit_per_tick": 1, "hp_per_tick": 0, "tension_progress": False},
     "历练": {"spirit_per_tick": 1, "hp_per_tick": 0, "tension_progress": True},
     "静养": {"spirit_per_tick": 0, "hp_per_tick": 2, "tension_progress": False},
 }
