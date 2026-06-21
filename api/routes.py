@@ -1321,7 +1321,8 @@ def create_router(
 
                     world_delta_for_response = clamped.world_delta
 
-                    # Build human-readable NPC action strings from world_delta
+                    # Build human-readable NPC action strings from world_delta.
+                    # Only show actions for NPCs at the player's current scene.
                     npc_actions = []
                     if clamped.world_delta and clamped.world_delta.get("npc"):
                         from engine.models import ALL_NPC_PROFILES, SCENE_MAP
@@ -1329,15 +1330,23 @@ def create_router(
                         scene_name_by_id = {sid: s.name for sid, s in SCENE_MAP.items()}
                         for nid, nd in clamped.world_delta["npc"].items():
                             name = npc_name_by_id.get(nid, nid)
+                            # Determine if NPC ends up at player's scene
+                            final_scene = nd.get("scene_id") or (world_state.npc_state.get(nid) or {}).scene_id if hasattr(world_state.npc_state.get(nid, None), 'scene_id') else None
+                            # Get final scene from world_delta or current state
+                            prev_state = world_state.npc_state.get(nid)
+                            is_at_player = (
+                                nd.get("scene_id") == player.current_scene
+                                or (prev_state and prev_state.scene_id == player.current_scene)
+                            )
                             if "scene_id" in nd:
                                 to_name = scene_name_by_id.get(nd["scene_id"], nd["scene_id"])
-                                prev_scene = world_state.npc_state.get(nid)
-                                prev_name = scene_name_by_id.get(prev_scene.scene_id, prev_scene.scene_id) if prev_scene else None
+                                prev_name = scene_name_by_id.get(prev_state.scene_id, prev_state.scene_id) if prev_state else None
                                 if prev_name and prev_name != to_name:
                                     npc_actions.append(f"{name}从{prev_name}来到了{to_name}")
                                 elif not prev_name:
                                     npc_actions.append(f"{name}来到了{to_name}")
-                            if "mood" in nd:
+                            # Only show mood changes for NPCs at player's scene
+                            if "mood" in nd and is_at_player:
                                 mood_cn = {"hopeful":"心怀期待","eager":"跃跃欲试","curious":"好奇打量","serene":"静心凝神","burdened":"心事重重","grateful":"心怀感激","watchful":"警觉四顾","angry":"怒形于色","worried":"忧心忡忡","determined":"意志坚定"}.get(nd["mood"], nd["mood"])
                                 npc_actions.append(f"{name}的神色变得{mood_cn}")
 
