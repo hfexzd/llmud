@@ -18,7 +18,8 @@
         #scene-toggle { flex: none; text-align: center; padding: 3px 0; background: rgba(74,45,110,0.5); border-bottom: 1px solid #4a2d6e; cursor: pointer; user-select: none; font-size: 11px; color: #8a7aa8; transition: background 0.2s; }
         #scene-toggle:hover { background: rgba(74,45,110,0.8); color: #b8a0d4; }
         #action-chips-wrap { flex: none; background: #1b1430; border-top: 1px solid #4a2d6e; }
-        #action-chips { padding: 6px 10px; display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; transition: max-height 0.3s, padding 0.3s; max-height: 40px; }
+        #action-chips { padding: 6px 10px; display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; transition: max-height 0.3s, padding 0.3s; max-height: 40px; scrollbar-width: none; }
+        #action-chips::-webkit-scrollbar { display: none; }
         #action-chips.collapsed { max-height: 0; overflow: hidden; padding: 0 10px; }
         #action-toggle { text-align: center; padding: 3px 0; background: rgba(74,45,110,0.5); cursor: pointer; user-select: none; font-size: 11px; color: #8a7aa8; transition: background 0.2s; }
         #action-toggle:hover { background: rgba(74,45,110,0.8); color: #b8a0d4; }
@@ -181,7 +182,7 @@
             ? 'http://127.0.0.1:8001' : '';
 
         const NPC_NAMES = {linwaner: '林婉儿', chenhao: '陈浩', old_yang: '杨老', medicine_elder: '药老', lake_hermit: '湖隐'};
-        const SCENE_NAMES = {outer_gate: '外门', inner_gate: '内门', bamboo_forest: '竹林', market: '集市', mountain_range: '山脉'};
+        const SCENE_NAMES = {outer_gate: '外门', inner_gate: '内门', bamboo_forest: '竹林', market: '集市', mountain_range: '山脉', spirit_valley: '灵药谷', misty_lake: '雾隐湖'};
 
         let worldScenes = [];  // [{id,name,connections,atmosphere}] from /game/scenes
         async function loadWorldScenes() {
