@@ -239,6 +239,7 @@
             html += `<div class="panel-label">行囊</div><div>`;
             (p.inventory||[]).forEach(it => {
                 html += `<span class="obj-tag" data-prefill="查看${escapeAttr(it)}">${escapeHtml(it)}</span>`;
+                html += `<span class="obj-tag" style="background:rgba(107,200,255,0.18);color:#9dd5ff;border-color:rgba(107,200,255,0.4)" data-prefill="使用${escapeAttr(it)}">使用</span>`;
             });
             if (!(p.inventory||[]).length) html += '<span style="color:#8a7aa8;font-size:12px">空空如也</span>';
             html += `</div><div style="margin-top:8px"><span class="obj-tag" data-prefill="修炼">打坐修炼</span></div>`;
@@ -699,6 +700,14 @@
                         card.className = 'world-event';
                         card.textContent = result.offline_summary;
                         container.insertBefore(card, container.firstChild);
+                    }
+
+                    // Show item use message if present
+                    if (result.item_use) {
+                        const card = document.createElement('div');
+                        card.className = 'world-event';
+                        card.textContent = result.item_use;
+                        container.appendChild(card);
                     }
 
                     // Show ending card if world is sealed
