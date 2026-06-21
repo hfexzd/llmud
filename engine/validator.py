@@ -54,9 +54,27 @@ _STORY_SCAN_STOP_WORDS: set[str] = {
     "修仙", "修炼", "灵力", "灵气", "修士", "功法", "突破", "境界", "宗门",
     "弟子", "长老", "妖兽", "灵草", "丹药", "山脉", "竹林", "山谷", "洞府",
     "青云门", "练气", "筑基", "金丹",
+    "丹田", "经脉", "灵根", "心法",  # cultivation body terms
+    "盘膝", "而坐", "盘膝而坐",       # sitting posture
+    "喃喃", "自语", "低声",           # speech mannerisms
+    "缓缓", "渐渐", "微微", "轻轻", "慢慢",  # adverbs
+    "仿佛", "似乎", "犹如", "宛若", "就像",  # simile markers
+    "一股", "一阵", "一丝", "一缕", "一道", "一片",  # measure words
+    "汇入", "步入", "踏入", "进入",  # movement verbs
     # Common Chinese narrative characters that should never be flagged as
     # unknown entities (they're general-purpose, not named entities)
     "正", "修", "再", "次", "身", "心", "神", "气", "力", "行",
+    "盘", "膝", "而", "坐", "如", "般", "股", "阵", "丝", "缕", "片", "道",
+    "丹", "汇", "入", "出", "步", "踏", "闪", "化", "变", "成",
+    "微", "缓", "站", "轻", "点", "头", "笑", "目", "眉", "眼", "口", "手", "足",
+    "惨", "嚎", "吼", "啸", "鸣", "啼",  # animal/combat sounds
+    "深", "处", "苏", "醒", "感", "觉", "望", "见", "闻", "听", "说",  # perception
+    "风", "雨", "雷", "电", "雾", "霜", "露", "雪",  # weather
+    "很", "太", "极", "甚", "颇", "更", "越", "稍",  # degree
+    "啊", "吗", "呢", "吧", "嘛", "哇", "哟", "哦", "嗯",  # particles
+    "东", "西", "南", "北", "前", "后", "左", "右",  # directions
+    "先", "后", "最", "已", "将", "刚", "才", "便", "随",  # time
+    "啊", "呀", "哇", "哪", "吗", "嘛", "呢", "吧", "哦",  # more particles
 }
 
 # Additional known-NPC-name variants the DM might use in narration (e.g.
@@ -65,6 +83,8 @@ _STORY_SCAN_STOP_WORDS: set[str] = {
 _STORY_SCAN_ALLOWED: set[str] = {
     "师姐", "师兄", "师弟", "师妹", "道友", "前辈", "后辈",
     "杨老",   # short form of 杨老 (canon name matches this)
+    # Common enemy/creature shortenings that reference canon names
+    "妖狼", "血狼", "妖兽", "灵兽", "凶兽",
 }
 
 
