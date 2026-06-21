@@ -373,7 +373,7 @@
                 html += `<span class="obj-tag" style="background:rgba(107,200,255,0.18);color:#9dd5ff;border-color:rgba(107,200,255,0.4)" data-prefill="使用${escapeAttr(it)}">使用</span>`;
                 if (canEquip) html += `<span class="obj-tag" style="background:rgba(255,215,0,0.18);color:#ffd700;border-color:rgba(255,215,0,0.4)" data-prefill="装备${escapeAttr(it)}">装备</span>`;
                 html += `<span class="obj-tag" style="background:rgba(255,107,107,0.15);color:#ff6b6b;border-color:rgba(255,107,107,0.3)" data-prefill="丢弃${escapeAttr(it)}">丢弃</span>`;
-                if ((panelData.scene||{}).id === 'market') html += `<span class="obj-tag" style="background:rgba(255,215,0,0.12);color:#ffd700;border-color:rgba(255,215,0,0.3)" data-prefill="出售${escapeAttr(it)}">出售</span>`;
+                if ((panelData.scene||{}).id === 'market') html += `<span class="obj-tag" style="background:rgba(255,215,0,0.12);color:#ffd700;border-color:rgba(255,215,0,0.3)" data-prefill="出售${escapeAttr(it)}">出售${cnt>1?'(×'+cnt+')':''}</span>`;
             });
             if (!(p.inventory||[]).length) html += '<span style="color:#8a7aa8;font-size:12px">空空如也</span>';
             html += `</div><div style="margin-top:8px"><span class="obj-tag" data-prefill="修炼">打坐修炼</span></div>`;
