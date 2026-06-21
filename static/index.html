@@ -352,6 +352,14 @@
                 });
             } else {
                 html += '<span style="color:#8a7aa8;font-size:12px">四下无人</span>';
+
+            // Scene resources / shop
+            if (scene.shop && scene.shop.length > 0) {
+                html += '<div class="panel-label" style="margin-top:8px">可购买</div>';
+                scene.shop.forEach(s => {
+                    html += `<span class="obj-tag" data-prefill="购买${escapeAttr(s.name)}" style="border-color:#ffd700;color:#ffd700">${escapeHtml(s.name)} (${s.price}灵石)</span>`;
+                });
+            }
             }
             html += '</div>';
 
