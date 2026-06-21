@@ -85,6 +85,7 @@ class Player(BaseModel):
     offline_directive: str = "闭关"  # 闭关 | 历练 | 静养
     spirit_stones: int = 100
     auto_loot: bool = True
+    kills: int = 0
 
 
 class Encounter(BaseModel):

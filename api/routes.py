@@ -157,6 +157,7 @@ def create_router(
             "inventory": player.inventory,
             "spirit_stones": player.spirit_stones,
             "auto_loot": player.auto_loot,
+            "kills": player.kills,
             "weapon": player.weapon,
             "armor": player.armor,
             "attack": compute_attack(player),
@@ -336,7 +337,7 @@ def create_router(
                 # Loot: spirit stones + spirit power
                 stones_gained = 5 if player.auto_loot else 0
                 spirit_gained = 2
-                updates = {"spirit_power": player.spirit_power + spirit_gained}
+                updates = {"spirit_power": player.spirit_power + spirit_gained, "kills": player.kills + 1}
                 if stones_gained > 0:
                     updates["spirit_stones"] = player.spirit_stones + stones_gained
                 player = player.model_copy(update=updates)
