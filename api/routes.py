@@ -1285,11 +1285,14 @@ def create_router(
                         from engine.models import ALL_NPC_PROFILES
                         for npc_p in ALL_NPC_PROFILES:
                             name = npc_p.name
-                            # Only match clear "went together" patterns
+                            # Match NPC co-presence: accompaniment words OR NPC
+                            # acting/speaking at current location (握/指/低语/道…)
                             patterns = [
-                                rf'与{name}.*(?:同行|同去|一同|一起|并肩|拨开|前去|前往|踏入|穿过|走进|步入)',
-                                rf'{name}.*(?:随|跟|陪|伴).*(?:你|前往|走向|来到|进了|穿过)',
+                                rf'与{name}.*(?:同行|同去|一同|一起|并肩|拨开|前去|前往|踏入|穿过|走进|步入|而来)',
+                                rf'{name}.*(?:随|跟|陪|伴|紧随).*(?:你|前往|走向|来到|进了|穿过|身侧|身后|身旁)',
                                 rf'(?:你|二人|两人|你们).*(?:与|和|随|带).*{name}.*(?:同行|同去|一同|一起|并肩|前去|前往|踏入|穿过|走进|步入)',
+                                # NPC acting at the current scene (implies presence)
+                                rf'{name}(?:握|抽|拔|按|攥|举|指向|指着|低声|轻声|沉声|冷声|缓缓|忽地|突然)(?:紧|出|住|起|道|说|言|曰)',
                             ]
                             matched = any(re.search(p, story) for p in patterns)
                             if matched:
