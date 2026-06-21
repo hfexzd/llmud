@@ -610,6 +610,11 @@ def create_router(
                     npc_repo.update_favorability(comp_target.id, new_fav, new_stage)
                     _response_extras[0] = f"你称赞了{comp_target.name}，{['她','他'][0 if comp_target.id=='linwaner' else 1]}很开心。（好感度+2）"
 
+        # Sing (fun)
+        if "唱歌" in filtered_input:
+            reactions = {"market": "（集市的人们纷纷侧目）", "inner_gate": "（林婉儿微笑倾听）", "outer_gate": "（杨老微微点头）"}
+            _response_extras[0] = "你放声高歌。" + (reactions.get(player.current_scene, "（回声在山间飘荡）"))
+
         # Dance (fun)
         if "跳舞" in filtered_input:
             _response_extras[0] = "你翩翩起舞，旁若无人。{}".format(
