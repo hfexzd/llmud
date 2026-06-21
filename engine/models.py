@@ -300,6 +300,9 @@ DEFAULT_ENCOUNTER = Encounter()
 VALLEY_ENCOUNTER = Encounter(
     id="e2", name="毒鳞蟒", attack=12, defense=5, hp=45, max_hp=45,
 )
+LAKE_ENCOUNTER = Encounter(
+    id="e3", name="玄水龟", attack=6, defense=10, hp=60, max_hp=60,
+)
 
 # --- Scene Data ---
 
@@ -351,7 +354,7 @@ SCENE_MAP: dict[str, Scene] = {
         name="妖兽山脉",
         description="危险的山脉深处，妖兽横行。只有胆大的修士才敢涉足。",
         atmosphere="危险",
-        connections=["bamboo_forest"],
+        connections=["bamboo_forest", "misty_lake"],
         available_actions=["fight", "explore"],
         encounter_ids=["e1"],
         npc_ids=[],
@@ -367,6 +370,17 @@ SCENE_MAP: dict[str, Scene] = {
         npc_ids=["medicine_elder"],
         landmarks=["药圃", "灵泉眼", "石洞"],
     ),
+    "misty_lake": Scene(
+        id="misty_lake",
+        name="雾隐湖",
+        description="山脉脚下的一处幽静湖泊，常年雾气弥漫。湖水清澈见底，传说湖中有灵物出没。",
+        atmosphere="缥缈",
+        connections=["mountain_range"],
+        available_actions=["explore", "cultivate", "fight"],
+        encounter_ids=["e3"],
+        npc_ids=["lake_hermit"],
+        landmarks=["湖畔亭", "钓鱼台", "湖心岛"],
+    ),
 }
 
 # Short, natural-language keywords players use to refer to a scene.
@@ -380,6 +394,8 @@ SCENE_ALIASES: dict[str, str] = {
     "山脉": "mountain_range",
     "山谷": "spirit_valley",
     "灵药谷": "spirit_valley",
+    "湖": "misty_lake",
+    "雾隐湖": "misty_lake",
 }
 
 
@@ -418,6 +434,7 @@ ENCOUNTERS_BY_SCENE: dict[str, list[str]] = {
     "bamboo_forest": ["e1"],
     "mountain_range": ["e1"],
     "spirit_valley": ["e2"],
+    "misty_lake": ["e3"],
 }
 
 # --- NPC Presence Data ---
@@ -441,6 +458,11 @@ NPC_PRESENCES: dict[str, NPCPresence] = {
     "medicine_elder": NPCPresence(
         npc_id="medicine_elder",
         default_scene="spirit_valley",
+        schedule=[],
+    ),
+    "lake_hermit": NPCPresence(
+        npc_id="lake_hermit",
+        default_scene="misty_lake",
         schedule=[],
     ),
 }
@@ -582,6 +604,36 @@ ALL_EVENTS: list[WorldEvent] = [
         guidance="fight_valley_guardian",
         one_time=True,
     ),
+    # Lake events
+    WorldEvent(
+        id="misty_lake_discovery",
+        name="雾隐湖",
+        scene_id="mountain_range",
+        trigger=EventTrigger(type="tick_interval", conditions={"min_tick": 15}),
+        narrative_hint="山脉脚下隐约传来水声，透过雾气能看到一片波光粼粼的湖面。",
+        guidance="explore_misty_lake",
+        one_time=True,
+    ),
+    WorldEvent(
+        id="hermit_first_meeting",
+        name="湖隐的考验",
+        scene_id="misty_lake",
+        trigger=EventTrigger(type="location_enter", conditions={"first_time": True}),
+        narrative_hint="湖边坐着一位白衣老者，手持钓竿，目不斜视。他似乎察觉到你，却未发一言。",
+        guidance="talk_lake_hermit",
+        allow_intervene=True,
+        intervene_options=["恭敬行礼", "在旁静坐", "询问湖水之事"],
+        one_time=True,
+    ),
+    WorldEvent(
+        id="lake_turtle_awakening",
+        name="玄水龟现世",
+        scene_id="misty_lake",
+        trigger=EventTrigger(type="stat_threshold", conditions={"min_spirit": 40}),
+        narrative_hint="湖面突然涌起巨浪，一头巨大的玄水龟从湖心浮出，龟甲上泛着幽幽蓝光。",
+        guidance="fight_turtle",
+        one_time=True,
+    ),
 ]
 
 # --- NPC Interaction Data ---
@@ -641,6 +693,16 @@ ALL_NPC_PROFILES: list[NPCProfileData] = [
         favorability=25,
         relationship_stage="陌生",
     ),
+    NPCProfileData(
+        id="lake_hermit",
+        name="湖隐",
+        persona="雾隐湖畔的神秘隐士，常年垂钓，不问世事。看似散漫，实则深谙天地之道。",
+        secret="他曾在百年前救过一头灵兽，灵兽如今隐在湖中守护着此方水域。",
+        motive="守护雾隐湖的灵气平衡，偶尔指点有缘人悟道。",
+        default_scene="misty_lake",
+        favorability=20,
+        relationship_stage="陌生",
+    ),
 ]
 
 
@@ -660,7 +722,7 @@ SKILL_CATALOG: list[str] = []  # 功法/招式/技能 — 留白待补
 
 # Canonical 妖兽/敌人 names. The encounter pool currently holds only
 # DEFAULT_ENCOUNTER (赤眼妖狼); extend here when more enemies are defined.
-ENCOUNTER_CATALOG: list[str] = [DEFAULT_ENCOUNTER.name, VALLEY_ENCOUNTER.name]
+ENCOUNTER_CATALOG: list[str] = [DEFAULT_ENCOUNTER.name, VALLEY_ENCOUNTER.name, LAKE_ENCOUNTER.name]
 
 
 def world_canon(bible: WorldBible | None = None) -> dict:
@@ -831,6 +893,12 @@ PHASE_0_BIBLE = WorldBible(
         ItemSpec(id="antidote_pill", name="解毒丹", kind="丹药", rarity="凡",
                  effect="服用可解除多数毒素", source=["灵药谷"], axis="成长",
                  lore="药老炼制的解毒丹药，可解百毒。"),
+        ItemSpec(id="spirit_fish", name="灵鱼", kind="灵材", rarity="凡",
+                 effect="食用可恢复气血", source=["雾隐湖"], axis="成长",
+                 lore="雾隐湖中特有的鱼类，蕴含微弱灵气。"),
+        ItemSpec(id="lake_pearl", name="湖心珠", kind="法器", rarity="灵",
+                 effect="佩戴可缓慢恢复灵力", source=["雾隐湖"], axis="成长",
+                 lore="湖心深处的灵珠，凝聚了雾隐湖百年的灵气精华。"),
     ],
     skills=[
         SkillSpec(id="qingyun_sword_art", name="青云剑诀", kind="功法",
@@ -977,6 +1045,22 @@ PHASE_0_BIBLE = WorldBible(
                                condition={"always": True}),
             ],
             decision_rules=["沉默寡言但句句关键", "对勤奋弟子更友善"],
+        ),
+        BehaviorModel(
+            npc_id="lake_hermit",
+            motive="守护雾隐湖灵气平衡，静待有缘人。",
+            goals=[
+                NPCGoal(id="maintain_balance", label="守护湖中灵气", axis="探索",
+                        tragic_potential=None),
+                NPCGoal(id="teach_way", label="点拨有慧根之人", axis="陪伴",
+                        tragic_potential=None),
+            ],
+            routine=[
+                BehaviorAction(type="move", params={"schedule": True}, condition={}),
+                BehaviorAction(type="mood", params={"mood": "serene"},
+                               condition={"always": True}),
+            ],
+            decision_rules=["不问世事只垂钓", "对悟性高者青眼有加"],
         ),
         BehaviorModel(
             npc_id="medicine_elder",

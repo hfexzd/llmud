@@ -137,8 +137,8 @@ class TestCheckEvents:
         assert event is not None
 
     def test_no_event_for_scene_with_none(self, engine: WorldEngine):
-        """mountain_range has no events defined in ALL_EVENTS."""
-        player = Player(current_scene="mountain_range")
+        """Events with un-met conditions do not fire (mountain lake hint needs tick>=15)."""
+        player = Player(current_scene="mountain_range", tick=3)
         event = engine.check_events("mountain_range", player)
         assert event is None
 
