@@ -1111,13 +1111,15 @@
                             '缥缈': '水天一色，如在画中游。',
                         };
                         const atmLine = atmosphereLines[result.scene.atmosphere] || '';
+                        const sceneHints = {'outer_gate':'有练功场可练习','inner_gate':'师姐常在此处','bamboo_forest':'有妖兽出没','market':'可买卖物品','mountain_range':'危险区域','spirit_valley':'药老在此隐居','misty_lake':'湖边隐士常住'};
+                        const hint = sceneHints[result.scene.id] ? ` (${sceneHints[result.scene.id]})` : '';
                         const travMsg = document.createElement('div');
                         travMsg.className = 'msg system';
                         const tb = document.createElement('div');
                         tb.className = 'bubble';
                         tb.style.fontSize = '12px';
                         tb.style.color = '#9dd5ff';
-                        tb.textContent = `🚶 你来到了${result.scene.name}。${atmLine}`;
+                        tb.textContent = `🚶 你来到了${result.scene.name}。${atmLine}${hint}`;
                         travMsg.appendChild(tb);
                         container.insertBefore(travMsg, container.firstChild.nextSibling);
                     }
