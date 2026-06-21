@@ -17,6 +17,11 @@
         #scene-panel.collapsed { max-height: 0; overflow: hidden; padding: 0 12px; border-bottom: none; }
         #scene-toggle { flex: none; text-align: center; padding: 3px 0; background: rgba(74,45,110,0.5); border-bottom: 1px solid #4a2d6e; cursor: pointer; user-select: none; font-size: 11px; color: #8a7aa8; transition: background 0.2s; }
         #scene-toggle:hover { background: rgba(74,45,110,0.8); color: #b8a0d4; }
+        #action-chips-wrap { flex: none; background: #1b1430; border-top: 1px solid #4a2d6e; }
+        #action-chips { padding: 6px 10px; display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; transition: max-height 0.3s, padding 0.3s; max-height: 40px; }
+        #action-chips.collapsed { max-height: 0; overflow: hidden; padding: 0 10px; }
+        #action-toggle { text-align: center; padding: 3px 0; background: rgba(74,45,110,0.5); cursor: pointer; user-select: none; font-size: 11px; color: #8a7aa8; transition: background 0.2s; }
+        #action-toggle:hover { background: rgba(74,45,110,0.8); color: #b8a0d4; }
         #chat-container { flex: 1; min-height: 0; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
         .msg { display: flex; margin-bottom: 6px; }
         .msg.user { justify-content: flex-end; }
@@ -160,7 +165,10 @@
     </div>
     <button id="scroll-bottom" style="display:none;position:fixed;bottom:70px;right:16px;background:#6b3fa0;color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;z-index:50;box-shadow:0 2px 10px rgba(0,0,0,0.3)" onclick="document.getElementById('chat-container').scrollTop=document.getElementById('chat-container').scrollHeight;this.style.display='none'">↓</button>
 
-    <div id="action-chips" style="flex:none;background:#1b1430;padding:6px 10px;display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;border-top:1px solid #4a2d6e;"></div>
+    <div id="action-chips-wrap">
+        <div id="action-toggle" onclick="toggleActionChips()">⚡ 行动</div>
+        <div id="action-chips"></div>
+    </div>
     <div id="input-bar">
         <input type="text" id="user-input" placeholder="输入你的行动..." autocomplete="off">
         <button id="send-btn" onclick="sendAction()">发送</button>
@@ -272,6 +280,14 @@
             }
         }
 
+        function toggleActionChips() {
+            const chips = document.getElementById('action-chips');
+            const toggle = document.getElementById('action-toggle');
+            if (!chips || !toggle) return;
+            const collapsed = chips.classList.toggle('collapsed');
+            toggle.innerHTML = collapsed ? '&#9654; 行动' : '⚡ 行动';
+        }
+
         let _sceneCollapseTimer = null;
         function toggleScenePanel() {
             const panel = document.getElementById('scene-panel');
@@ -361,6 +377,11 @@
                 `<span class="chip" data-prefill="${escapeAttr(c)}">${escapeHtml(c)}</span>`
             ).join('') + (wepName ? `<span class="chip" style="opacity:0.6;font-size:10px">🗡${escapeHtml(wepName)}</span>` : '')
                 + (armName ? `<span class="chip" style="opacity:0.6;font-size:10px">🛡${escapeHtml(armName)}</span>` : '');
+            // Update toggle with action count
+            const toggle = document.getElementById('action-toggle');
+            if (toggle && !document.getElementById('action-chips').classList.contains('collapsed')) {
+                toggle.innerHTML = `⚡ 行动 (${chips.length})`;
+            }
         }
 
         function renderRolePanel() {
