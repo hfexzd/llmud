@@ -423,6 +423,20 @@ def create_router(
                         new_stage = compute_relationship_stage(new_fav)
                         npc_repo.update_favorability(target.id, new_fav, new_stage)
 
+        # Bribery: give spirit stones to NPC
+        if ("贿赂" in filtered_input or "打点" in filtered_input) and player.spirit_stones >= 10:
+            from engine.models import ALL_NPC_PROFILES as _ALL_NPCS
+            bribe_target = next((p for p in _ALL_NPCS if p.name in filtered_input), None)
+            if bribe_target:
+                profile_row = npc_repo.get_profile(bribe_target.id)
+                if profile_row:
+                    cur_fav = profile_row.get("favorability", 50)
+                    new_fav = min(100, cur_fav + 5)
+                    new_stage = compute_relationship_stage(new_fav)
+                    npc_repo.update_favorability(bribe_target.id, new_fav, new_stage)
+                    player = player.model_copy(update={"spirit_stones": player.spirit_stones - 10})
+                    _response_extras[0] = f"你给了{bribe_target.name}10灵石。[好感度+5]"
+
         # Help system
         help_message = None
         if filtered_input in ("帮助", "help", "？", "?"):
