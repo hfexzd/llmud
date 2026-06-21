@@ -433,6 +433,9 @@ def tension_tick(world_state: WorldState, bible: WorldBible, player: Player) -> 
     resolved) tension's pressure_weight. tick is left untouched here — the
     pipeline sets it.
     """
+    if world_state.sealed:
+        return world_state
+
     new_tensions = dict(world_state.tensions)
     new_resolved = list(world_state.resolved_tensions)
 

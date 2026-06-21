@@ -601,21 +601,28 @@ SKILL_CATALOG: list[str] = []  # 功法/招式/技能 — 留白待补
 ENCOUNTER_CATALOG: list[str] = [DEFAULT_ENCOUNTER.name]
 
 
-def world_canon() -> dict:
+def world_canon(bible: WorldBible | None = None) -> dict:
     """All mentionable named entities, for the DM prompt's canon block.
 
     The LLM may only reference locations/landmarks, NPCs, and enemies from
     here, and items/skills from their catalogs. Empty item/skill catalogs
-    fall back to PHASE_0_BIBLE data.
+    fall back to PHASE_0_BIBLE data. Pass an active *bible* (after milestone
+    regen) to derive canon from it instead of the static seed data.
     """
     locations: list[str] = []
     for scene in SCENE_MAP.values():
         locations.append(scene.name)
         locations.extend(scene.landmarks)
 
-    # Fall back to PHASE_0_BIBLE items/skills when standalone catalogs are empty
-    items = list(ITEM_CATALOG) if ITEM_CATALOG else [i.name for i in PHASE_0_BIBLE.items]
-    skills = list(SKILL_CATALOG) if SKILL_CATALOG else [s.name for s in PHASE_0_BIBLE.skills]
+    # When an active bible is provided, derive canon from it; otherwise fall
+    # back to standalone catalogs or PHASE_0_BIBLE.
+    if bible is not None:
+        items = [i.name for i in bible.items]
+        skills = [s.name for s in bible.skills]
+        npcs = list({p.name for p in ALL_NPC_PROFILES})  # still from profiles
+    else:
+        items = list(ITEM_CATALOG) if ITEM_CATALOG else [i.name for i in PHASE_0_BIBLE.items]
+        skills = list(SKILL_CATALOG) if SKILL_CATALOG else [s.name for s in PHASE_0_BIBLE.skills]
 
     return {
         "locations": locations,

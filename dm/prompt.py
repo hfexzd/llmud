@@ -75,6 +75,7 @@ def build_dm_prompt(
     scene: Scene | None = None,
     world_event: WorldEvent | None = None,
     goal: Goal | None = None,
+    bible: WorldBible | None = None,
 ) -> tuple[str, str]:
     """Build the system and user prompts for the DM LLM call."""
     if intent == Intent.FIGHT and combat_result:
@@ -129,7 +130,7 @@ def build_dm_prompt(
     # Build the world canon block: the named entities the LLM may reference.
     # Items/skills are often empty (留白待补) → tell the DM to narrate them
     # generically rather than naming specifics (rule 12).
-    canon = world_canon()
+    canon = world_canon(bible=bible)
 
     def _catalog_line(items: list[str], generic: str) -> str:
         if items:
