@@ -265,6 +265,10 @@ def create_router(
         move_error = None
         _response_extras = [None]  # mutable container for closure-safe extra messages
 
+        # Auto-attack shortcut: if in combat, "继续" = next attack round
+        if filtered_input in ("继续", "继续攻击", "接着打") and player.active_enemy:
+            intent = Intent.FIGHT
+
         if intent == Intent.CULTIVATE:
             player = cultivate(player)
             breakthrough = check_breakthrough(player)
