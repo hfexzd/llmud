@@ -996,6 +996,11 @@
                         container.appendChild(card);
                     }
 
+                    // Refresh status bar after equipment changes
+                    if (result.item_use && (result.item_use.includes('装备') || result.item_use.includes('卸下'))) {
+                        updateStatus();
+                    }
+
                     // Show item messages (use or inspect)
                     const itemMsg = result.item_use || result.item_inspect;
                     if (itemMsg) {
