@@ -230,9 +230,49 @@ class NPCInteraction(BaseModel):
     intervene_options: list[str] | None = None
 
 
+# --- Emergent world runtime models (M1 scaffold; see design spec §5) ---
+
+class TensionRuntime(BaseModel):
+    status: str = "dormant"            # dormant | active | resolved
+    pressure: int = 0
+    progress: dict[str, int] = Field(default_factory=dict)
+    activated_tick: int | None = None
+    resolved_tick: int | None = None
+    resolved_path: str | None = None
+
+
+class NPCRuntimeState(BaseModel):
+    npc_id: str
+    scene_id: str
+    mood: str = ""
+    goal_progress: dict[str, int] = Field(default_factory=dict)
+    schedule_tick: int = 0
+    last_autonomous_action: str | None = None
+
+
+class FactionRuntime(BaseModel):
+    faction_id: str
+    trust: int = 0
+    dominance: int = 0
+
+
+class ResolvedTension(BaseModel):
+    tension_id: str
+    resolved_tick: int
+    path_id: str
+    summary: str = ""
+
+
 class WorldState(BaseModel):
-    current_tick: int = 0
-    npc_locations: dict[str, str] = {}
+    tick: int = 0
+    phase_id: int = 0
+    world_pressure: int = 0
+    tensions: dict[str, TensionRuntime] = Field(default_factory=dict)
+    npc_state: dict[str, NPCRuntimeState] = Field(default_factory=dict)
+    faction_state: dict[str, FactionRuntime] = Field(default_factory=dict)
+    resolved_tensions: list[ResolvedTension] = Field(default_factory=list)
+    sealed: bool = False
+    ending: str | None = None
 
 
 class NPCProfileData(BaseModel):
@@ -571,3 +611,105 @@ def world_canon() -> dict:
         "items": list(ITEM_CATALOG),
         "skills": list(SKILL_CATALOG),
     }
+
+# --- World canon / behavior / content models (M1 scaffold; spec §4, §4.2) ---
+# Leaf models first, then WorldBible (which references them). `Scene` is the
+# existing scene model (reused as the scene spec — no redundant SceneSpec).
+
+class TensionTrigger(BaseModel):
+    type: str                          # stat | tick | tension_resolved | npc_state
+    conditions: dict = Field(default_factory=dict)
+
+
+class ResolutionPath(BaseModel):
+    id: str
+    label: str
+    condition: dict = Field(default_factory=dict)
+    outcome_state: dict = Field(default_factory=dict)
+    ending_lean: str | None = None
+
+
+class TensionSpec(BaseModel):
+    id: str
+    name: str
+    axis: list[str] = Field(default_factory=list)
+    emotion: str = ""
+    involved_npcs: list[str] = Field(default_factory=list)
+    involved_factions: list[str] = Field(default_factory=list)
+    trigger: TensionTrigger
+    resolution_paths: list[ResolutionPath] = Field(default_factory=list)
+    pressure_weight: int = 1
+    difficulty: int = 1
+
+
+class NPCGoal(BaseModel):
+    id: str
+    label: str
+    axis: str                          # 成长 / 陪伴 / 探索
+    satisfy_condition: dict = Field(default_factory=dict)
+    progress_driver: dict = Field(default_factory=dict)
+    tragic_potential: str | None = None
+
+
+class BehaviorTrigger(BaseModel):
+    type: str
+    conditions: dict = Field(default_factory=dict)
+
+
+class BehaviorAction(BaseModel):
+    type: str                           # move | mood | goal_progress | interact_npc
+    params: dict = Field(default_factory=dict)
+    condition: dict = Field(default_factory=dict)
+
+
+class BehaviorModel(BaseModel):
+    npc_id: str
+    motive: str = ""
+    goals: list[NPCGoal] = Field(default_factory=list)
+    triggers: list[BehaviorTrigger] = Field(default_factory=list)
+    routine: list[BehaviorAction] = Field(default_factory=list)
+    decision_rules: list[str] = Field(default_factory=list)
+
+
+class FactionSpec(BaseModel):
+    id: str
+    name: str
+    type: str                           # 门派 | 散修组织 | 妖兽势力 | 中立方
+    stance: str = ""                    # 正 | 魔 | 中立 | 野
+    relations: dict[str, str] = Field(default_factory=dict)
+    tensions_involved: list[str] = Field(default_factory=list)
+    lore: str = ""
+
+
+class ItemSpec(BaseModel):
+    id: str
+    name: str
+    kind: str                           # 灵材 | 丹药 | 法器 | 材料 | 暗器
+    rarity: str = "凡"                   # 凡 | 灵 | 玄 | 天
+    effect: str = ""
+    source: list[str] = Field(default_factory=list)
+    axis: str = ""
+    lore: str = ""
+
+
+class SkillSpec(BaseModel):
+    id: str
+    name: str
+    kind: str                           # 功法 | 招式 | 身法 | 心法
+    school: str = ""                    # references a FactionSpec.id
+    requirement: str = ""
+    effect: str = ""
+    axis: str = ""
+    lore: str = ""
+
+
+class WorldBible(BaseModel):
+    phase_id: int = 0
+    phase_title: str = ""
+    scenes: list[Scene] = Field(default_factory=list)
+    factions: list[FactionSpec] = Field(default_factory=list)
+    items: list[ItemSpec] = Field(default_factory=list)
+    skills: list[SkillSpec] = Field(default_factory=list)
+    tensions: list[TensionSpec] = Field(default_factory=list)
+    npc_models: list[BehaviorModel] = Field(default_factory=list)
+    ending_hints: dict = Field(default_factory=dict)
