@@ -381,6 +381,19 @@ def create_router(
         if world_event:
             player = world_engine.apply_event(player, world_event)
 
+        # Grant items for certain events (event rewards)
+        event_id = world_event.id if world_event else None
+        if event_id and player.inventory is not None:
+            reward_map = {
+                "elder_first_meeting": "凝露草",
+                "valley_guardian": "蛇胆",
+                "lake_turtle_awakening": "湖心珠",
+                "spirit_herb": "灵草",
+            }
+            if event_id in reward_map and reward_map[event_id] not in player.inventory:
+                new_inv = list(player.inventory) + [reward_map[event_id]]
+                player = player.model_copy(update={"inventory": new_inv})
+
         # Step 5: Narrative (DM LLM call)
         npc_context = ""
         npc_update_dict = None
@@ -703,6 +716,7 @@ def create_router(
                     "spirit_power": player.spirit_power,
                     "hp": player.hp,
                     "max_hp": player.max_hp,
+                    "inventory": player.inventory,
                     "attack": compute_attack(player),
                     "defense": compute_defense(player),
                 },

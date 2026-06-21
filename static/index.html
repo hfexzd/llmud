@@ -237,8 +237,10 @@
             html += `<div class="bar-pct">${p.hp??0} / ${p.max_hp??0}</div>`;
             html += `<div class="stat-line"><span>时辰</span><b>${shichenLabel(p.tick)}</b></div>`;
             html += `<div class="panel-label">行囊</div><div>`;
+            const rarityColors = {'灵':'#ffd700','凡':'#b8a0d4'};
             (p.inventory||[]).forEach(it => {
-                html += `<span class="obj-tag" data-prefill="查看${escapeAttr(it)}">${escapeHtml(it)}</span>`;
+                const color = rarityColors['灵'] || '#b8a0d4';
+                html += `<span class="obj-tag" style="border-color:${color};color:${color}" data-prefill="查看${escapeAttr(it)}">${escapeHtml(it)}</span>`;
                 html += `<span class="obj-tag" style="background:rgba(107,200,255,0.18);color:#9dd5ff;border-color:rgba(107,200,255,0.4)" data-prefill="使用${escapeAttr(it)}">使用</span>`;
             });
             if (!(p.inventory||[]).length) html += '<span style="color:#8a7aa8;font-size:12px">空空如也</span>';
