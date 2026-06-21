@@ -1081,16 +1081,26 @@
                         }
                     }
 
-                    // Show scene transition message
+                    // Show scene transition message with atmosphere
                     const newScene = result.scene && result.scene.id;
                     if (newScene && lastSceneId && newScene !== lastSceneId) {
+                        const atmosphereLines = {
+                            '清幽': '四周静谧，灵气如丝如缕。',
+                            '庄严': '殿宇巍峨，威严肃穆。',
+                            '神秘': '薄雾轻笼，暗藏着什么秘密。',
+                            '繁忙': '人声鼎沸，热闹非凡。',
+                            '危险': '空气中弥漫着肃杀之气……',
+                            '幽静': '鸟鸣山更幽，心静自然凉。',
+                            '缥缈': '水天一色，如在画中游。',
+                        };
+                        const atmLine = atmosphereLines[result.scene.atmosphere] || '';
                         const travMsg = document.createElement('div');
                         travMsg.className = 'msg system';
                         const tb = document.createElement('div');
                         tb.className = 'bubble';
                         tb.style.fontSize = '12px';
                         tb.style.color = '#9dd5ff';
-                        tb.textContent = `🚶 你来到了${result.scene.name}。`;
+                        tb.textContent = `🚶 你来到了${result.scene.name}。${atmLine}`;
                         travMsg.appendChild(tb);
                         container.insertBefore(travMsg, container.firstChild.nextSibling);
                     }
