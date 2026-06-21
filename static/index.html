@@ -301,8 +301,12 @@
                 chips.push('炼制聚气丹');
             }
 
-            // Items — suggest use if any
-            if (inv.length > 0) chips.push(`使用${inv[0]}`);
+            // Items — suggest healing items when low HP, otherwise first item
+            const hpPct3 = (p.hp||100) / (p.max_hp||100);
+            if (hpPct3 < 0.5) {
+                const heals = inv.filter(i => ['凝露草','灵鱼','灵芝','聚气丹'].includes(i));
+                if (heals.length > 0) chips.push(`使用${heals[0]}`);
+            } else if (inv.length > 0) chips.push(`使用${inv[0]}`);
 
             // Equipped items indicator
             const wepName = player.weapon || null;
