@@ -384,7 +384,10 @@
                 const isWep = it.includes('剑')||it.includes('刀')||it.includes('掌');
                 const isArm = it.includes('甲')||it.includes('袍')||it.includes('衣');
                 const curEq = isWep && p.weapon ? p.weapon : isArm && p.armor ? p.armor : null;
-                const compare = curEq ? ` (当前:${curEq})` : '';
+                const itBonusVal = {'青锋剑':5,'布甲':3}[it]||0;
+                const curEqBonus = curEq ? ({'青锋剑':5,'布甲':3}[curEq]||0) : 0;
+                const arrow = curEq && itBonusVal ? (itBonusVal > curEqBonus ? '↑' : itBonusVal < curEqBonus ? '↓' : '→') : '';
+                const compare = curEq ? ` (当前:${curEq}${arrow})` : '';
                 html += `<span class="obj-tag" style="border-color:${color};color:${color}" title="[${itemRarity[it]||'?'}] ${itemEffects[it]||'?'}${source}${price}${compare}${cnt>1?' ×'+cnt:''}" data-prefill="查看${escapeAttr(it)}">${catTag}${escapeHtml(it)}${rarityStars[itemRarity[it]]||''}${cnt>1?'<small style=\"opacity:0.7\">×'+cnt+'</small>':''}</span>`;
                 html += `<span class="obj-tag" style="background:rgba(107,200,255,0.18);color:#9dd5ff;border-color:rgba(107,200,255,0.4)" data-prefill="使用${escapeAttr(it)}">使用</span>`;
                 if (canEquip) html += `<span class="obj-tag" style="background:rgba(255,215,0,0.18);color:#ffd700;border-color:rgba(255,215,0,0.4)" data-prefill="装备${escapeAttr(it)}">装备</span>`;
