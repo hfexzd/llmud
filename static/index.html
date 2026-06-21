@@ -577,7 +577,10 @@
                 document.getElementById('p-hp').textContent = `${data.hp ?? 100}/${data.max_hp ?? 100}`;
                 document.getElementById('p-atk').textContent = data.attack ?? 0;
                 document.getElementById('p-def').textContent = data.defense ?? 0;
-            document.getElementById('p-stones').textContent = data.spirit_stones ?? 0;
+            const stones = data.spirit_stones ?? 0;
+            const stoneEl = document.getElementById('p-stones');
+            stoneEl.textContent = stones;
+            stoneEl.style.color = stones < 20 ? '#ff6b6b' : stones < 50 ? '#ffd700' : '#ffd700';
             document.getElementById('p-tick-display').textContent = data.tick ?? 0;
             const qs = data.quests || [];
             const done = qs.filter(q => q.status === 'completed').length;
