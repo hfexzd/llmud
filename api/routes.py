@@ -283,6 +283,20 @@ def create_router(
         elif intent == Intent.TALK:
             pass  # NPC interaction handled in DM phase
 
+        # Item inspection: if input contains "查看" + item name, show description
+        item_inspect_message = None
+        if "查看" in filtered_input and not item_use_message:
+            for part in filtered_input.split("查看"):
+                part = part.strip()
+                if part and len(part) >= 2:
+                    for spec in PHASE_0_BIBLE.items:
+                        if spec.name in part:
+                            rarity_cn = {"凡": "凡品", "灵": "灵品", "玄": "玄品", "天": "天品"}
+                            r = rarity_cn.get(spec.rarity, spec.rarity)
+                            item_inspect_message = f"【{spec.name}】（{r} {spec.kind}）{spec.lore}（效果：{spec.effect}）"
+                            break
+                    break
+
         # Item usage: if input contains "使用" + item name, consume from inventory
         item_use_message = None
         if "使用" in filtered_input:
@@ -751,6 +765,10 @@ def create_router(
             # Surface item use message if an item was consumed
             if item_use_message:
                 rest["item_use"] = item_use_message
+
+            # Surface item inspect message if an item was examined
+            if item_inspect_message:
+                rest["item_inspect"] = item_inspect_message
 
             # Add intervention info to response
             if intervention:

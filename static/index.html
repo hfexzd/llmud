@@ -704,11 +704,12 @@
                         container.insertBefore(card, container.firstChild);
                     }
 
-                    // Show item use message if present
-                    if (result.item_use) {
+                    // Show item messages (use or inspect)
+                    const itemMsg = result.item_use || result.item_inspect;
+                    if (itemMsg) {
                         const card = document.createElement('div');
                         card.className = 'world-event';
-                        card.textContent = result.item_use;
+                        card.textContent = itemMsg;
                         container.appendChild(card);
                     }
 
