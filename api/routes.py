@@ -594,6 +594,17 @@ def create_router(
             player = player.model_copy(update={"spirit_power": player.spirit_power + 2})
             _response_extras[0] = "你坐在湖畔，看夕阳一点点沉入水面，天地间一片宁静。（灵力+2）"
 
+        # Net fishing at misty_lake
+        if "撒网" in filtered_input and player.current_scene == "misty_lake":
+            import random as _net
+            catch = _net.randint(0, 3)
+            if catch > 0:
+                new_inv = list(player.inventory or []) + ["灵鱼"] * catch
+                player = player.model_copy(update={"inventory": new_inv})
+                _response_extras[0] = f"你撒下一网，捞到了{catch}条灵鱼！"
+            else:
+                _response_extras[0] = "你撒下一网，只捞起了一些水草。"
+
         # Fishing at misty_lake
         if "钓鱼" in filtered_input and player.current_scene == "misty_lake":
             import random as _rand
