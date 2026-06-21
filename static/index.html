@@ -126,6 +126,10 @@
             </select>
         </span>
     </div>
+    <div id="loading-screen" style="position:fixed;inset:0;background:#1b1430;display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:16px">
+        <div style="color:#6b3fa0;font-size:24px;font-weight:bold">修仙 MUD</div>
+        <div style="color:#b8a0d4;font-size:14px">正在加载...</div>
+    </div>
     <div id="scene-panel"></div>
     <div id="drawer-overlay" onclick="closeDrawer()"></div>
     <div id="drawer">
@@ -545,6 +549,9 @@
                 // 在场人物 / 通道 live in the 地点 & 角色 panels — not duplicated
                 // in the top status bar (keeps the bar one compact row).
                 renderScenePanel();
+                // Hide loading screen
+                const ls = document.getElementById('loading-screen');
+                if (ls) { ls.style.opacity = '0'; ls.style.transition = 'opacity 0.5s'; setTimeout(() => ls.remove(), 600); }
                 maybeShowIntro(data);
                 renderActionChips();
             } catch(e) {
