@@ -194,6 +194,10 @@ def use_item(player: Player, item_name: str) -> tuple[Player, str]:
         if "气血上限" in item_spec.effect:
             new_p = new_p.model_copy(update={"max_hp": new_p.max_hp + 10, "hp": new_p.hp + 10})
             effect_msg = "气血上限+10"
+        if "永久提升灵力" in item_spec.effect:
+            gain = 15
+            new_p = new_p.model_copy(update={"spirit_power": new_p.spirit_power + gain})
+            effect_msg = f"灵力上限永久+{gain}（洗筋伐髓）"
         if "解除" in item_spec.effect:
             effect_msg = "毒素已清除"
     else:
