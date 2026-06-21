@@ -50,3 +50,33 @@ def test_prompt_includes_world_delta_rule():
         player=Player(), intent=Intent.OTHER,
     )
     assert "13." in system or "world_delta" in system.lower()
+
+
+def test_build_ending_prompt_includes_archetype_guidance():
+    """The ending prompt must include the archetype's finale_guidance."""
+    from dm.prompt import build_ending_prompt
+    from engine.models import TERMINAL_ARCHETYPES
+    archetype = TERMINAL_ARCHETYPES[0]  # ascension
+    system, _ = build_ending_prompt(
+        archetype_id=archetype.id,
+        resolved_tensions=[],
+        player=Player(),
+    )
+    assert archetype.finale_guidance in system
+    assert "飞升" in system or "ascension" in system
+
+
+def test_build_ending_prompt_includes_resolved_tensions():
+    """Resolved tension summaries appear in the ending prompt."""
+    from dm.prompt import build_ending_prompt
+    from engine.models import ResolvedTension
+    rts = [ResolvedTension(
+        tension_id="venture_bamboo", resolved_tick=5, path_id="reach_bamboo",
+        summary="抵达幽竹林",
+    )]
+    system, _ = build_ending_prompt(
+        archetype_id="wanderer",
+        resolved_tensions=rts,
+        player=Player(),
+    )
+    assert "抵达幽竹林" in system

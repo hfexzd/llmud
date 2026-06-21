@@ -1,5 +1,6 @@
 from engine.models import (
     Player, Intent, CombatResult, BreakthroughResult, Scene, WorldEvent, Goal,
+    WorldBible, ResolvedTension,
     world_canon,
 )
 
@@ -164,6 +165,65 @@ def build_dm_prompt(
         user_prompt = npc_context
 
     return system_prompt, user_prompt
+
+
+# ---------------------------------------------------------------------------
+# M4: Finale (ending narration) prompt
+# ---------------------------------------------------------------------------
+
+ENDINGS_FINALE_TEMPLATE = """你是一款文字修仙 MUD 游戏的"终章叙事者"。
+
+玩家的旅程已经走到了终点。请根据以下信息，写出一段 200-300 字的终章叙事——回顾来路、定格此刻、暗示余韵。
+
+【玩家最终状态】：
+- 名字：{name}
+- 最终境界：{level}
+- 最终灵力：{spirit_power}
+
+【结局类型】：{ending_name}
+
+【叙事指引】：{finale_guidance}
+
+【一路走来（已解决的世界事件按时间顺序）】：
+{resolved_story}
+
+请写一段中文终章叙事，控制在 200-300 字内，饱含情感，呼应过往经历，给这段旅程一个令人难忘的收尾。"""
+
+
+def build_ending_prompt(
+    archetype_id: str,
+    resolved_tensions: list[ResolvedTension],
+    player: Player,
+    bible: WorldBible | None = None,
+) -> tuple[str, str]:
+    """Build system + user prompt for the finale LLM call.
+
+    The prompt includes the archetype's finale_guidance, the player's final
+    state, and a chronological summary of resolved tensions (the player's
+    journey).
+    """
+    from engine.models import TERMINAL_ARCHETYPES
+
+    archetype = next((a for a in TERMINAL_ARCHETYPES if a.id == archetype_id), None)
+    if archetype is None:
+        archetype = TERMINAL_ARCHETYPES[-1]  # fallback to wanderer
+
+    # Build resolved-tension timeline
+    resolved_lines: list[str] = []
+    for i, rt in enumerate(resolved_tensions, 1):
+        label = rt.summary or rt.tension_id
+        resolved_lines.append(f"{i}. [第{rt.resolved_tick}回合] {label}")
+    resolved_story = "\n".join(resolved_lines) if resolved_lines else "（无）"
+
+    system_prompt = ENDINGS_FINALE_TEMPLATE.format(
+        name=player.name,
+        level=player.level,
+        spirit_power=player.spirit_power,
+        ending_name=archetype.name,
+        finale_guidance=archetype.finale_guidance,
+        resolved_story=resolved_story,
+    )
+    return system_prompt, ""
 
 
 def build_npc_system_prompt(
