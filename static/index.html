@@ -237,6 +237,13 @@
             const npcDisplayNames = {'linwaner':'林婉儿','chenhao':'陈浩','old_yang':'杨老','medicine_elder':'药老','lake_hermit':'湖隐'};
             if (present.length > 0) chips.push(`和${npcDisplayNames[present[0].id]||present[0].id}搭话`);
 
+            // Shop at market
+            if (scene.id === 'market') {
+                chips.push('购买聚气丹', '购买凝露草');
+            }
+            // Cultivate at spirit_valley (high灵气)
+            if (scene.id === 'spirit_valley') chips.push('向药老请教');
+
             // Items — suggest use if any
             if (inv.length > 0) chips.push(`使用${inv[0]}`);
 
