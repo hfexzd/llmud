@@ -465,7 +465,9 @@
             const activeQuest = (panelData.quests||[]).find(q => q.status === 'active');
             const invCount = (p.inventory||[]).length;
             const invColor = invCount >= 10 ? '#ff6b6b' : invCount >= 8 ? '#ffd700' : '#8a7aa8';
-            html += `<div style="font-size:11px;color:#8a7aa8;margin-bottom:4px">💰${p.spirit_stones||0}灵石 | 🎒<span style="color:${invColor}">${invCount}/10</span>`;
+            const dangerScenes = {'bamboo_forest':' ⚔','mountain_range':' ⚔','spirit_valley':' 💀','misty_lake':' 💀'};
+            const dangerIcon = dangerScenes[scene.id] || '';
+            html += `<div style="font-size:11px;color:#8a7aa8;margin-bottom:4px">💰${p.spirit_stones||0}灵石 | 🎒<span style="color:${invColor}">${invCount}/10</span>${dangerIcon}`;
             if (activeQuest) html += ` | <span style="color:#9dd5ff">▶ ${escapeHtml(activeQuest.label)}</span>`;
             html += `</div>`;
             html += `<div class="scene-desc">${descHtml}</div></div>`;
