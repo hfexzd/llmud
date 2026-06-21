@@ -441,6 +441,13 @@ def create_router(
             player = player.model_copy(update={"inventory": new_inv})
             _response_extras[0] = f"你在山谷中采到了{found}。{'(药老点了点头。)' if _herb.random()<0.3 else ''}"
 
+        # Bonfire at mountain_range
+        if "生火" in filtered_input and player.current_scene == "mountain_range":
+            heal_fire = min(15, player.max_hp - player.hp)
+            if heal_fire > 0:
+                player = player.model_copy(update={"hp": player.hp + heal_fire})
+            _response_extras[0] = f"你生起一堆篝火，暖意融融。" + (f"（气血+{heal_fire}）" if heal_fire > 0 else "")
+
         # Fishing at misty_lake
         if "钓鱼" in filtered_input and player.current_scene == "misty_lake":
             import random as _rand
