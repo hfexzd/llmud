@@ -83,6 +83,7 @@ class Player(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     last_seen: datetime = Field(default_factory=datetime.now)
     offline_directive: str = "闭关"  # 闭关 | 历练 | 静养
+    spirit_stones: int = 100
 
 
 class Encounter(BaseModel):
@@ -1091,6 +1092,21 @@ PHASE_0_BIBLE = WorldBible(
     ],
     ending_hints={},
 )
+
+
+# Shop catalog: items available for purchase at the market
+SHOP_ITEMS: list[dict] = [
+    {"name": "凝露草", "price": 10, "scene": "market"},
+    {"name": "聚气丹", "price": 25, "scene": "market"},
+    {"name": "解毒丹", "price": 15, "scene": "market"},
+    {"name": "青锋剑", "price": 50, "scene": "market"},
+    {"name": "布甲", "price": 40, "scene": "market"},
+]
+
+
+def shop_list(scene_id: str) -> list[dict]:
+    """Return items available in a given scene's shop."""
+    return [s for s in SHOP_ITEMS if s["scene"] == scene_id]
 
 
 # --- Terminal Archetypes (M4 ending system) ---

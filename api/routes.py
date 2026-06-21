@@ -10,7 +10,7 @@ from dm.client import LLMClient
 from dm.contract import parse_dm_response, extract_story_so_far
 from dm.prompt import build_dm_prompt
 from engine.classify import classify_intent, classify_intent_llm, resolve_npc_target
-from engine.models import Intent, Player, Encounter, DEFAULT_ENCOUNTER, NPCInteraction, EventTrigger, WorldEvent, SCENE_MAP, next_spirit_threshold, DMResponse, WorldState, PHASE_0_BIBLE
+from engine.models import Intent, Player, Encounter, DEFAULT_ENCOUNTER, NPCInteraction, EventTrigger, WorldEvent, SCENE_MAP, next_spirit_threshold, DMResponse, WorldState, PHASE_0_BIBLE, SHOP_ITEMS, shop_list
 from engine.rules import cultivate, resolve_combat, check_breakthrough, compute_attack, compute_defense, move
 from engine.world import WorldEngine, npc_step, tension_tick, apply_world_delta
 from db.repository import PlayerRepository, NPCRepository, WorldRepository
@@ -109,6 +109,7 @@ def create_router(
                 "landmarks": scene.landmarks,
                 "npcs_present": npcs_present,
                 "connections": scene.connections,
+                "shop": shop_list(scene.id) or None,
             }
 
         # NPC cards for the 人物 panel: all NPCs, with present flag + profile data.
@@ -153,6 +154,7 @@ def create_router(
             "max_hp": player.max_hp,
             "affinity": player.affinity,
             "inventory": player.inventory,
+            "spirit_stones": player.spirit_stones,
             "weapon": player.weapon,
             "armor": player.armor,
             "attack": compute_attack(player),
@@ -396,6 +398,36 @@ def create_router(
                     player = player.model_copy(update={"inventory": new_inv, slot: None})
                     slot_name = "武器" if slot == "weapon" else "防具"
                     equip_message = f"卸下了{current}（{slot_name}栏已空）"
+                    break
+
+        # Buy/sell at market
+        shop_message = None
+        if "购买" in filtered_input and player.current_scene == "market":
+            for s in SHOP_ITEMS:
+                if s["name"] in filtered_input and player.spirit_stones >= s["price"]:
+                    new_inv = list(player.inventory or []) + [s["name"]]
+                    player = player.model_copy(update={
+                        "inventory": new_inv,
+                        "spirit_stones": player.spirit_stones - s["price"],
+                    })
+                    shop_message = f"购买了{s['name']}（花费{s['price']}灵石）"
+                    break
+        if ("出售" in filtered_input or "卖掉" in filtered_input) and player.inventory:
+            for name in list(player.inventory):
+                if name in filtered_input:
+                    sell_price = 0
+                    for s in SHOP_ITEMS:
+                        if s["name"] == name:
+                            sell_price = s["price"] // 2
+                            break
+                    if sell_price > 0:
+                        new_inv = list(player.inventory)
+                        new_inv.remove(name)
+                        player = player.model_copy(update={
+                            "inventory": new_inv,
+                            "spirit_stones": player.spirit_stones + sell_price,
+                        })
+                        shop_message = f"出售了{name}（获得{sell_price}灵石）"
                     break
 
         # Item usage: if input contains "使用" + item name, consume from inventory
@@ -801,6 +833,7 @@ def create_router(
                     "landmarks": scene.landmarks,
                     "npcs_present": npcs_in_scene_now,
                     "connections": scene.connections,
+                    "shop": shop_list(scene.id) or None,
                 }
 
             # Recompute the current objective from the final player state (a
@@ -880,6 +913,10 @@ def create_router(
             # Surface equip message
             if equip_message:
                 rest["item_use"] = equip_message
+
+            # Surface shop message
+            if shop_message:
+                rest["item_use"] = shop_message
 
             # Add intervention info to response
             if intervention:
