@@ -351,7 +351,9 @@
                         `<span class="link-obj" data-prefill="查看${escapeAttr(lm)}">${escapeHtml(lm)}</span>`);
                 }
             });
+            const p = panelData.player || {};
             let html = `<div class="panel-sec"><div class="panel-label">${escapeHtml(scene.name||'')} · ${escapeHtml(scene.atmosphere||'')}</div>`;
+            html += `<div style="font-size:11px;color:#8a7aa8;margin-bottom:4px">💰${p.spirit_stones||0}灵石 | 🎒${(p.inventory||[]).length}件物品</div>`;
             html += `<div class="scene-desc">${descHtml}</div></div>`;
 
             // 在场人物 — present NPCs as interactable "搭话" tags, listed
