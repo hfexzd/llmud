@@ -469,10 +469,15 @@ def create_router(
                 if kw in filtered_input:
                     part = filtered_input.split(kw)[-1].strip()
                     if part and part in (player.inventory or []):
-                        new_inv = list(player.inventory)
-                        new_inv.remove(part)
-                        player = player.model_copy(update={"inventory": new_inv})
-                        _response_extras[0] = f"丢弃了{part}。"
+                        # Rare items need confirmation (type 确认丢弃 to proceed)
+                        rare_items = {"灵芝", "蛇胆", "湖心珠", "洗髓丹", "青锋剑", "布甲"}
+                        if part in rare_items and "确认" not in filtered_input:
+                            _response_extras[0] = f"⚠️ {part}是稀有物品，再次输入「确认丢弃{part}」以确认。"
+                        else:
+                            new_inv = list(player.inventory)
+                            new_inv.remove(part)
+                            player = player.model_copy(update={"inventory": new_inv})
+                            _response_extras[0] = f"丢弃了{part}。"
                     break
 
         # Alchemy: craft items at spirit_valley
