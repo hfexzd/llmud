@@ -832,7 +832,7 @@ class TestEndingIntegration:
         world_repo = WorldRepository(db_conn)
         engine = WorldEngine()
 
-        player_repo.save(Player(id="p1", current_scene="outer_gate", tick=25))
+        player_repo.save(Player(id="p1", current_scene="outer_gate", tick=510))
 
         router = create_router(mock_llm_client, player_repo, npc_repo,
                                DEFAULT_ENCOUNTER, engine, world_repo)
@@ -844,7 +844,7 @@ class TestEndingIntegration:
             assert response.status_code == 200
             data = response.json()
             assert "ending" in data
-            # wanderer is the fallback ending -- should fire after min_tick=20
+            # wanderer is the fallback ending -- should fire after min_tick=500
             assert data["ending"]["id"] == "wanderer"
 
     @pytest.mark.asyncio

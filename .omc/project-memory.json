@@ -147,14 +147,14 @@
   "hotPaths": [
     {
       "path": "static\\index.html",
-      "accessCount": 596,
-      "lastAccessed": 1782050222498,
+      "accessCount": 603,
+      "lastAccessed": 1782051568422,
       "type": "file"
     },
     {
       "path": "api\\routes.py",
-      "accessCount": 390,
-      "lastAccessed": 1782050702909,
+      "accessCount": 393,
+      "lastAccessed": 1782051527516,
       "type": "file"
     },
     {
@@ -165,8 +165,8 @@
     },
     {
       "path": "tests\\test_api.py",
-      "accessCount": 58,
-      "lastAccessed": 1782030436431,
+      "accessCount": 61,
+      "lastAccessed": 1782051494789,
       "type": "file"
     },
     {
@@ -188,15 +188,15 @@
       "type": "file"
     },
     {
-      "path": "docs\\superpowers\\specs\\2026-06-21-emergent-world-design.md",
-      "accessCount": 20,
-      "lastAccessed": 1782023194535,
+      "path": "db\\repository.py",
+      "accessCount": 21,
+      "lastAccessed": 1782051575094,
       "type": "file"
     },
     {
-      "path": "db\\repository.py",
+      "path": "docs\\superpowers\\specs\\2026-06-21-emergent-world-design.md",
       "accessCount": 20,
-      "lastAccessed": 1782025837222,
+      "lastAccessed": 1782023194535,
       "type": "file"
     },
     {

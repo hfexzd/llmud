@@ -976,6 +976,11 @@
             document.getElementById('favorability-fill').style.width = `${npc.favorability ?? 50}%`;
         }
 
+        async function resetGame() {
+            await fetch('/game/reset', {method:'POST'});
+            location.reload();
+        }
+
         function showEndingCard(ending, storyText) {
             if (!ending) return;
             const overlay = document.createElement('div');
@@ -985,7 +990,7 @@
                     <h1>${ending.name || ''}</h1>
                     <div class="subtitle">旅程落幕</div>
                     <div class="ending-story">${storyText || ''}</div>
-                    <button class="ending-btn" onclick="location.reload()">重新开始</button>
+                    <button class="ending-btn" onclick="resetGame()">重新开始</button>
                 </div>
             `;
             document.body.appendChild(overlay);
@@ -1059,6 +1064,9 @@
             if (!text) return;
             inputEl.value = '';
             inputEl.focus();
+
+            // Handle reset command locally
+            if (text === '重新开始') { await resetGame(); return; }
 
             // Clear scene panel immediately so stale scene info isn't shown
             // during the LLM streaming delay. The panel will repopulate when

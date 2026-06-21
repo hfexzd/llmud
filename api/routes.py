@@ -250,7 +250,33 @@ def create_router(
 
     @router.post("/game/reset")
     def reset_game():
-        """Reset all game state: player, NPCs, and world to defaults."""
+        """Save current run to history, then reset all game state."""
+        import os, json, datetime
+        player = player_repo.get("p1")
+        world_state = world_repo.get("default")
+        if player and world_state:
+            # Save completed run to history
+            save_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "saves")
+            os.makedirs(save_dir, exist_ok=True)
+            ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            run_record = {
+                "ended_at": ts,
+                "player": {
+                    "name": player.name, "level": player.level,
+                    "spirit_power": player.spirit_power, "tick": player.tick,
+                    "visited_scenes": player.visited_scenes,
+                    "inventory": player.inventory,
+                    "kills": player.kills,
+                },
+                "world": {
+                    "phase_id": world_state.phase_id,
+                    "world_pressure": world_state.world_pressure,
+                    "resolved_tensions": [rt.model_dump() for rt in world_state.resolved_tensions],
+                    "ending": world_state.ending,
+                },
+            }
+            with open(os.path.join(save_dir, f"run-{ts}.json"), "w", encoding="utf-8") as f:
+                json.dump(run_record, f, ensure_ascii=False, indent=2)
         from engine.models import DEFAULT_PLAYER
         player_repo.delete("p1")
         player_repo.save(DEFAULT_PLAYER)
@@ -259,7 +285,7 @@ def create_router(
         from api.app import seed_database
         seed_database(player_repo, npc_repo)
         _cache.clear()
-        return {"status": "ok", "message": "游戏已重置 — 一切从零开始。"}
+        return {"status": "ok", "message": "游戏已重置 — 上一轮记录已保存至 saves/ 目录。"}
 
     # ------------------------------------------------------------------
     # POST /game/action — full action pipeline with world layer
