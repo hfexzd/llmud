@@ -301,6 +301,12 @@
             const armB = p.armor ? Object.entries(armBonus).find(([k])=>p.armor.includes(k)) : null;
             if (p.weapon) html += `<div class="stat-line"><span>武器</span><b style="color:#9dd5ff">${escapeHtml(p.weapon)} ${wepB?'(攻+'+wepB[1]+')':''} <span class="obj-tag" style="font-size:10px;padding:1px 6px;background:rgba(255,107,107,0.2);border-color:#ff6b6b;color:#ff6b6b;cursor:pointer" data-prefill="卸下${escapeAttr(p.weapon)}">卸下</span></b></div>`;
             if (p.armor) html += `<div class="stat-line"><span>防具</span><b style="color:#9dd5ff">${escapeHtml(p.armor)} ${armB?'(防+'+armB[1]+')':''} <span class="obj-tag" style="font-size:10px;padding:1px 6px;background:rgba(255,107,107,0.2);border-color:#ff6b6b;color:#ff6b6b;cursor:pointer" data-prefill="卸下${escapeAttr(p.armor)}">卸下</span></b></div>`;
+            // Attack/defense breakdown
+            const baseAtk = Math.floor((p.spirit_power||0) * (p.level === '练气期一层'?1:p.level==='练气期二层'?1.2:p.level==='练气期三层'?1.5:p.level==='筑基期一层'?2:1));
+            const baseDef = Math.floor((p.spirit_power||0) / 2) + 5;
+            const wepAtk = wepB ? wepB[1] : 0;
+            const armDef = armB ? armB[1] : 0;
+            html += `<div class="stat-line" style="font-size:11px;color:#8a7aa8"><span>⚔ ${baseAtk}${wepAtk?'+'+wepAtk+'='+(baseAtk+wepAtk):''}</span><span>🛡 ${baseDef}${armDef?'+'+armDef+'='+(baseDef+armDef):''}</span></div>`;
             html += `<div class="panel-label">行囊</div><div>`;
             const rarityColors = {'灵':'#ffd700','凡':'#b8a0d4'};
             const equippable = ['剑','刀','掌','拳','杖','袍','甲','衣','铠','盾'];
